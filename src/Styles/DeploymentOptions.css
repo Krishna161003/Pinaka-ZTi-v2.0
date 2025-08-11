@@ -1,0 +1,145 @@
+.container {
+  display: flex;
+  justify-content: flex-start; /* Align contents to the left */
+  align-items: flex-start; /* Align contents to the top */
+  min-height: 80vh; /* Increased height */
+  width: 100%; /* Full width */
+  background-color: #f0f2f5; /* Light background color */
+  padding: 20px; /* Add padding around the content */
+}
+
+.main-content {
+  text-align: left; /* Align text to the left */
+}
+
+h1 {
+  color: #333333; /* Dark text color */
+  font-size: 2rem; /* Larger font size for heading */
+  margin-bottom: 75px; /* Space below heading */
+  user-select: none; /* Standard syntax */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+h4 {
+  margin-bottom: 30px; /* Add space below the heading */
+}
+
+h5 {
+  padding-left: 2%;
+  font-size: larger;
+}
+
+.options-container {
+  display: flex;
+  justify-content: flex-start; /* Align the cards to the left */
+  gap: 40px; /* Increased gap between cards for more space */
+  flex-wrap: wrap; /* Allows wrapping on smaller screens */
+}
+
+.option-box {
+  width: 350px; /* Increased width of each option box */
+  height: 200px; /* Increased height of each option box */
+  margin-bottom: 30px; 
+  cursor: pointer; /* Change cursor on hover */
+  transition: transform 0.3s ease;
+}
+
+.option-box.selected {
+  background-color: transparent; /* Transparent background */
+}
+
+.option {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  position: relative;
+  user-select: none; /* Standard syntax */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* Internet Explorer/Edge */
+}
+
+.option-content {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border: 1px solid #ccc; /* Gray border */
+  border-radius: 15px; /* Rounded corners */
+  padding: 10px; /* Reduced padding inside the box */
+  background-color: #ffffff; /* White background */
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1); /* Soft shadow */
+  display: flex; /* Use flexbox for centering */
+  justify-content: center; /* Center content horizontally */
+  align-items: center; /* Center content vertically */
+}
+
+.option-content.front {
+  z-index: 2; /* Ensure front is above back */
+}
+
+.option-text {
+  font-size: 1rem; /* Reduced font size for option text */
+  color: #333333; /* Dark text color */
+  margin-bottom: 10%;
+}
+
+.heading-text {
+  font-size: 1.2rem;
+  color: #333333;
+  padding-left: 2%;
+}
+
+.nButton {
+  margin-top: 0px; /* Space above next button */
+  padding: 10px 0px;
+  font-size: 16px;
+  background-color: #2596be;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.custom-button {
+  height: 33px; /* Set your desired height */
+  width: 145px; /* Set your desired width */
+  font-size: 15px; /* Adjust font size if necessary */
+  margin-top: 40%;
+}
+
+.nextButton:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.nextButton:not(:disabled):hover {
+  background-color: #0056b3;
+}
+
+/* Scroll Bar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  box-shadow: inset 0 0 5px #22262b;
+  border-radius: 10px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #22262b;
+  border-radius: 10px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #22262b;
+}
+

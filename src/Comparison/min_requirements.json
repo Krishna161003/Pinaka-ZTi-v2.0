@@ -1,0 +1,6 @@
+{
+  "cpu_cores": 4,
+  "memory": "8Gi",
+  "disk_count": 2,
+  "nic_1g_count": 2
+}

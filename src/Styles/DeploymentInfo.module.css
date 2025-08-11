@@ -1,0 +1,124 @@
+/* DiscoveredMachines Component CSS */
+
+.data-table-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    padding: 20px; /* Adjust padding as needed */
+}
+
+.data-table-header {
+    margin-bottom: 20px;
+}
+/* Scroll Bar */
+::-webkit-scrollbar {
+    width: 5px;
+  }
+  
+  /* Track */
+  ::-webkit-scrollbar-track {
+    box-shadow: inset 0 0 5px #22262b; 
+    border-radius: 10px;
+  }
+   
+  /* Handle */
+  ::-webkit-scrollbar-thumb {
+    background: #22262b; 
+    border-radius: 10px;
+  }
+  
+  /* Handle on hover */
+  ::-webkit-scrollbar-thumb:hover {
+    background: #22262b;
+  }
+
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #dddddd;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+    margin-top: -370px;
+    margin-left: 100px;
+}
+
+.data-table th, .data-table td {
+    border: 1px solid #dddddd;
+    padding: 19px;
+    text-align: left;
+}
+
+.data-table th {
+    background-color: #f2f2f2;
+    color: #333333;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.data-table td {
+    font-size: 14px;
+}
+
+.data-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f0f0f0;
+}
+
+.data-table button {
+    padding: 8px 12px;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.data-table button:hover {
+    background-color: #2596be;
+}
+body {
+    overflow-y: hidden; /* Hide vertical scrollbar */
+  }
+
+  .button-deploy {
+    background-color: #2596be;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    margin-left: -53px;
+}
+
+/* Checkbox Appearance */
+.checkbox-column input[type="checkbox"] {
+    appearance: none;
+    background-color: #fff;
+    border: 1px solid #dddddd;
+    padding: 9px;
+    border-radius: 3px;
+    display: inline-block;
+    position: relative;
+    cursor: pointer;
+}
+
+.checkbox-column input[type="checkbox"]:checked {
+    background-color: #2596be;
+    border-color: #2596be;
+}
+
+.checkbox-column input[type="checkbox"]:checked::after {
+    content: '✔';
+    font-size: 12px;
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}

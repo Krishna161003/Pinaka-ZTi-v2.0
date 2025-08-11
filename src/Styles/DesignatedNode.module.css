@@ -1,0 +1,315 @@
+.container{
+    display: flex;
+    min-height: 100vh;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    padding-top:1%;
+    padding-left: 20%;
+    width:70%;
+}
+.headers1 {
+    margin-left: 10%;
+    position: relative;
+}
+
+.data-table-container {
+    margin-top: 6.7%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px; /* Reduced padding */
+    margin-left: 15%;
+    width: 80%; /* Adjust width */
+}
+
+.data-table-header {
+    margin-bottom: 20px;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #dddddd;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+    margin-left: 100px;
+}
+
+.data-table th,
+.data-table td {
+    border: 1px solid #dddddd;
+    padding: 19px;
+    text-align: left;
+}
+
+.data-table th {
+    background-color: #f2f2f2;
+    color: #333333;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.data-table td {
+    font-size: 14px;
+}
+
+.data-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f0f0f0;
+}
+
+.data-table button {
+    padding: 8px 12px;
+    background-color: #2596be;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.data-table button:hover {
+    background-color: #2596be;
+}
+
+body {
+    overflow-y: hidden;
+}
+
+.button-deploy {
+    background-color: #2596be;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: 37%;
+    margin-left: -53px;
+}
+
+.checkbox-column {
+    display: flex;
+    flex-direction: row;
+}
+
+.checkbox-column label {
+    display: flex;
+    align-items: center;
+    margin-right: 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.checkbox-column input[type="checkbox"] {
+    margin-right: 10px;
+    appearance: none;
+    background-color: #fff;
+    border: 1px solid #dddddd;
+    padding: 9px;
+    border-radius: 3px;
+    display: inline-block;
+    position: relative;
+    cursor: pointer;
+}
+
+.checkbox-column input[type="checkbox"]:checked {
+    background-color: #2596be;
+    border-color: #2596be;
+}
+
+.checkbox-column input[type="checkbox"]:checked + span {
+    color: #2596be;
+}
+
+.checkbox-column input[type="checkbox"]:checked::after {
+    content: '✔';
+    font-size: 12px;
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.text-fields-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    margin-top: 190px;
+    margin-left: -750px;
+}
+
+.text-fields-container .text-field {
+    display: flex;
+    flex-direction: column;
+    margin-right: 20px;
+}
+
+.text-fields-container label {
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.text-fields-container input[type="text"] {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 200px;
+    margin-top: 5px;
+}
+
+.bmc-form {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #ffffff;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    border-radius: 3%;
+    margin-left: 5%;
+}
+
+.bmc-form h2 {
+    text-align: center;
+    margin-bottom: 10px;
+    padding: 7%;
+    font-size: 22px;
+    
+}
+
+.bmc-form form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.bmc-form label {
+    margin: 10px 0;
+    font-size: 15px;
+}
+
+.bmc-form input {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #D3D3D3;
+    border-radius: 4px;
+    box-sizing: border-box;
+    transition: all 0.3s ease-in-out; /* Smooth transition */
+}
+  
+  .bmc-form input::placeholder {
+    color: #aaa;
+  }
+  
+  .bmc-form input:focus {
+    border-color: #2596be;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.2); /* Smooth focus effect */
+    outline: none;
+    transform: scale(1.02); /* Slightly increase the size */
+  }
+  
+  .bmc-form input:hover {
+    border-color: #2596be;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.2);
+    transform: scale(1.02); /* Slightly increase the size */
+  }
+
+.bmc-form button {
+    margin-top: 10px;
+    padding: 8px 16px;
+    background-color: #2596be;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 15px;
+}
+
+.bmc-form button:hover {
+    background-color: #2596be;
+}
+
+.loader {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-top: 4px solid #2596be;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.completed {
+    color: #2596be;
+    font-weight: bold;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+::-webkit-scrollbar {
+    width: 5px;
+}
+
+::-webkit-scrollbar-track {
+    box-shadow: inset 0 0 5px #22262b;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #22262b;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #22262b;
+}
+
+.backbutton {
+    position: relative;
+    /* bottom: 60px; */
+    left: 145px;
+    top: 10px;   
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #000;
+    margin-bottom:-9%;
+}
+
+.backbutton:hover {
+    color: #2596be;
+}
+/* Add styles for pagination */
+.pagination-button {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;  
+}
+
+.pagination-button button {
+    padding: 8px 12px; /* Reduced padding */
+    margin: 0 5px;
+    background-color: #f2f2f2;
+    border: 1px solid #dddddd;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.pagination-button button:disabled {
+    background-color: #2596be;
+    color: white;
+}

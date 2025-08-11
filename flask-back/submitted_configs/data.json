@@ -1,0 +1,42 @@
+{
+    "using_interfaces": {
+        "interface_01": {
+            "interface_name": "enp0s25",
+            "type": [
+                "primary"
+            ],
+            "vlan_id": "888",
+            "Bond_Slave": "NO",
+            "Properties": {
+                "IP_ADDRESS": "192.168.20.154",
+                "Netmask": "255.0.0.0",
+                "DNS": "8.8.8.8",
+                "gateway": "192.168.20.1"
+            }
+        },
+        "interface_02": {
+            "interface_name": "wlp3s0",
+            "type": [
+                "secondary"
+            ],
+            "vlan_id": "888",
+            "Bond_Slave": "NO"
+        }
+    },
+    "provider_cidr": "N/A",
+    "provider_gateway": "N/A",
+    "provider_startingip": "N/A",
+    "provider_endingip": "N/A",
+    "tenant_cidr": "10.0.0.0/24",
+    "tenant_gateway": "10.0.0.1",
+    "tenant_nameserver": "8.8.8.8",
+    "disk": [
+        null
+    ],
+    "vip": "192.168.20.20",
+    "default_gateway": "192.168.20.1",
+    "hostname": "pinakasv",
+    "license_code": "7b9dbea382b7",
+    "license_type": "trial",
+    "license_period": 15
+}

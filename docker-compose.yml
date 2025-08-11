@@ -1,0 +1,68 @@
+version: "3.8"
+services:
+  react-app:
+    build:
+      context: .
+    ports:
+      - "1010:443"
+    depends_on:
+      - node-backend
+      - mysql-db
+    networks:
+      - pinakastra-cloud_my-network
+    environment:
+      - REACT_APP_HOST_IP=${REACT_APP_HOST_IP} # Dynamically pass the HOST_IP
+    volumes:
+      - shared-data:/usr/share/nginx/html
+    restart: always
+
+  node-backend:
+    build:
+      context: ./backend/db
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql-db
+    environment:
+      - DB_HOST=mysql-db
+      - DB_USER=root
+      - DB_PASSWORD=Likith@172323
+      - DB_NAME=standalone
+      - EMAIL_USER=pinakastra.join@gmail.com
+      - EMAIL_PASS=sqei dbiv vxou ddsy
+      - SESSION_SECRET=your-secret-key
+    entrypoint: [ "/bin/sh", "-c", "./wait-for-it-script.sh mysql-db node server.js" ]
+    volumes:
+      - ./ssl:/etc/ssl # Mount the SSL directory
+      - ./update-password.sh:/usr/src/app/update-password.sh
+      - ./.env:/usr/src/app/.env
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+  mysql-db:
+    image: mysql:8.0
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: Likith@172323
+      MYSQL_DATABASE: standalone
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+volumes:
+  mysql-data:
+  shared-data:
+
+
+networks:
+  pinakastra-cloud_my-network:
+    external: true

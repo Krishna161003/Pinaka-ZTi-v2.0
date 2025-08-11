@@ -1,0 +1,255 @@
+/* General Styles */
+.bg-image {
+  background-image: url('../Images/server.png');  
+  background-size: cover;
+  background-position: center;
+}
+.container {
+  display: flex;
+  justify-content: center; /* Center contents horizontally */
+  align-items: center; /* Center contents vertically */
+  min-height: 100vh; /* Adjust height as needed */
+  background-color: #f0f2f5; /* Light background color */
+}
+
+
+
+/* .login-heading {
+  font-weight: 300;
+} */
+
+.btn-login {
+  font-size: 0.9rem;
+  letter-spacing: 0.05rem;
+  padding: 0.75rem 1rem;
+}
+.invalid
+{
+  border-color: red!important;
+}
+
+body {
+  font-family: 'Open Sans', sans-serif;
+  background-color: #f0f2f5;
+  margin: 0;
+  padding: 0;
+}
+
+.App {
+  /* text-align: center; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+/* Registration Form Styles */
+.registration-form {
+  border-radius: 10px;
+  max-width: 2000px;
+  width: 200%;
+  /* text-align: center; */
+  /* justify-content: center; */
+  /* align-items: center; */
+  padding-left: 23%;
+  padding-right: 25%;
+  font-family: 'CustomFont', sans-serif;
+}
+
+.form-group {
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.registration-form label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+input {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #D3D3D3;
+  border-radius: 4px;
+  transition: all 0.3s ease-in-out;  /* Smooth transition */
+  
+}
+
+input::placeholder {
+  color: #aaa;
+}
+
+ input:focus {
+  border-color: #2596be;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.2);  /* Smooth focus effect */
+  outline: none;
+  transform: scale(1.02);  /* Slightly increase the size */
+}
+input::placeholder {
+  color: #888; /* Darker placeholder color */
+}
+
+ input:hover {
+  border-color: #2596be;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.2);
+  transform: scale(1.02); /* Slightly increase the size */
+}
+
+input:focus {
+  border-color: #2596be;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.2);
+  outline: none;
+}
+
+button {
+  padding: 10px 15px;
+  background-color: #2596be;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border-radius: 5px;
+  width: 100%;
+  font-size: 16px;
+  transition: background-color 0.3s ease-in-out; /* Smooth transition */
+  margin-top: 1%;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.error {
+  color: red;
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.success-message {
+  padding: 20px;
+  border: 1px solid #2596be;
+  background-color: #f0f8f0;
+  color: #5a656b;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.success-message .tick {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 10px;
+}
+
+.success-message h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.login-prompt {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.login-prompt p {
+  margin: 5px 0;
+}
+
+.login-prompt a {
+  color: #2596be;
+  text-decoration: none;
+}
+
+.login-prompt a:hover {
+  text-decoration: underline;
+}
+
+/* Login.module.css */
+
+.login {
+  min-height: 100vh;
+}
+
+
+.logo {
+  max-width: 210px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.formGroup {
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+input {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #D3D3D3;
+  border-radius: 4px;
+  transition: all 0.3s ease-in-out; /* Smooth transition */
+}
+
+input::placeholder {
+  color: #aaa;
+}
+
+input:focus {
+  border-color: #2596be;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.2); /* Smooth focus effect */
+  outline: none;
+  transform: scale(1.02); /* Slightly increase the size */
+}
+
+input:hover {
+  border-color: #2596be;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.2);
+  transform: scale(1.02); /* Slightly increase the size */
+}
+
+button {
+  padding: 10px 15px;
+  background-color: #2596be;
+  border: none;
+  color: white;
+  cursor: pointer;
+  border-radius: 5px;
+  width: 100%;
+  font-size: 16px;
+  transition: background-color 0.3s ease-in-out; /* Smooth transition */
+  margin-top: 1%;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.error {
+  color: red;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.loginPrompt {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.loginPrompt p {
+  margin: 5px 0;
+}
+
+.loginPrompt a {
+  color: #2596be;
+  text-decoration: none;
+}
+
+.loginPrompt a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,48 @@
+version: "3.8"
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloakpassword
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+      - KEYCLOAK_LOGLEVEL=DEBUG
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTPS_KEY_STORE_FILE=/etc/x509/https/keystore.p12
+      - KC_HTTPS_KEY_STORE_PASSWORD=yourpassword 
+    ports:
+      - 9090:8443 # Expose HTTP port to 9090
+    volumes:
+      - ./src/Components/keycloak.conf:/opt/keycloak/conf/keycloak.conf:ro
+      - ./ssl/keystore.p12:/etc/x509/https/keystore.p12
+      - ./realm.json:/opt/keycloak/data/import/realm.json
+    command:
+      - start 
+      - --import-realm
+    depends_on:
+      - keycloak-db
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+  keycloak-db:
+    image: postgres:15
+    container_name: keycloak-db
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloakpassword
+      POSTGRES_DB: keycloak
+    ports:
+      - 5432:5432
+    networks:
+      - pinakastra-cloud_my-network 
+    restart: always
+
+networks:
+  pinakastra-cloud_my-network:
+    external: true
+

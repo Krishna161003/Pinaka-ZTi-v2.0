@@ -1,0 +1,8 @@
+flask
+flask-cors
+scapy
+netifaces
+requests
+pyghmi
+gunicorn==20.1.0
+aiohttp

@@ -1,0 +1,64 @@
+server {
+    listen 80;
+    server_name localhost;
+
+    # Redirect all HTTP requests to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name localhost;
+
+    # SSL Certificate and Key
+    ssl_certificate /etc/nginx/ssl/keycloak.crt;
+    ssl_certificate_key /etc/nginx/ssl/keycloak.key;
+
+    # SSL Settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # Root and index
+    root /usr/share/nginx/html;
+    index index.html index.htm;
+
+    # Serve React App
+    location / {
+        try_files $uri /index.html;
+    }
+
+    # Serve the hardware_summary.json file
+    location /hardware_summary.json {
+        alias /usr/share/nginx/html/hardware_summary.json;  # Adjust this path if necessary
+        add_header 'Access-Control-Allow-Origin' '*';  # Allow all origins for this endpoint
+    }
+
+    # API Proxy to handle CORS
+    location /realms/ {
+        proxy_pass https://$REACT_APP_HOST_IP:9090; # Backend Keycloak server
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Allow CORS from environment variable
+        add_header Access-Control-Allow-Origin "https://$REACT_APP_HOST_IP:3000";
+        add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+        add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+        add_header Access-Control-Allow-Credentials "true";
+
+        # Handle preflight OPTIONS requests
+        if ($request_method = OPTIONS) {
+            add_header Access-Control-Allow-Origin "https://$REACT_APP_HOST_IP:3000";
+            add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+            add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+            add_header Access-Control-Allow-Credentials "true";
+            return 204; # No Content
+        }
+    }
+
+    # Enable gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
+}

@@ -1,0 +1,11 @@
+{
+  "local_ip": "192.168.249.21",
+  "cpu_cores": "4",
+  "memory": "31Gi",
+  "disk_count": "5",
+  "disk_capacities": [
+    {"loop0:": "303M"},{"sda:": "931.5G"},{"sdb:": "931.5G"},{"sdc:": "931.5G"},{"sdd:": "14.3G"}
+  ],
+  "nic_1g_count": "3",
+  "nic_10g_count": "0"
+}

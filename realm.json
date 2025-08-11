@@ -1,0 +1,30 @@
+{
+  "realm": "zti-realm",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "zti-client",
+      "enabled": true,
+      "publicClient": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": ["https://192.168.20.154:1010/*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "zti-admin",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123"
+        }
+      ],
+      "email": "zti@admin.com",
+      "lastName": "admin",
+      "firstName": "zti"
+    }
+  ]
+}
+
