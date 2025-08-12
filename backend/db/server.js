@@ -417,13 +417,14 @@ db.connect((err) => {
       console.log("License table checked/created...");
       
       // Add start_date and end_date columns to existing License table if they don't exist
-      db.query("ALTER TABLE License ADD COLUMN IF NOT EXISTS start_date DATE NULL", (altErr) => {
+      // MySQL may not support IF NOT EXISTS for ADD COLUMN in your version; attempt and ignore duplicate errors
+      db.query("ALTER TABLE License ADD COLUMN start_date DATE NULL", (altErr) => {
         if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
           console.warn("Could not ensure 'start_date' column on License:", altErr.message);
         }
       });
-      
-      db.query("ALTER TABLE License ADD COLUMN IF NOT EXISTS end_date DATE NULL", (altErr) => {
+
+      db.query("ALTER TABLE License ADD COLUMN end_date DATE NULL", (altErr) => {
         if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
           console.warn("Could not ensure 'end_date' column on License:", altErr.message);
         }
