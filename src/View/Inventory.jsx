@@ -272,8 +272,8 @@ const Inventory = () => {
               }}
             >
               <div style={{ width: '100%' }}>
-                <h3 style={{ margin: 0, marginBottom: 16, fontWeight: 600 }}>Squadron</h3>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontWeight: 600 }}>Squadron</h3>
                   <Input.Search
                     placeholder="Search by Server ID / IP / Cloud / Status"
                     allowClear
