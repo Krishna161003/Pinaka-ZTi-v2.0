@@ -1,576 +1,459 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Breadcrumb,
-  Button,
-  Checkbox,
-  Divider,
-  Flex,
-  Input,
-  Radio,
-  Select,
-  Table,
-  Typography,
-  Form,
-  Space,
-  Tooltip,
-  message,
-  Spin
-} from 'antd';
-import { HomeOutlined, CloudOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import { Splitter } from 'antd';
-import axios from 'axios';
+import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin } from 'antd';
+// (removed unused InfoCircleOutlined import)
+import { buildNetworkConfigPayload } from './networkapply.format';
+import { buildDeployConfigPayload } from './networkapply.deployformat';
 
 const hostIP = window.location.hostname;
-const { Option } = Select;
-const ipRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/;
-const subnetRegex = /^(255|254|252|248|240|224|192|128|0+)\.((255|254|252|248|240|224|192|128|0+)\.){2}(255|254|252|248|240|224|192|128|0+)$/;
 
+// Helper to get Cloud Name (kept same as original SV header behavior)
 const getCloudName = () => {
   const fromSession = sessionStorage.getItem('cloudName');
   if (fromSession) return fromSession;
   const meta = document.querySelector('meta[name="cloud-name"]');
-  return meta ? meta.content : null; // Return the content of the meta tag
+  return meta ? meta.content : '';
 };
 
-
-
-
-const Deployment = ({ next }) => {
+const Deployment = ({ onGoToReport } = {}) => {
   const cloudName = getCloudName();
-  const [configType, setConfigType] = useState('default');
-  const [tableData, setTableData] = useState([]);
-  const [useBond, setUseBond] = useState(false);
-  const [Providerform] = Form.useForm();
-  const [Tenantform] = Form.useForm();
-  const [vipform] = Form.useForm();
-  const [interfaces, setInterfaces] = useState([]);
-  const [disks, setDisks] = useState([]);
-  const [loading, setLoading] = useState(false);
 
+  const { Option } = Select;
+  const ipRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/;
+  const subnetRegex = /^(255|254|252|248|240|224|192|128|0+)\.((255|254|252|248|240|224|192|128|0+)\.){2}(255|254|252|248|240|224|192|128|0+)$/;
 
-
-
-  // Use refs to expose fetchers for button without hoisting
-  const fetchInterfacesRef = React.useRef(null);
-  const fetchDisksRef = React.useRef(null);
-
-  useEffect(() => {
-    const fetchInterfaces = async () => {
-      try {
-        const response = await axios.get(`https://${hostIP}:2020/get-interfaces`);
-        if (response.data?.interfaces) {
-          setInterfaces(response.data.interfaces);
-        } else {
-          console.warn('No interfaces found in response');
-        }
-      } catch (error) {
-        console.error('Error fetching interfaces:', error);
-      }
-    };
-
-    const fetchDisks = async () => {
-      try {
-        const response = await axios.get(`https://${hostIP}:2020/get-disks`);
-        const allDisks = response.data.disks || [];
-        const uniqueDisks = Array.from(
-          new Map(allDisks.map(d => [d.name, d])).values()
-        );
-        setDisks(uniqueDisks);
-      } catch (error) {
-        console.error('Failed to fetch disks:', error);
-      }
-    };
-
-    fetchInterfacesRef.current = fetchInterfaces;
-    fetchDisksRef.current = fetchDisks;
-
-    fetchInterfaces();
-    fetchDisks();
-  }, []);
-
-  const handleSubmit = async () => {
-    setLoading(true); // Start loading spinner
-    let validationFailed = false;
-    try {
-      // 1. Validate VIP form
-      const vipValues = await vipform.validateFields();
-
-      if (configType === 'segregated' && !vipValues.defaultGateway) {
-        message.error('Default Gateway is required in segregated mode.');
-        setLoading(false);
-        validationFailed = true;
-        return;
-      }
-
-      // 2. Validate Table Rows
-      for (let i = 0; i < tableData.length; i++) {
-        const row = tableData[i];
-
-        // Bond: must select 2 interfaces
-        if (!row.interface || (useBond && row.interface.length !== 2)) {
-          message.error(`Row ${i + 1}: Please select ${useBond ? 'exactly two' : 'a'} interface${useBond ? 's' : ''}.`);
-          setLoading(false);
-          validationFailed = true;
-          return;
-        }
-
-        // Must select Type
-        if (!row.type || (Array.isArray(row.type) && row.type.length === 0)) {
-          message.error(`Row ${i + 1}: Please select a Type.`);
-          setLoading(false);
-          validationFailed = true;
-          return;
-        }
-
-        // If bond is enabled, Bond Name is required
-        if (useBond && !row.bondName?.trim()) {
-          message.error(`Row ${i + 1}: Please enter a Bond Name.`);
-          setLoading(false);
-          validationFailed = true;
-          return;
-        }
-
-        // Skip field validation for 'secondary' in default mode
-        const isSecondaryInDefault = configType === 'default' && row.type === 'secondary';
-        if (!isSecondaryInDefault) {
-          const requiredFields = ['ip', 'subnet', 'dns']; // gateway removed
-          for (const field of requiredFields) {
-            if (!row[field]) {
-              message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
-              setLoading(false);
-              validationFailed = true;
-              return;
-            }
-          }
-        }
-
-        // Check for inline validation errors
-        if (Object.keys(row.errors || {}).length > 0) {
-          message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
-          setLoading(false);
-          validationFailed = true;
-          return;
-        }
-      }
-
-      // 3. Validate Provider Network
-      const providerValues = Providerform.getFieldsValue();
-      const providerFields = ['cidr', 'gateway', 'startingIp', 'endingIp'];
-      const providerTouched = providerFields.some((field) => !!providerValues[field]);
-      if (providerTouched) {
-        for (const field of providerFields) {
-          if (!providerValues[field]) {
-            message.error(`Provider Network: Please fill in the ${field} field.`);
-            setLoading(false);
-            validationFailed = true;
-            return;
-          }
-        }
-      }
-
-      // 4. Validate Tenant Network
-      const tenantValues = Tenantform.getFieldsValue();
-      const tenantFields = ['cidr', 'gateway', 'nameserver'];
-      const tenantTouched = tenantFields.some((field) => !!tenantValues[field]);
-      if (tenantTouched) {
-        for (const field of tenantFields) {
-          if (!tenantValues[field]) {
-            message.error(`Tenant Network: Please fill in the ${field} field.`);
-            setLoading(false);
-            validationFailed = true;
-            return;
-          }
-        }
-      }
-
-      // ✅ All validations passed
-      // Store VIP and Server IP in sessionStorage
-      const vipSessionValue = vipform.getFieldValue("vip");
-      if (vipSessionValue) {
-        sessionStorage.setItem("vip", vipSessionValue);
-      }
-      // --- Store server IP ---
-      let serverIp = null;
-      if (configType === 'default') {
-        // Find row with type 'primary'
-        const primaryRow = tableData.find(row => row.type === 'primary');
-        if (primaryRow && primaryRow.ip) serverIp = primaryRow.ip;
-      } else if (configType === 'segregated') {
-        // Find row with type including 'Management'
-        const mgmtRow = tableData.find(row => Array.isArray(row.type) && row.type.includes('Management'));
-        if (mgmtRow && mgmtRow.ip) serverIp = mgmtRow.ip;
-      }
-      if (serverIp) {
-        sessionStorage.setItem("server_ip", serverIp);
-      }
-    // --- Store network role IPs (Management, External_Traffic, Storage, VXLAN) ---
-    const roleTypes = [
-      { key: 'Management', label: 'Management' },
-      { key: 'External_Traffic', label: 'External Traffic' },
-      { key: 'Storage', label: 'Storage' },
-      { key: 'VXLAN', label: 'VXLAN' },
-    ];
-    roleTypes.forEach(({ key, label }) => {
-      // For each row, if type matches (can be string or array), collect IP
-      let ips = tableData
-        .filter(row => {
-          if (Array.isArray(row.type)) {
-            return row.type.includes(label);
-          } else {
-            return row.type === label;
-          }
-        })
-        .map(row => row.ip)
-        .filter(ip => !!ip);
-      if (ips.length > 0) {
-        sessionStorage.setItem(key, ips.join(','));
-      } else {
-        sessionStorage.removeItem(key); // Clean up if not present
-      }
-    });
-
-    // --- Now create deployment activity log after sessionStorage is fully updated ---
-    const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
-    const userData = loginDetails?.data;
-    const user_id = userData?.id;
-    const username = userData?.companyName;
-    const server_ip = sessionStorage.getItem('server_ip');
-    if (!user_id || !username || !cloudName || !server_ip) {
-      message.error('Missing required fields for deployment log');
-      setLoading(false);
-      validationFailed = true;
-      return;
-    }
-    let backendError = false;
-    // Normalize license details in sessionStorage
-    const licenseStatusRaw = sessionStorage.getItem('licenseStatus') || '{}';
-    const licenseStatus = JSON.parse(licenseStatusRaw);
-    const licenseTypeStr = String(licenseStatus?.type || '').toLowerCase();
-    const isPerpetual = licenseTypeStr === 'perpetual' || licenseTypeStr === 'perpectual';
-    // If already marked activated, ensure frontend stores start_date today and end_date null
-    if (String(licenseStatus?.status || '').toLowerCase() === 'activated') {
-      const today = new Date().toISOString().split('T')[0];
-      sessionStorage.setItem('licenseStatus', JSON.stringify({
-        ...licenseStatus,
-        period: isPerpetual ? null : (licenseStatus?.period ?? null),
-        start_date: today,
-        end_date: null,
-      }));
-    }
-    try {
-      const res = await fetch(`https://${hostIP}:5000/api/deployment-activity-log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id,
-          username,
-          cloudname: cloudName || sessionStorage.getItem('cloudName') || cloudName,
-          serverip: server_ip,
-          license_code: licenseStatus?.license_code || null,
-          license_type: licenseStatus?.type || null,
-          license_period: isPerpetual ? null : (licenseStatus?.period || null),
-          vip: sessionStorage.getItem('vip') || null,
-          Management: sessionStorage.getItem('Management') || null,
-          External_Traffic: sessionStorage.getItem('External_Traffic') || null,
-          Storage: sessionStorage.getItem('Storage') || null,
-          VXLAN: sessionStorage.getItem('VXLAN') || null
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.serverid) {
-        sessionStorage.setItem('currentServerid', data.serverid);
-      } else {
-        message.error(data.message || 'Error logging deployment activity');
-        backendError = true;
-        validationFailed = true;
-        return;
-      }
-    } catch (e) {
-      message.error('Error logging deployment activity');
-      backendError = true;
-      validationFailed = true;
-      return;
-    } finally {
-      if (backendError) setLoading(false);
-    }
-
-    // Build submission payload and send to backend
-    const ls = JSON.parse(sessionStorage.getItem('licenseStatus') || '{}');
-    const lsType = String(ls?.type || '').toLowerCase();
-    const lsPerpetual = lsType === 'perpetual' || lsType === 'perpectual';
-
-    const rawData = {
-      tableData,
-      configType,
-      useBond,
-      vip: vipform.getFieldValue('vip'),
-      disk: vipform.getFieldValue('disk'),
-      defaultGateway: vipform.getFieldValue('defaultGateway') || '',
-      hostname: vipform.getFieldValue('hostname') || 'pinakasv',
-      providerNetwork: providerValues,
-      tenantNetwork: tenantValues,
-      license_code: ls?.license_code || null,
-      license_type: ls?.type || null,
-      license_period: lsPerpetual ? null : (ls?.period || null),
-    };
-
-    await submitToBackend(rawData);
-  } catch (error) {
-    message.error('Please fix the errors in required fields.');
-    setLoading(false);
-    validationFailed = true;
-    return;
+  // Get the nodes from sessionStorage (as in Addnode.jsx)
+  function getLicenseNodes() {
+    const saved = sessionStorage.getItem('sv_licenseNodes');
+    return saved ? JSON.parse(saved) : [];
   }
 
-  // End of handleSubmit
-};
+  const RESTART_DURATION = 3000; // ms
+  const BOOT_DURATION = 5000; // ms after restart
+  const RESTART_ENDTIME_KEY = 'sv_networkApplyRestartEndTimes';
+  const BOOT_ENDTIME_KEY = 'sv_networkApplyBootEndTimes';
 
-  const submitToBackend = async (data) => {
-    try {
-      const response = await fetch(`https://${hostIP}:2020/submit-network-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const result = await response.json();
-      if (response.ok) {
-        message.success('Data submitted successfully!');
-        message.success('The Deployment will start in a moment');
-        if (next) next();
-      } else {
-        message.error(`Error: ${result.message || 'Submission failed'}`);
-        setLoading(false);
+  // Global VIP for this cloud deployment
+  const [vip, setVip] = useState(() => sessionStorage.getItem('sv_vip') || '');
+  const [vipError, setVipError] = useState('');
+
+  // Helper function to get network apply result from sessionStorage
+  const getNetworkApplyResult = () => {
+    const resultRaw = sessionStorage.getItem('sv_networkApplyResult');
+    if (resultRaw) {
+      try {
+        return JSON.parse(resultRaw);
+      } catch (e) {
+        return {};
       }
-    } catch (err) {
-      message.error(`Server Error: ${err.message}`);
-      setLoading(false);
+    }
+    return {};
+  };
+
+  // Helper function to store form data in sessionStorage
+  const storeFormData = (nodeIp, form) => {
+    const networkApplyResult = getNetworkApplyResult();
+    networkApplyResult[nodeIp] = {
+      ...form,
+      vip,
+      tableData: Array.isArray(form.tableData) ? form.tableData.map(row => ({ ...row, type: row.type })) : [],
+    };
+    sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(networkApplyResult));
+  };
+
+  // Helper function to get license details from sessionStorage
+  const getLicenseDetailsMap = () => {
+    const saved = sessionStorage.getItem('sv_licenseActivationResults');
+    if (!saved) return {};
+    try {
+      const arr = JSON.parse(saved);
+      const map = {};
+      for (const row of arr) {
+        if (row.ip && row.details) map[row.ip] = row.details;
+      }
+      return map;
+    } catch {
+      return {};
     }
   };
 
-  const formatSubmissionData = ({ tableData, configType, useBond, useVLAN, vipValues, providerValues, tenantValues, disk }) => {
-    const payload = {
-      using_interfaces: {},
-      provider_cidr: providerValues?.cidr || 'N/A',
-      provider_gateway: providerValues?.gateway || 'N/A',
-      provider_startingip: providerValues?.startingIp || 'N/A',
-      provider_endingip: providerValues?.endingIp || 'N/A',
-      tenant_cidr: tenantValues?.cidr || '10.0.0.0/24',
-      tenant_gateway: tenantValues?.gateway || '10.0.0.1',
-      tenant_nameserver: tenantValues?.nameserver || '8.8.8.8',
-      disk: vipValues?.disk || '',
-      vip: vipValues?.vip || ''
-    };
+  const [licenseNodes, setLicenseNodes] = useState(getLicenseNodes());
 
-    if (configType === 'segregated' && vipValues?.defaultGateway) {
-      payload.default_gateway = vipValues.defaultGateway;
+  // Track mounted state globally to allow background polling to update storage without setState leaks
+  useEffect(() => {
+    window.__cloudMountedNetworkApply = true;
+    return () => {
+      window.__cloudMountedNetworkApply = false;
+    };
+  }, []);
+
+  // Helper: update card status in sessionStorage by IP (to persist across navigation)
+  const setCardStatusForIpInSession = (ip, nextStatus) => {
+    try {
+      const savedFormsRaw = sessionStorage.getItem('sv_networkApplyForms');
+      const savedStatusRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
+      if (!savedFormsRaw || !savedStatusRaw) return;
+      const formsArr = JSON.parse(savedFormsRaw);
+      const statusArr = JSON.parse(savedStatusRaw);
+      const idx = formsArr.findIndex(f => f && f.ip === ip);
+      if (idx === -1) return;
+      const merged = {
+        ...(statusArr[idx] || { loading: false, applied: false }),
+        ...nextStatus,
+      };
+      const nextStatusArr = [...statusArr];
+      nextStatusArr[idx] = merged;
+      sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(nextStatusArr));
+    } catch (_) {}
+  };
+
+  // Dynamic per-node disks and interfaces
+  const [nodeDisks, setNodeDisks] = useState({});
+  const [nodeInterfaces, setNodeInterfaces] = useState({});
+
+  // Fetch disks and interfaces for a node
+  const fetchNodeData = async (ip) => {
+    try {
+      const [diskRes, ifaceRes] = await Promise.all([
+        fetch(`https://${ip}:2020/get-disks`).then(r => r.json()),
+        fetch(`https://${ip}:2020/get-interfaces`).then(r => r.json()),
+      ]);
+
+      // Map disks to include all necessary properties
+      const formattedDisks = (diskRes.disks || []).map(disk => ({
+        name: disk.name,
+        size: disk.size,
+        wwn: disk.wwn,
+        label: `${disk.name} (${disk.size})`,
+        value: disk.wwn, // Store WWN as the value
+        display: `${disk.name} (${disk.size}, ${disk.wwn})`
+      }));
+
+      setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
+      setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
+    } catch (e) {
+      console.error(`Failed to fetch data from node ${ip}:`, e);
+      message.error(`Failed to fetch data from node ${ip}: ${e.message}`);
+    }
+  };
+
+  // On mount, fetch for all nodes
+  useEffect(() => {
+    licenseNodes.forEach(node => {
+      if (node.ip) fetchNodeData(node.ip);
+    });
+  }, [licenseNodes]);
+  // Per-card loading and applied state, restore from sessionStorage if available
+  const getInitialCardStatus = () => {
+    const saved = sessionStorage.getItem('sv_networkApplyCardStatus');
+    if (saved) return JSON.parse(saved);
+    return licenseNodes.map(() => ({ loading: false, applied: false }));
+  };
+  const [cardStatus, setCardStatus] = useState(getInitialCardStatus);
+  // For loader recovery timers
+  const timerRefs = React.useRef([]);
+  // Restore forms from sessionStorage if available and merge with license details
+  const getInitialForms = () => {
+    // Get saved license details
+    const licenseDetailsMap = getLicenseDetailsMap();
+
+    // Get saved forms from sessionStorage if they exist
+    const savedForms = sessionStorage.getItem('sv_networkApplyForms');
+    if (savedForms) {
+      try {
+        const forms = JSON.parse(savedForms);
+        // Merge license details into saved forms
+        return forms.map(form => ({
+          ...form,
+          licenseType: licenseDetailsMap[form.ip]?.type || form.licenseType || '-',
+          licensePeriod: licenseDetailsMap[form.ip]?.period || form.licensePeriod || '-',
+          licenseCode: licenseDetailsMap[form.ip]?.licenseCode || form.licenseCode || '-',
+        }));
+      } catch (e) {
+        console.error('Failed to parse saved forms:', e);
+      }
     }
 
-    let bondIndex = 1;
-    let ifaceIndex = 1;
+    // If no saved forms or error, create new forms with license details
+    return licenseNodes.map(node => ({
+      ip: node.ip,
+      configType: 'default',
+      useBond: false,
+      tableData: generateRows('default', false),
+      defaultGateway: '',
+      defaultGatewayError: '',
+      licenseType: licenseDetailsMap[node.ip]?.type || '-',
+      licensePeriod: licenseDetailsMap[node.ip]?.period || '-',
+      licenseCode: licenseDetailsMap[node.ip]?.licenseCode || '-',
+      selectedDisks: [],
+      diskError: '',
+      selectedRoles: [],
+      roleError: '',
+    }));
+  };
+  const [forms, setForms] = useState(getInitialForms);
 
-    for (const row of tableData) {
-      const isBondRow = !!row.bondName;
-      const isSecondary = row?.type?.includes('Secondary') || row?.type?.includes('External_Traffic');
+  // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
+  useEffect(() => {
+    const savedForms = sessionStorage.getItem('sv_networkApplyForms');
+    const savedStatus = sessionStorage.getItem('sv_networkApplyCardStatus');
+    const savedLicenseDetails = getLicenseDetailsMap();
 
-      if (isBondRow) {
-        const bondKey = `bond${bondIndex++}`;
-        payload.using_interfaces[bondKey] = {
-          interface_name: row.bondName,
-          type: row.type,
-          vlan_id: useVLAN ? row.vlan_id : 'NULL',
-          ...(isSecondary ? {} : {
-            Properties: {
-              IP_ADDRESS: row.ip,
-              Netmask: row.subnet,
-              DNS: row.dns,
-              gateway: row.gateway,
-            },
-          }),
-        };
-      } else {
-        const ifaceKey = `interface_${ifaceIndex.toString().padStart(2, '0')}`;
-        ifaceIndex++;
-        payload.using_interfaces[ifaceKey] = {
-          interface_name: row.interface,
-          Bond_Slave: useBond ? 'YES' : 'NO',
-          ...(useBond && { Bond_Interface_Name: row.bondName || '' }),
-        };
+    if (savedForms && savedStatus) {
+      // Merge saved forms with any updated license details
+      const parsedForms = JSON.parse(savedForms);
+      const updatedForms = parsedForms.map(form => ({
+        ...form,
+        licenseType: savedLicenseDetails[form.ip]?.type || form.licenseType || '-',
+        licensePeriod: savedLicenseDetails[form.ip]?.period || form.licensePeriod || '-',
+        licenseCode: savedLicenseDetails[form.ip]?.licenseCode || form.licenseCode || '-',
+      }));
 
-        if (!useBond) {
-          payload.using_interfaces[ifaceKey] = {
-            ...payload.using_interfaces[ifaceKey],
-            type: row.type,
-            vlan_id: useVLAN ? row.vlan_id : 'NULL',
-            ...(isSecondary ? {} : {
-              Properties: {
-                IP_ADDRESS: row.ip,
-                Netmask: row.subnet,
-                DNS: row.dns,
-                gateway: row.gateway,
-              },
-            }),
-          };
+      setForms(updatedForms);
+      setCardStatus(JSON.parse(savedStatus));
+    } else {
+      setForms(
+        licenseNodes.map(node => ({
+          ip: node.ip,
+          configType: 'default',
+          useBond: false,
+          tableData: generateRows('default', false),
+          defaultGateway: '',
+          defaultGatewayError: '',
+          licenseType: savedLicenseDetails[node.ip]?.type || '-',
+          licensePeriod: savedLicenseDetails[node.ip]?.period || '-',
+          licenseCode: savedLicenseDetails[node.ip]?.licenseCode || '-',
+          selectedDisks: [],
+          diskError: '',
+          selectedRoles: [],
+          roleError: '',
+        }))
+      );
+      setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
+    }
+  }, [licenseNodes]);
+
+  // Loader recovery: keep loader until SSH polling succeeds or times out; do NOT auto-apply based on timers
+  useEffect(() => {
+    const restartEndTimesRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
+    const bootEndTimesRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
+    const restartEndTimes = restartEndTimesRaw ? JSON.parse(restartEndTimesRaw) : {};
+    const bootEndTimes = bootEndTimesRaw ? JSON.parse(bootEndTimesRaw) : {};
+    const now = Date.now();
+    // For storing results
+    let networkApplyResult = getNetworkApplyResult();
+    cardStatus.forEach((status, idx) => {
+      if (!status.loading) {
+        // If not loading, ensure timer is cleared
+        if (timerRefs.current[idx]) {
+          clearTimeout(timerRefs.current[idx]);
+          timerRefs.current[idx] = null;
+        }
+        // If applied and not yet stored, store the result (for robustness)
+        if (status.applied) {
+          const nodeIp = forms[idx]?.ip || `node${idx + 1}`;
+          if (!networkApplyResult[nodeIp]) {
+            storeFormData(nodeIp, forms[idx]);
+          }
         }
       }
-    }
+    });
+    // Also, on every render, clean up any timers for cards that are no longer loading
+    cardStatus.forEach((status, idx) => {
+      if (!status.loading && timerRefs.current[idx]) {
+        clearTimeout(timerRefs.current[idx]);
+        timerRefs.current[idx] = null;
+      }
+    });
+    // Persist the result object
+    sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(networkApplyResult));
+  }, [cardStatus, forms]);
 
-    return payload;
-  };
+  // Persist forms and cardStatus to sessionStorage on change
+  useEffect(() => {
+    sessionStorage.setItem('sv_networkApplyForms', JSON.stringify(forms));
+  }, [forms]);
 
-  // Generate rows based on selected config type
-  const generateRows = (count) =>
-    Array.from({ length: count }, (_, i) => ({
+  useEffect(() => {
+    sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(cardStatus));
+  }, [cardStatus]);
+
+  function handleDiskChange(idx, value) {
+    setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
+  }
+  function handleRoleChange(idx, value) {
+    setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedRoles: value, roleError: '' } : f));
+  }
+
+  function generateRows(configType, useBond) {
+    const count = configType === 'default' ? 2 : 4;
+    return Array.from({ length: count }, (_, i) => ({
       key: i,
       ip: '',
       subnet: '',
       dns: '',
       gateway: '',
-      errors: {}
+      interface: useBond ? [] : '',
+      bondName: '',
+      vlanId: '',
+      type: configType === 'default' ? '' : [],
+      errors: {},
     }));
+  }
 
-
-  // Update table rows when config type changes
-  const getRowCount = React.useCallback(() => {
-    if (configType === 'default') {
-      return useBond ? 2 : 2;
-    } else if (configType === 'segregated') {
-      return useBond ? 4 : 4;
-    }
-    return 2;
-  }, [configType, useBond]);
-
-  useEffect(() => {
-    const rows = generateRows(getRowCount());
-    setTableData(rows);
-  }, [configType, useBond, getRowCount]);
-
-
-  const handleReset = () => {
-    setTableData(generateRows(getRowCount()));
+  const handleConfigTypeChange = (idx, value) => {
+    setForms(prev => prev.map((f, i) => i === idx ? {
+      ...f,
+      configType: value,
+      tableData: generateRows(value, f.useBond)
+    } : f));
+  };
+  const handleUseBondChange = (idx, checked) => {
+    setForms(prev => prev.map((f, i) => i === idx ? {
+      ...f,
+      useBond: checked,
+      tableData: generateRows(f.configType, checked)
+    } : f));
+  };
+  // Reset handler for a specific node
+  const handleReset = (idx) => {
+    setForms(prev => prev.map((f, i) => i === idx ? {
+      ...f,
+      configType: 'default',
+      useBond: false,
+      tableData: generateRows('default', false),
+      defaultGateway: '',
+      defaultGatewayError: '',
+    } : f));
   };
 
-  const handleCellChange = (index, field, value) => {
-    const updatedData = [...tableData];
-    const row = updatedData[index];
+  const handleCellChange = (nodeIdx, rowIdx, field, value) => {
+    setForms(prev => prev.map((f, i) => {
+      if (i !== nodeIdx) return f;
+      const updated = [...f.tableData];
+      const row = { ...updated[rowIdx] };
+      if (!row.errors) row.errors = {};
 
-    if (!row.errors) row.errors = {};
-
-    if (field === 'type' && configType === 'default') {
-      row.type = value;
-
-      const otherIndex = index === 0 ? 1 : 0;
-      const otherRow = updatedData[otherIndex];
-
-      if (value === 'primary') {
-        otherRow.type = 'secondary';
-      } else if (value === 'secondary') {
-        otherRow.type = 'primary';
-      }
-
-      updatedData[otherIndex] = otherRow;
-    } else {
-      row[field] = value;
-
-      // Validation for IP/DNS/Gateway
-      if (["ip", "dns", "gateway"].includes(field)) {
+      if (field === 'type' && f.configType === 'default') {
+        row.type = value;
+        // Enforce primary/secondary mutual exclusivity
+        const otherIndex = rowIdx === 0 ? 1 : 0;
+        const otherRow = updated[otherIndex];
+        if (value === 'primary') {
+          otherRow.type = 'secondary';
+        } else if (value === 'secondary') {
+          otherRow.type = 'primary';
+        }
+        updated[otherIndex] = otherRow;
+      } else if (field === 'defaultGateway') {
+        // Handle default gateway separately
+        const newForm = { ...f, defaultGateway: value };
         if (!ipRegex.test(value)) {
-          row.errors[field] = 'Should be a valid address';
+          newForm.defaultGatewayError = 'Should be a valid address';
         } else {
-          // Duplicate IP check for segregated mode
-          if (field === "ip" && configType === "segregated") {
-            const isDuplicate = updatedData.some((r, i) => i !== index && r.ip === value && value);
-            if (isDuplicate) {
-              row.errors.ip = 'Duplicate IP address in another row';
+          newForm.defaultGatewayError = '';
+        }
+        return newForm;
+      } else {
+        row[field] = value;
+        // Validation for IP/DNS/Gateway
+        if (["ip", "dns", "gateway"].includes(field)) {
+          if (!ipRegex.test(value)) {
+            row.errors[field] = 'Should be a valid address';
+          } else {
+            // Duplicate IP check for segregated mode
+            if (field === "ip" && f.configType === "segregated") {
+              const isDuplicate = updated.some((r, i) => i !== rowIdx && r.ip === value && value);
+              if (isDuplicate) {
+                row.errors.ip = 'Duplicate IP address in another row';
+              } else {
+                delete row.errors.ip;
+              }
             } else {
-              delete row.errors.ip;
+              delete row.errors[field];
             }
+          }
+        }
+        // Validation for subnet
+        if (field === 'subnet') {
+          if (!subnetRegex.test(value)) {
+            row.errors[field] = 'Invalid subnet format';
+          } else {
+            delete row.errors[field];
+          }
+        }
+        // Validation for interface (bonding: max 2)
+        if (field === 'interface') {
+          if (f.useBond && value.length > 2) {
+            value = value.slice(0, 2);
+          }
+          row.interface = value;
+        }
+        // Validation for bondName uniqueness
+        if (field === 'bondName') {
+          const isDuplicate = updated.some((r, i) => i !== rowIdx && r.bondName === value);
+          if (isDuplicate) {
+            row.errors[field] = 'Bond name must be unique';
+          } else {
+            delete row.errors[field];
+          }
+        }
+        // Validation for VLAN ID
+        if (field === 'vlanId') {
+          if (value && (!/^[0-9]*$/.test(value) || value.length > 4 || Number(value) < 1 || Number(value) > 4094)) {
+            row.errors[field] = 'VLAN ID must be 1-4094';
           } else {
             delete row.errors[field];
           }
         }
       }
-
-      // Validation for subnet
-      if (field === 'subnet') {
-        if (!subnetRegex.test(value)) {
-          row.errors[field] = 'Invalid subnet format';
-        } else {
-          delete row.errors[field];
-        }
-      }
-
-      if (field === 'interface') {
-        // For bonding, limit to max 2 interfaces
-        if (useBond && value.length > 2) {
-          value = value.slice(0, 2);
-        }
-
-        row.interface = value;
-      }
-
-      if (field === 'bondName') {
-        // Ensure bond name is unique
-        const isDuplicate = updatedData.some((r, i) => i !== index && r.bondName === value);
-        if (isDuplicate) {
-          row.errors[field] = 'Bond name must be unique';
-        } else {
-          delete row.errors[field];
-        }
-      }
-    }
-
-    updatedData[index] = row;
-    setTableData(updatedData);
+      updated[rowIdx] = row;
+      return { ...f, tableData: updated };
+    }));
   };
 
-  const getColumns = () => {
+
+  const getColumns = (form, nodeIdx) => {
     const baseColumns = [
       {
         title: 'SL.NO',
         key: 'slno',
-        render: (_, record, index) => <span>{index + 1}</span>,
+        render: (_, __, index) => <span>{index + 1}</span>,
       },
     ];
-
     const bondColumn = {
       title: 'Bond Name',
       dataIndex: 'bondName',
-      render: (_, record, index) => {
-        const error = record.errors?.bondName;
-        return (
-          <div>
-            <Input
-              value={record.bondName ?? ''}
-              placeholder="Enter Bond Name"
-              status={error ? 'error' : ''}
-              onChange={(e) => handleCellChange(index, 'bondName', e.target.value)}
-            />
-            {error && <div style={{ color: 'red', fontSize: 12 }}>{error}</div>}
-          </div>
-        );
-      },
+      render: (_, record, rowIdx) => (
+        <Form.Item
+          validateStatus={record.errors?.bondName ? 'error' : ''}
+          help={record.errors?.bondName}
+          style={{ marginBottom: 0 }}
+        >
+          <Input
+            value={record.bondName ?? ''}
+            placeholder="Enter Bond Name"
+            onChange={e => handleCellChange(nodeIdx, rowIdx, 'bondName', e.target.value)}
+          />
+        </Form.Item>
+      ),
     };
 
     const vlanColumn = {
       title: 'VLAN ID',
       dataIndex: 'vlanId',
-      render: (_, record, index) => (
+      render: (_, record, rowIdx) => (
         <Tooltip placement='right' title="VLAN ID (1-4094, optional)">
-          <Input
-            value={record.vlanId ?? ''}
-            placeholder="Enter VLAN ID (optional)"
-            onChange={(e) => {
-              const value = e.target.value;
-              // 1) Allow only digits
-              if (!/^[0-9]*$/.test(value)) return;
-              // 2) Allow max 4 digits
-              if (value.length > 4) return;
-              // 3) Allow only range 1–4094 when value is not empty
-              if (value && (Number(value) < 1 || Number(value) > 4094)) return;
-              // All checks passed ➔ call the handler
-              handleCellChange(index, 'vlanId', value);
-            }}
-          />
+          <Form.Item
+            validateStatus={record.errors?.vlanId ? 'error' : ''}
+            help={record.errors?.vlanId}
+            style={{ marginBottom: 0 }}
+          >
+            <Input
+              value={record.vlanId ?? ''}
+              placeholder="Enter VLAN ID (optional)"
+              onChange={e => handleCellChange(nodeIdx, rowIdx, 'vlanId', e.target.value)}
+            />
+          </Form.Item>
         </Tooltip>
       ),
     };
@@ -579,36 +462,33 @@ const Deployment = ({ next }) => {
       {
         title: 'Interfaces Required',
         dataIndex: 'interface',
-        render: (_, record, index) => {
-          const selectedInterfaces = tableData
-            .filter((_, i) => i !== index)
+        render: (_, record, rowIdx) => {
+          const selectedInterfaces = form.tableData
+            .filter((_, i) => i !== rowIdx)
             .flatMap(row => {
-              if (useBond && Array.isArray(row.interface)) return row.interface;
-              if (!useBond && row.interface) return [row.interface];
+              if (form.useBond && Array.isArray(row.interface)) return row.interface;
+              if (!form.useBond && row.interface) return [row.interface];
               return [];
             });
-
-          const currentSelection = useBond
+          const currentSelection = form.useBond
             ? Array.isArray(record.interface) ? record.interface : []
             : record.interface ? [record.interface] : [];
-
-          const availableInterfaces = interfaces.filter(
+          const availableInterfaces = (nodeInterfaces[form.ip] || []).filter(
             (iface) =>
               !selectedInterfaces.includes(iface.iface) || currentSelection.includes(iface.iface)
-          );
-
+          ) || [];
           return (
             <Select
-              mode={useBond ? 'multiple' : undefined}
+              mode={form.useBond ? 'multiple' : undefined}
               style={{ width: '100%' }}
-              value={record.interface}
+              value={record.interface || undefined}
               allowClear
-              placeholder={useBond ? 'Select interfaces' : 'Select interface'}
+              placeholder="Select interface"
               onChange={(value) => {
-                if (useBond && Array.isArray(value) && value.length > 2) {
+                if (form.useBond && Array.isArray(value) && value.length > 2) {
                   value = value.slice(0, 2);
                 }
-                handleCellChange(index, 'interface', value);
+                handleCellChange(nodeIdx, rowIdx, 'interface', value);
               }}
               maxTagCount={2}
             >
@@ -624,26 +504,25 @@ const Deployment = ({ next }) => {
       {
         title: 'Type',
         dataIndex: 'type',
-        render: (_, record, index) => {
-          // --- Restrict Management type in segregated mode ---
+        render: (_, record, rowIdx) => {
           let managementTaken = false;
-          if (configType === 'segregated') {
-            managementTaken = tableData.some((row, i) => i !== index && Array.isArray(row.type) && row.type.includes('Management'));
+          if (form.configType === 'segregated') {
+            managementTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Management'));
           }
           return (
             <Select
-              mode={configType === 'segregated' ? 'multiple' : undefined}
+              mode={form.configType === 'segregated' ? 'multiple' : undefined}
               allowClear
               style={{ width: '100%' }}
-              value={record.type}
+              value={record.type || undefined}
               placeholder="Select type"
-              onChange={(value) => handleCellChange(index, 'type', value)}
+              onChange={value => handleCellChange(nodeIdx, rowIdx, 'type', value)}
             >
-              {configType === 'segregated' ? (
+              {form.configType === 'segregated' ? (
                 <>
                   {!managementTaken || (Array.isArray(record.type) && record.type.includes('Management')) ? (
                     <Option value="Management">
-                      <Tooltip placement="right" title="Mangement" >
+                      <Tooltip placement="right" title="Management" >
                         Mgmt
                       </Tooltip>
                     </Option>
@@ -685,7 +564,7 @@ const Deployment = ({ next }) => {
       {
         title: 'IP ADDRESS',
         dataIndex: 'ip',
-        render: (_, record, index) => (
+        render: (_, record, rowIdx) => (
           <Form.Item
             validateStatus={record.errors?.ip ? 'error' : ''}
             help={record.errors?.ip}
@@ -693,9 +572,9 @@ const Deployment = ({ next }) => {
           >
             <Input
               value={record.ip}
-              disabled={shouldDisableFields(record)}
               placeholder="Enter IP Address"
-              onChange={(e) => handleCellChange(index, 'ip', e.target.value)}
+              onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
+              disabled={form.configType === 'default' && record.type === 'secondary'}
             />
           </Form.Item>
         ),
@@ -703,7 +582,7 @@ const Deployment = ({ next }) => {
       {
         title: 'SUBNET MASK',
         dataIndex: 'subnet',
-        render: (_, record, index) => (
+        render: (_, record, rowIdx) => (
           <Form.Item
             validateStatus={record.errors?.subnet ? 'error' : ''}
             help={record.errors?.subnet}
@@ -711,9 +590,9 @@ const Deployment = ({ next }) => {
           >
             <Input
               value={record.subnet}
-              disabled={shouldDisableFields(record)}
               placeholder="Enter Subnet"
-              onChange={(e) => handleCellChange(index, 'subnet', e.target.value)}
+              onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
+              disabled={form.configType === 'default' && record.type === 'secondary'}
             />
           </Form.Item>
         ),
@@ -721,7 +600,7 @@ const Deployment = ({ next }) => {
       {
         title: 'DNS Servers',
         dataIndex: 'dns',
-        render: (_, record, index) => (
+        render: (_, record, rowIdx) => (
           <Form.Item
             validateStatus={record.errors?.dns ? 'error' : ''}
             help={record.errors?.dns}
@@ -730,418 +609,523 @@ const Deployment = ({ next }) => {
             <Input
               value={record.dns}
               placeholder="Enter Nameserver"
-              disabled={shouldDisableFields(record)}
-              onChange={(e) => handleCellChange(index, 'dns', e.target.value)}
+              onChange={e => handleCellChange(nodeIdx, rowIdx, 'dns', e.target.value)}
+              disabled={form.configType === 'default' && record.type === 'secondary'}
             />
           </Form.Item>
         ),
       },
-
     ];
     return [
       ...baseColumns,
-      ...(useBond ? [bondColumn] : []),
+      ...(form.useBond ? [bondColumn] : []),
       ...mainColumns,
       ...[vlanColumn],
     ];
   };
 
+  const handleSubmit = (nodeIdx) => {
+    if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
+    // Validate all rows for this node
+    const form = forms[nodeIdx];
+    for (let i = 0; i < form.tableData.length; i++) {
+      const row = form.tableData[i];
+      if (form.useBond && !row.bondName?.trim()) {
+        message.error(`Row ${i + 1}: Please enter a Bond Name.`);
+        return;
+      }
+      if (!row.type || (Array.isArray(row.type) && row.type.length === 0)) {
+        message.error(`Row ${i + 1}: Please select a Type.`);
+        return;
+      }
+      // Validate required fields (skip for secondary in default mode)
+      if (!(form.configType === 'default' && row.type === 'secondary')) {
+        for (const field of ['ip', 'subnet', 'dns']) {
+          if (!row[field]) {
+            message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
+            return;
+          }
+        }
+      }
+      if (Object.keys(row.errors || {}).length > 0) {
+        message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
+        return;
+      }
+    }
+    // Validate default gateway
+    if (!form.defaultGateway) {
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, defaultGatewayError: 'Required' } : f));
+      message.error('Please enter Default Gateway.');
+      return;
+    }
+    if (!ipRegex.test(form.defaultGateway)) {
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, defaultGatewayError: 'Invalid IP' } : f));
+      message.error('Default Gateway must be a valid IP address.');
+      return;
+    }
+    // Validate disks
+    if (!form.selectedDisks || form.selectedDisks.length === 0) {
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: 'At least one disk required' } : f));
+      message.error('Please select at least one disk.');
+      return;
+    } else {
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
+    }
+    // Validate roles
+    if (!form.selectedRoles || form.selectedRoles.length === 0) {
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: 'At least one role required' } : f));
+      message.error('Please select at least one role.');
+      return;
+    } else {
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
+    }
+    // Submit logic here (API call or sessionStorage)
+    const payloadBase = buildNetworkConfigPayload(form);
+    const payload = {
+      ...payloadBase,
+      license_code: form.licenseCode || null,
+      license_type: form.licenseType || null,
+      license_period: form.licensePeriod || null,
+    };
+    fetch(`https://${form.ip}:2020/submit-network-config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(res => res.json())
+      .then(result => {
+        if (result.success) {
+          setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
+          // Persist loader state immediately by IP to survive navigation
+          setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
+          // Store restartEndTime and bootEndTime in sessionStorage
+          const restartEndTimesRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
+          const bootEndTimesRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
+          const restartEndTimes = restartEndTimesRaw ? JSON.parse(restartEndTimesRaw) : {};
+          const bootEndTimes = bootEndTimesRaw ? JSON.parse(bootEndTimesRaw) : {};
+          const now = Date.now();
+          const restartEnd = now + RESTART_DURATION;
+          const bootEnd = restartEnd + BOOT_DURATION;
+          restartEndTimes[nodeIdx] = restartEnd;
+          bootEndTimes[nodeIdx] = bootEnd;
+          sessionStorage.setItem(RESTART_ENDTIME_KEY, JSON.stringify(restartEndTimes));
+          sessionStorage.setItem(BOOT_ENDTIME_KEY, JSON.stringify(bootEndTimes));
+
+          // --- SSH Polling Section ---
+          // Gather all required info for the polling API
+          const node_ip = form.ip;
+          const ssh_user = 'pinakasupport';
+          const ssh_pass = ''; // Do not use password authentication
+          const ssh_key = ''; // Leave empty to use server-side .pem file (ps_key.pem)
+
+          // Note: Backend will use the .pem file on disk (e.g., flask-back/ps_key.pem). No passwords are used.
+
+          // Clear any existing polling timers for this IP before starting new ones
+          if (window.__cloudPolling && window.__cloudPolling[node_ip]) {
+            clearInterval(window.__cloudPolling[node_ip]);
+            delete window.__cloudPolling[node_ip];
+          }
+          if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
+            clearTimeout(window.__cloudPollingStart[node_ip]);
+            delete window.__cloudPollingStart[node_ip];
+          }
+
+          // Start the polling by POSTing the IP to backend
+          fetch(`https://${hostIP}:2020/poll-ssh-status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ips: [node_ip], ssh_user, ssh_pass, ssh_key })
+          }).then(res => res.json()).then(data => {
+            if (data.success) {
+              message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
+            }
+          }).then(() => {
+            // Delay starting the frontend polling until 90 seconds (to match backend delay)
+            const startPollingTimeout = setTimeout(() => {
+              let pollCount = 0;
+              const maxPolls = 60; // Maximum 5 minutes of polling (60 * 5 seconds)
+              
+              const pollInterval = setInterval(() => {
+                pollCount++;
+                
+                // Stop polling if we've exceeded the maximum attempts
+                if (pollCount > maxPolls) {
+                  clearInterval(pollInterval);
+                  setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
+                  if (window.__cloudMountedNetworkApply) {
+                    setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: false } : s));
+                  }
+                  message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
+                  delete window.__cloudPolling[node_ip];
+                  return;
+                }
+                
+                fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
+                  .then(res => res.json())
+                  .then(data => {
+                    if (data.status === 'success' && data.ip === node_ip) {
+                      // Persist status to sessionStorage so it reflects on remount or in other menus
+                      setCardStatusForIpInSession(node_ip, { loading: false, applied: true });
+                      if (window.__cloudMountedNetworkApply) {
+                        setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
+                      }
+                      message.success(`Node ${data.ip} is back online!`);
+                      clearInterval(pollInterval);
+                      delete window.__cloudPolling[node_ip];
+                      if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
+                        delete window.__cloudPollingStart[node_ip];
+                      }
+                      // Store the form data for this node in sessionStorage
+                      const nodeIp = form.ip || `node${nodeIdx + 1}`;
+                      storeFormData(nodeIp, form);
+                    } else if (data.status === 'fail' && data.ip === node_ip) {
+                      if (cardStatus[nodeIdx]?.loading || !window.__cloudMountedNetworkApply) {
+                        message.info('Node restarting...');
+                      }
+                    }
+                  })
+                  .catch(err => {
+                    console.error('SSH status check failed:', err);
+                  });
+              }, 5000); // Check every 5 seconds
+  
+              // Store the interval reference globally (do not clear on unmount to allow background polling)
+              if (!window.__cloudPolling) window.__cloudPolling = {};
+              window.__cloudPolling[node_ip] = pollInterval;
+            }, 90000); // Start polling after 90 seconds
+
+            if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+            window.__cloudPollingStart[node_ip] = startPollingTimeout;
+          });
+          // --- End SSH Polling Section ---
+
+
+          timerRefs.current[nodeIdx] = setTimeout(() => {
+            // message.success(`Network config for node ${form.ip} applied! Node restarting...`);
+          }, RESTART_DURATION);
+        } else {
+          message.error(result.message || 'Failed to apply network configuration.');
+        }
+      })
+      .catch(err => {
+        message.error('Network error: ' + err.message);
+      });
+    return;
+
+  };
+
+  // Clean up only internal timers on unmount; keep global polling running in background
+  useEffect(() => {
+    return () => {
+      timerRefs.current.forEach(t => t && clearTimeout(t));
+      // Do not clear window.__cloudPolling or __cloudPollingStart here, to allow background progress
+    };
+  }, []);
+
+  // Check if all cards are applied
+  const allApplied = cardStatus.length > 0 && cardStatus.every(s => s.applied);
+
+  const handleNext = async () => {
+    // Only allow if all cards are applied
+    if (!allApplied) {
+      message.warning('Please apply all nodes before deploying.');
+      return;
+    }
+    // Validate VIP presence and format
+    if (!vip) {
+      setVipError('Required');
+      message.error('Please enter VIP before deploying.');
+      return;
+    }
+    if (!ipRegex.test(vip)) {
+      setVipError('Invalid IP address');
+      message.error('VIP must be a valid IP address.');
+      return;
+    }
+    // Get all node configs from sessionStorage
+    const configs = getNetworkApplyResult();
+    if (Object.keys(configs).length === 0) {
+      message.error('No node configuration found.');
+      return;
+    }
+
+    // Transform configs for backend storage
+    const transformedConfigs = {};
+    Object.entries(configs).forEach(([ip, form]) => {
+      const base = buildDeployConfigPayload(form);
+      transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip };
+    });
+
+    // Send to backend for storage as JSON
+    try {
+      const response = await fetch(`https://${hostIP}:2020/store-deployment-configs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transformedConfigs),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to store deployment configs');
+      }
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error('Failed to store deployment configs');
+      }
+
+      message.success('Deployment configurations stored successfully');
+    } catch (error) {
+      console.error('Error storing deployment configs:', error);
+      message.error('Error storing deployment configurations: ' + error.message);
+      return; // Stop further execution if backend storage fails
+    }
+
+    // Prepare POST data for /api/node-deployment-activity-log
+    // Each node must have: serverip, server_vip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
+    // Do NOT send a 'type' field from frontend; backend sets type='primary'.
+    const nodes = Object.values(configs).map(form => ({
+      serverip: form.ip,
+      // Send all selected roles as a comma-separated string to store multiple roles in DB
+      role: Array.isArray(form.selectedRoles) && form.selectedRoles.length > 0 ? form.selectedRoles.join(',') : 'child',
+      server_vip: form.vip || vip,
+      Management: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Management') : row.type === 'Management')?.ip || '',
+      Storage: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Storage') : row.type === 'Storage')?.ip || '',
+      External_Traffic: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('External Traffic') : row.type === 'External Traffic')?.ip || '',
+      VXLAN: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('VXLAN') : row.type === 'VXLAN')?.ip || '',
+      license_code: form.licenseCode || '',
+      license_type: form.licenseType || '',
+      license_period: form.licensePeriod || '',
+    }));
+
+    // Get user info and cloudname
+    const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
+    const user_id = loginDetails?.data?.id || '';
+    const username = loginDetails?.data?.companyName || '';
+    const cloudname = cloudName || '';
+
+    // POST to backend (new primary node deployment logging endpoint)
+    try {
+      const res = await fetch(`https://${hostIP}:5000/api/node-deployment-activity-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes, user_id, username, cloudname })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to start deployment log');
+      }
+      // Optionally store the returned serverids for later use
+      sessionStorage.setItem('sv_lastDeploymentNodes', JSON.stringify(data.nodes));
+      // Prefer parent-provided navigation if available
+      if (typeof onGoToReport === 'function') {
+        onGoToReport();
+      } else {
+        // Fallback: Enable Report tab (tab 5) and switch to it via URL
+        try {
+          const savedDisabled = sessionStorage.getItem('sv_disabledTabs');
+          const disabledTabs = savedDisabled ? JSON.parse(savedDisabled) : {};
+          disabledTabs['5'] = false;
+          sessionStorage.setItem('sv_disabledTabs', JSON.stringify(disabledTabs));
+          sessionStorage.setItem('sv_activeTab', '5');
+        } catch (_) {}
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', '5');
+        window.location.href = url.toString();
+      }
+    } catch (err) {
+      message.error('Failed to start deployment: ' + err.message);
+    }
+    // (Optionally, you may still want to transform configs for other purposes)
+    // const transformedConfigs = {};
+    // Object.entries(configs).forEach(([ip, form]) => {
+    //   transformedConfigs[ip] = buildDeployConfigPayload(form);
+    // });
+
+  };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "16px",
-        }}
-      >
-        {/* <Breadcrumb>
-          <Breadcrumb.Item>
-            <HomeOutlined />
-          </Breadcrumb.Item>
-          <Breadcrumb.Item>Deployment Options</Breadcrumb.Item>
-          <Breadcrumb.Item>Validation</Breadcrumb.Item>
-          <Breadcrumb.Item>System Interfaces</Breadcrumb.Item>
-          <Breadcrumb.Item>License Activation</Breadcrumb.Item>
-          <Breadcrumb.Item>Deployment</Breadcrumb.Item>
-        </Breadcrumb> */}
-        <h4 style={{marginBottom: "9px", marginTop: "3px"}}>
-          Cloud Name: <span style={{ color: "blue" }}>{cloudName}</span>
+    <div style={{ padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography.Title level={3} style={{ margin: 0 }}>Network Apply</Typography.Title>
+        <Button
+          type="primary"
+          onClick={handleNext}
+          style={{ width: 120, visibility: 'visible' }}
+          disabled={!allApplied}
+        >
+          Deploy
+        </Button>
+      </div>
+      {/* Cloud Name header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <h4 style={{ marginBottom: 0 }}>
+          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
         </h4>
       </div>
-
-      <Divider style={{ marginBottom: "18px",marginTop: "19px" }}/>
-      <h4 style={{ userSelect: "none" }}>Network Configuration</h4>
-      <div style={{ height: '830px' }}>
-        <Spin
-          spinning={loading}
-          tip="Validating the input..."
-          size="large"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginTop: '230px',
-          }}
-        >
-          <div>
-            <Splitter
-              style={{
-                height: 150,
-                boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
+      {/* VIP input below Cloud Name */}
+      <div style={{ marginTop: 12 }}>
+        <Form layout="inline">
+          <Form.Item
+            label="Enter VIP"
+            validateStatus={vipError ? 'error' : ''}
+            help={vipError}
+          >
+            <Input
+              style={{ width: 260 }}
+              placeholder="Enter VIP (IP address)"
+              value={vip}
+              onChange={(e) => {
+                const val = e.target.value;
+                setVip(val);
+                sessionStorage.setItem('sv_vip', val);
+                if (!val) {
+                  setVipError('Required');
+                } else if (!ipRegex.test(val)) {
+                  setVipError('Invalid IP address');
+                } else {
+                  setVipError('');
+                }
               }}
-            >
-              <Splitter.Panel size="50%" resizable={false}>
-                <div style={{ padding: 20 }}>
-                  <Typography.Title level={5} style={{ marginBottom: 16 }}>
-                    Configuration Type
-                  </Typography.Title>
+            />
+          </Form.Item>
+        </Form>
+      </div>
+      <Divider />
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        {forms.map((form, idx) => (
+          <Spin spinning={cardStatus[idx]?.loading} tip="Applying network changes & restarting node...">
+            <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
                   <Radio.Group
-                    value={configType}
-                    onChange={(e) => setConfigType(e.target.value)}
+                    value={form.configType}
+                    onChange={e => handleConfigTypeChange(idx, e.target.value)}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
                   >
-                    <Flex vertical gap="small">
-                      <Radio value="default">Default</Radio>
-                      <Radio value="segregated">Segregated</Radio>
-                    </Flex>
+                    <Radio value="default">Default</Radio>
+                    <Radio value="segregated">Segregated</Radio>
                   </Radio.Group>
+                  <Checkbox
+                    checked={form.useBond}
+                    onChange={e => handleUseBondChange(idx, e.target.checked)}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  >
+                    Bond
+                  </Checkbox>
                 </div>
-              </Splitter.Panel>
-
-              <Splitter.Panel resizable={false}>
-                <div style={{ padding: 20 }}>
-                  <Typography.Title level={5} style={{ marginBottom: 16 }}>
-                    Advanced Networking Options
-                  </Typography.Title>
-                  <Flex vertical gap="small">
-
-                    <Checkbox checked={useBond} onChange={(e) => setUseBond(e.target.checked)}>BOND</Checkbox>
-                  </Flex>
-                </div>
-              </Splitter.Panel>
-            </Splitter>
-
-            <Flex justify="flex-end" style={{ margin: '16px 0' }}>
-              <Button color="primary" variant="text" onClick={() => {
-                if (fetchInterfacesRef.current) fetchInterfacesRef.current();
-                if (fetchDisksRef.current) fetchDisksRef.current();
-              }} style={{ marginRight: 8, width: "100px", height: "35px" }}>
-                Refetch Data
-              </Button>
-              <Button type="text" danger onClick={handleReset} style={{ width: "100px", height: "35px" }}>
-                Reset Table
-              </Button>
-            </Flex>
-
-            <div style={{ marginTop: 24, height: 200, overflowY: 'auto' }}>
+                <Button
+                  onClick={() => fetchNodeData(form.ip)}
+                  size="small"
+                  type="default"
+                  style={{ width: 120 }}
+                >
+                  Refetch Data
+                </Button>
+              </div>
               <Table
-                columns={getColumns()}  // ← dynamic columns logic goes here
-                dataSource={tableData}
+                columns={getColumns(form, idx)}
+                dataSource={form.tableData}
                 pagination={false}
                 bordered
                 size="small"
                 scroll={{ x: true }}
+                rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
               />
-            </div>
-            <Divider />
-            <Form form={vipform} layout="vertical">
-              <div style={{ display: "flex", gap: "40px", marginTop: "20px" }}>
-                <Form.Item
-                  name="vip"
-                  label={
-                    <span>
-                      Enter VIP&nbsp;
-                      <Tooltip placement="right" title="Virtual IP Address" >
-                        <InfoCircleOutlined style={{
-                          color: "#1890ff", fontSize: "14px", height: "12px",
-                          width: "12px"
-                        }} />
-                      </Tooltip>
-                    </span>
-                  }
-                  rules={[
-                    { required: true, message: 'VIP is required' },
-                    {
-                      pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                      message: 'Invalid VIP format (e.g. 192.168.1.0)',
-                    },
-                  ]}
-                >
-                  <Input maxLength={18} placeholder="Enter VIP" style={{ width: 200 }} />
-                </Form.Item>
 
+              {/* Default Gateway Field */}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
                 <Form.Item
-                  name="disk"
-                  label={
-                    <span>
-                      Select Disks&nbsp;
-                      <Tooltip placement="right" title="Ceph OSD">
-                        <InfoCircleOutlined
-                          style={{
-                            color: "#1890ff",
-                            fontSize: "14px",
-                            height: "12px",
-                            width: "12px",
-                          }}
-                        />
-                      </Tooltip>
-                    </span>
-                  }
-                  rules={[{ required: true, message: 'Disk is required' }]}
+                  label="Default Gateway"
+                  validateStatus={form.defaultGatewayError ? 'error' : ''}
+                  help={form.defaultGatewayError}
+                  required
+                  style={{ minWidth: 220 }}
+                >
+                  <Input
+                    value={form.defaultGateway}
+                    placeholder="Enter Default Gateway"
+                    onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Select Disk"
+                  required
+                  validateStatus={form.diskError ? 'error' : ''}
+                  help={form.diskError}
+                  style={{ minWidth: 220 }}
                 >
                   <Select
-                    placeholder="Select Disk"
-                    style={{ width: 200 }}
-                    allowClear
                     mode="multiple"
+                    allowClear
+                    placeholder="Select disk(s)"
+                    value={form.selectedDisks || []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    onChange={value => handleDiskChange(idx, value)}
                     optionLabelProp="label"
                   >
-                    {disks.map((disk) => (
-                      <Option key={disk.wwn} value={disk.wwn} label={disk.name}>
-                        <div>
-                          <strong>{disk.name}</strong> &nbsp;
-                          <span style={{ color: '#888' }}>
-                            ({disk.size}, WWN: {disk.wwn || 'N/A'})
-                          </span>
-                        </div>
+                    {(nodeDisks[form.ip] || []).map(disk => (
+                      <Option
+                        key={disk.wwn || disk}
+                        value={disk.wwn || disk}
+                        label={disk.display || disk}
+                      >
+                        {disk.display || disk}
                       </Option>
                     ))}
                   </Select>
                 </Form.Item>
                 <Form.Item
-                  name="defaultGateway"
-                  label={
-                    <span>
-                      Enter Default Gateway&nbsp;
-                      <Tooltip placement="right" title="Default Gateway">
-                        <InfoCircleOutlined
-                          style={{
-                            color: "#1890ff",
-                            fontSize: "14px",
-                            height: "12px",
-                            width: "12px"
-                          }}
-                        />
-                      </Tooltip>
-                    </span>
-                  }
-                  rules={[
-                    { required: true, message: 'Gateway is required' },
-                    {
-                      pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                      message: 'Invalid IP format (e.g. 192.168.1.1)',
-                    },
-                  ]}
+                  label="Select Role"
+                  required
+                  validateStatus={form.roleError ? 'error' : ''}
+                  help={form.roleError}
+                  style={{ minWidth: 220 }}
                 >
-                  <Input maxLength={18} placeholder="Enter Gateway" style={{ width: 200 }} />
-                </Form.Item>
-
-                <Form.Item
-                  name="hostname"
-                  label={
-                    <span>
-                      Enter Hostname&nbsp;
-                      <Tooltip placement="right" title="This is the hostname for the deployed host. Optional; defaults to 'pinakasv'.">
-                        <InfoCircleOutlined
-                          style={{
-                            color: "#1890ff",
-                            fontSize: "14px",
-                            height: "12px",
-                            width: "12px"
-                          }}
-                        />
-                      </Tooltip>
-                    </span>
-                  }
-                  initialValue="pinakasv"
-                  rules={[]}
-                >
-                  <Input maxLength={32} placeholder="Enter Hostname (optional)" style={{ width: 200 }} />
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select role(s)"
+                    value={form.selectedRoles || []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    onChange={value => handleRoleChange(idx, value)}
+                  >
+                    <Option value="Control">Control</Option>
+                    <Option value="Compute">Compute</Option>
+                    <Option value="Storage">Storage</Option>
+                  </Select>
                 </Form.Item>
               </div>
-            </Form>
-            <Divider />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center", // ✅ This ensures vertical alignment
-                marginTop: "20px",
-                marginBottom: "5px",
-                gap: "7px"
-              }}
-            >
-              <h4 style={{ userSelect: "none", margin: 0 }}>Provider Network</h4>
-              <p style={{ margin: 0 }}>(optional)</p>
-              <Tooltip placement="right" title="Provider Network" >
-                <InfoCircleOutlined
-                  style={{
-                    color: "#1890ff",
-                    fontSize: "15.5px",
-                    height: "12px",
-                    width: "12px"
-                  }}
-                />
-              </Tooltip>
-            </div>
-            <Form form={Providerform} >
-              <Space>
-                <div style={{ display: "flex", gap: "40px" }}>
-                  <Form.Item
-                    name="cidr"
-                    rules={[
-                      // {
-                      //   required: true,
-                      //   message: 'CIDR is required',
-                      // },
-                      {
-                        pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
-                        message: 'Invalid CIDR format (e.g. 192.168.1.0/24)',
-                      },
-                    ]}
-                  >
-                    <Input placeholder="Enter CIDR" style={{ width: 200 }} />
-                  </Form.Item>
-
-                  <Form.Item
-                    name="gateway"
-                    rules={[
-                      {
-                        pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                        message: 'Invalid IP address',
-                      },
-                    ]}
-                  >
-                    <Input placeholder="Enter Gateway" style={{ width: 200 }} />
-                  </Form.Item>
-
-                  <Form.Item
-                    name="startingIp"
-                    rules={[
-                      {
-                        pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                        message: 'Invalid IP address',
-                      },
-                    ]}
-                  >
-                    <Input placeholder="Enter Starting IP" style={{ width: 200 }} />
-                  </Form.Item>
-
-                  <Form.Item
-                    name="endingIp"
-                    rules={[
-                      {
-                        pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                        message: 'Invalid IP address',
-                      },
-                    ]}
-                  >
-                    <Input placeholder="Enter Ending IP" style={{ width: 200 }} />
-                  </Form.Item>
-                </div>
-              </Space>
-            </Form >
-            <Divider />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center", // ✅ This ensures vertical alignment
-                marginTop: "20px",
-                marginBottom: "8px",
-                gap: "7px"
-              }}
-            >
-              <h4 style={{ userSelect: "none", margin: 0 }}>Tenant Network</h4>
-              <p style={{ margin: 0 }}>(optional)</p>
-              <Tooltip placement="right" title="Tenant Network" >
-                <InfoCircleOutlined
-                  style={{
-                    color: "#1890ff",
-                    fontSize: "15.5px",
-                    height: "12px",
-                    width: "12px"
-                  }}
-                />
-              </Tooltip>
-            </div>
-            <Form form={Tenantform} layout="vertical">
-              <Space>
-                <div style={{ display: "flex", gap: "40px" }}>
-                  {/* CIDR Field */}
-                  <Form.Item
-                    name="cidr"
-                    rules={[
-                      // { required: true, message: 'CIDR is required' },
-                      {
-                        pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
-                        message: 'Invalid CIDR format (e.g. 10.0.0.0/24)',
-                      },
-                    ]}
-                  >
-                    <Input
-                      placeholder="CIDR default:10.0.0.0/24"
-                      style={{ width: 200 }}
-                    />
-                  </Form.Item>
-
-                  {/* Gateway Field */}
-                  <Form.Item
-                    name="gateway"
-                    rules={[
-                      // { required: true, message: 'Gateway is required' },
-                      {
-                        pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                        message: 'Invalid Gateway IP (e.g. 10.0.0.1)',
-                      },
-                    ]}
-                  >
-                    <Input
-                      placeholder="Gateway default:10.0.0.1"
-                      style={{ width: 200 }}
-                    />
-                  </Form.Item>
-
-                  {/* Nameserver Field */}
-                  <Form.Item
-                    name="nameserver"
-                    rules={[
-                      // { required: true, message: 'Nameserver is required' },
-                      {
-                        pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                        message: 'Invalid Nameserver IP (e.g. 8.8.8.8)',
-                      },
-                    ]}
-                  >
-                    <Input
-                      placeholder="Nameserver default:8.8.8.8"
-                      style={{ width: 200 }}
-                    />
-                  </Form.Item>
-                </div>
-              </Space>
-            </Form>
-            <Flex justify="flex-end">
-              <Space>
-                <Button htmlType="button" danger onClick={() => {
-                  vipform.resetFields();
-                  Providerform.resetFields();
-                  Tenantform.resetFields();
-                  handleReset(); // resets the table
-                }}>
-                  Reset Values
+              {/* License Details Display - all in one line */}
+              <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
+                <span>{form.licenseType || '-'}</span>
+                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
+                <span>{form.licensePeriod || '-'}</span>
+                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
+                <span>{form.licenseCode || '-'}</span>
+              </div>
+              <Divider />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
+                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                  Reset Value
                 </Button>
-                <Button type="primary" onClick={handleSubmit}>
-                  Submit
+                <Button type="primary" onClick={() => handleSubmit(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                  Apply Change
                 </Button>
-              </Space>
-            </Flex>
-          </div>
-        </Spin>
-      </div>
-    </div >
+              </div>
+            </Card>
+          </Spin>
+        ))}
+      </Space>
+    </div>
   );
 };
-
 
 export default Deployment;

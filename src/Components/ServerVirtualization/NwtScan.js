@@ -1,13 +1,12 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Divider,
   Table,
   Button,
-  Breadcrumb,
-  notification
+  Form,
+  Input,
+  message
 } from "antd";
-import { HomeOutlined } from "@ant-design/icons";
-import { CloudOutlined } from "@ant-design/icons";
 
 
 const getCloudName = () => {
@@ -19,211 +18,119 @@ const getCloudName = () => {
 
 const hostIP = window.location.hostname;
 
+const subnetRegex = /^([0-9]{1,3}\.){3}[0-9]{1,3}\/(\d|[1-2]\d|3[0-2])$/;
 
-const DataTable = ({ onNodeSelect, next }) => {
+const DataTable = ({ next }) => {
   const cloudName = getCloudName();
-  const [isScanning, setIsScanning] = useState(false);
-  const [nodes, setNodes] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [numberOfSockets, setNumberOfSockets] = useState(0);
-  const [copyStatus, setCopyStatus] = useState("Copy Details");
-  const itemsPerPage = 4;
-  const [api, contextHolder] = notification.useNotification();
+  const [form] = Form.useForm();
+  const [scanLoading, setScanLoading] = useState(false);
+  const [data, setData] = useState([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
-  const fetchData = async () => {
+  const fetchScan = async (customSubnet = '') => {
+    setScanLoading(true);
+    let url = `https://${hostIP}:2020/scan`;
+    if (customSubnet) {
+      url += `?subnet=${encodeURIComponent(customSubnet)}`;
+    }
     try {
-      setIsScanning(true);
-      const res = await fetch(`https://${hostIP}:2020/get-interfaces`);
-      if (!res.ok) {
-        throw new Error(`Error ${res.status}: ${res.statusText}`);
+      const res = await fetch(url);
+      const result = await res.json();
+      if (res.ok) {
+        const scanData = Array.isArray(result) ? result : (result.active_nodes || []);
+        setData(scanData);
+      } else {
+        message.error(result.error || 'Failed to scan the network.');
+        setData([]);
       }
-      const data = await res.json();
-      setNumberOfSockets(data.cpu_sockets);
-      const formattedNodes = data.interfaces.map((iface, index) => ({
-        key: `${iface.iface}-${iface.mac}-${index}`, // guarantees uniqueness
-        interface: iface.iface,
-        mac: iface.mac,
-        ip: iface.ip,
-      }));
-
-      setNodes(formattedNodes);
-    } catch (error) {
-      console.error(error);
-      api.error({
-        message: "Data Fetch Error",
-        description:
-          error.message || "Something went wrong while fetching the data",
-      });
+    } catch (err) {
+      message.error('Network error.');
+      setData([]);
     } finally {
-      setIsScanning(false);
+      setScanLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleCopyDetails = () => {
-    const licensesRequired = numberOfSockets;
-    const socketInfo = `Number of Sockets: ${numberOfSockets || 2}`;
-    const licenseInfo = `License Required: ${licensesRequired || 2}`;
-
-    const tableData = nodes
-      .map((node, index) =>
-        `${index + 1}. ${columns
-          .map((col) => `${col.title}: ${node[col.dataIndex]}`)
-          .join(", ")}`
-      )
-      .join("\n");
-
-    const textToCopy = `${socketInfo}\n${licenseInfo}\n\n${tableData}`;
-
-    navigator.clipboard
-      .writeText(textToCopy)
-      .then(() => {
-        setCopyStatus("Copied");
-        setTimeout(() => setCopyStatus("Copy Details"), 1000);
+  const handleSubnetScan = () => {
+    form
+      .validateFields()
+      .then((values) => {
+        fetchScan(values.subnet || '');
       })
-      .catch(() => {
-        setCopyStatus("Failed");
-        setTimeout(() => setCopyStatus("Copy Details"), 1000);
-      });
+      .catch(() => {});
   };
 
   const columns = [
-    {
-      title: "Interface",
-      dataIndex: "interface",
-      key: "interface",
-    },
-    {
-      title: "MAC Address",
-      dataIndex: "mac",
-      key: "mac",
-    },
-    {
-      title: "IP Address",
-      dataIndex: "ip",
-      key: "ip",
-    },
+    { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
+    { title: 'MAC Address', dataIndex: 'mac', key: 'mac' },
+    { title: 'Last Seen', dataIndex: 'last_seen', key: 'last_seen' },
   ];
 
   return (
-    <div style={{ padding: "20px" }}>
-      {contextHolder}
-      {/* Flex container to align Breadcrumb and Button in same row */}
+    <div style={{ padding: '20px' }}>
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          // alignItems: "center",
-          // marginBottom: "16px",
+          display: 'flex',
+          justifyContent: 'space-between',
         }}
       >
-        {/* <Breadcrumb>
-          <Breadcrumb.Item>
-            <HomeOutlined />
-          </Breadcrumb.Item>
-          <Breadcrumb.Item>Deployment Options</Breadcrumb.Item>
-          <Breadcrumb.Item>Validation</Breadcrumb.Item>
-          <Breadcrumb.Item>System Interface</Breadcrumb.Item>
-        </Breadcrumb> */}
-        <h4 style={{marginBottom: "-16px", marginTop: "3px"}}>
-          Cloud Name: <span style={{ color: "blue" }}>{cloudName}</span>
+        <h4 style={{ marginBottom: '-16px', marginTop: '3px' }}>
+          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
         </h4>
         <Button
           size="middle"
-          style={{ width: "75px" }}
+          style={{ width: '75px' }}
           type="primary"
-          onClick={next}
+          disabled={selectedRowKeys.length === 0}
+          onClick={() => {
+            if (!next) return;
+            const selected = data.filter(
+              (row) => selectedRowKeys.includes((row.ip || '') + (row.mac || ''))
+            );
+            next(selected);
+          }}
         >
           Next
         </Button>
       </div>
 
-      <Divider style={{ marginBottom: "18px",marginTop: "28px" }} />
-      <div style={{ display: "flex", gap: "40px", marginBottom: "16px", marginLeft: "3px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span>Number of Sockets:</span>
-          <div style={{
-            border: "1px solid #d9d9d9",
-            borderRadius: "4px",
-            padding: "4px 12px",
-            minWidth: "40px",
-            textAlign: "center",
-            backgroundColor: "#fafafa",
-          }}>
-            {numberOfSockets}
-          </div>
-        </div>
+      <Divider style={{ marginBottom: '18px', marginTop: '28px' }} />
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span>License Required:</span>
-          <div style={{
-            border: "1px solid #d9d9d9",
-            borderRadius: "4px",
-            padding: "4px 12px",
-            minWidth: "40px",
-            textAlign: "center",
-            backgroundColor: "#fafafa",
-          }}>
-            {numberOfSockets}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Button
-            size="middle"
-            style={{ width: "95px" }}
-            type="primary"
-            onClick={handleCopyDetails}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Form form={form} layout="inline" initialValues={{ subnet: '' }}>
+          <Form.Item
+            name="subnet"
+            rules={[
+              { pattern: subnetRegex, message: 'Enter valid subnet (e.g. 192.168.1.0/24)' },
+            ]}
           >
-            {copyStatus}
-          </Button>
-          <Button
-            size="middle"
-            style={{ width: "95px" }}
-            color="primary"
-            variant="outlined"
-            onClick={fetchData}
-          >
-            Refresh
-          </Button>
-        </div>
+            <Input
+              placeholder="Enter subnet (e.g. 192.168.1.0/24) or leave blank for local"
+              style={{ width: 260 }}
+              allowClear
+            />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" onClick={handleSubnetScan} loading={scanLoading}>
+              Scan
+            </Button>
+          </Form.Item>
+        </Form>
       </div>
-
 
       <Table
+        rowSelection={{
+          type: 'checkbox',
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+        }}
         columns={columns}
-        dataSource={nodes}
-        size="middle"
-        rowKey="key"
-        pagination={{
-          current: currentPage,
-          pageSize: itemsPerPage,
-          onChange: (page) => setCurrentPage(page),
-        }}
-        loading={{
-          spinning: isScanning,
-          tip: "Scanning...",
-        }}
+        dataSource={data}
+        rowKey={(record) => record.ip + (record.mac || '')}
+        loading={scanLoading}
+        pagination={false}
+        style={{ marginBottom: 16 }}
       />
-      <div style={{ marginTop: "16px", display: "flex", alignItems: "center" }}>
-        <span style={{ fontSize: "14px" }}>
-          <strong>Note:</strong>
-          <br />
-          1. To obtain your license key, copy the details from the table above and email them to
-          <a href="mailto:support@pinakastra.cloud"> support@pinakastra.cloud</a> or contact us at
-          <a href="tel:+919008488882"> +91 90084 88882</a>.
-          <br />
-          (OR)
-          <br />
-          2. If you have already purchased the license and completed the payment and you have the payment ID,
-          visit <a href="https://pinakastra.com/generate-key" target="_blank" rel="noopener noreferrer">
-            https://pinakastra.com/generate-key
-          </a>, fill in the required details, and generate your activation key.
-        </span>
-      </div>
     </div>
   );
 };

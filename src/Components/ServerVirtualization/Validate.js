@@ -1,7 +1,6 @@
-import React, { useState } from "react";
-import { Divider, Button, Spin, notification } from "antd";
-import { HomeOutlined, CloudOutlined } from "@ant-design/icons";
-import axios from "axios";
+import React, { useState, useEffect } from 'react';
+import { Divider, Table, Button, Modal, Tag, message } from 'antd';
+import axios from 'axios';
 
 const getCloudName = () => {
   const fromSession = sessionStorage.getItem('cloudName');
@@ -11,234 +10,184 @@ const getCloudName = () => {
 };
 const hostIP = window.location.hostname;
 
-
-const Validation = ({ nodes, onIbnUpdate, next, onValidationResult }) => {
+const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
   const cloudName = getCloudName();
-  const [api, contextHolder] = notification.useNotification();
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
+  const [data, setData] = useState(results || []);
+  const [infoModal, setInfoModal] = useState({ visible: false, details: '' });
 
-  const handleValidation = async (environment) => {
+  // Sync data with results or nodes (from Cloud validate.jsx)
+  useEffect(() => {
+    if (results) setData(results);
+    else setData(
+      (nodes || []).map(node => ({
+        ...node,
+        key: node.ip,
+        result: null,
+        details: '',
+        validating: false,
+      }))
+    );
+  }, [results, nodes]);
+
+  // Validation handler (from Cloud validate.jsx)
+  const handleValidate = async (ip) => {
+    setData(prev => prev.map(row =>
+      row.ip === ip ? { ...row, validating: true } : row
+    ));
+
     try {
-      setLoading(true);
-      setError(null);
-      setResults(null);
-
       const response = await axios.post(`https://${hostIP}:2020/validate`, {
-        environment,
-        mode: "local",
+        environment: 'production',
+        mode: 'remote',
+        host: ip
       });
-      const data = response.data?.[0];
-      setResults(data);
-      // Notify parent of validation result
-      if (onValidationResult) {
-        if (
-          typeof data.validation_result === "string" &&
-          data.validation_result.trim().toLowerCase() === "passed"
-        ) {
-          onValidationResult("passed");
-        } else {
-          onValidationResult("failed");
-        }
+
+      let result = response.data;
+      if (Array.isArray(result)) {
+        result = result[0];
       }
-    } catch (err) {
-      const errorMessage = "Validation failed. Please try again.";
-      setError(errorMessage);
-      console.error(err);
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
-      // Show error using Ant Design Notification
-      api.error({
-        message: "Validation Error",
-        description: errorMessage,
+      const validation = (result && typeof result.validation === 'object') ? result.validation : {};
+      const isPass = result.validation_result === 'passed';
+      const details = [
+        `CPU Cores: ${result.cpu_cores ?? 'N/A'} (${validation.cpu === true ? '✓' : validation.cpu === false ? '✗' : '-'})`,
+        `Memory: ${result.memory_gb ?? 'N/A'}GB (${validation.memory === true ? '✓' : validation.memory === false ? '✗' : '-'})`,
+        `Disks: ${result.data_disks ?? 'N/A'} (${validation.disks === true ? '✓' : validation.disks === false ? '✗' : '-'})`,
+        `Network Interfaces: ${result.network_interfaces ?? 'N/A'} (${validation.network === true ? '✓' : validation.network === false ? '✗' : '-'})`
+      ].join('\n');
+
+      setData(prev => {
+        const newData = prev.map(row =>
+          row.ip === ip
+            ? {
+                ...row,
+                result: isPass ? 'Pass' : 'Fail',
+                details: details,
+                validating: false,
+                validationData: result
+              }
+            : row
+        );
+        setResults && setResults(newData);
+        return newData;
       });
-    } finally {
-      setLoading(false);
+
+      message.success(`Validation for ${ip}: ${isPass ? 'Pass' : 'Fail'}`);
+    } catch (error) {
+      console.error('Validation error:', error);
+      setData(prev => prev.map(row =>
+        row.ip === ip 
+          ? { 
+              ...row, 
+              result: 'Fail', 
+              details: `Validation failed: ${error.message || 'Unknown error'}`,
+              validating: false 
+            } 
+          : row
+      ));
+      message.error(`Validation failed for ${ip}: ${error.message || 'Unknown error'}`);
     }
   };
 
-  const renderResult = () => {
-    if (!results && !error) {
-      return <p style={{ color: "#555" }}>Please run a validation to see results.</p>;
-    }
-    if (error) {
-      return <p style={{ color: "red" }}>{error}</p>;
-    }
-    if (results) {
-      return (
-        <div style={{ fontSize: "13px" }}>
-          <p>CPU Cores: {results.cpu_cores}</p>
-          <p>Memory: {results.memory_gb}GB</p>
-          <p>Data Disks: {results.data_disks}</p>
-          <p>Network Interfaces: {results.network_interfaces}</p>
-          <p>Validation Result: {results.validation_result}</p>
-          <div style={{ marginTop: "8px" }}>
-            <strong>Details:</strong>
-            <ul style={{ listStyle: "none", paddingLeft: 0 }}>
-              <li>CPU: {results.validation.cpu ? "✅ Pass" : "❌ Fail"}</li>
-              <li>Disks: {results.validation.disks ? "✅ Pass" : "❌ Fail"}</li>
-              <li>Memory: {results.validation.memory ? "✅ Pass" : "❌ Fail"}</li>
-              <li>Network: {results.validation.network ? "✅ Pass" : "❌ Fail"}</li>
-            </ul>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <div style={{ padding: "20px" }}>
-      {contextHolder}
-      
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-        {/* <Breadcrumb style={{ margin: 0 }}>
-          <Breadcrumb.Item>
-            <HomeOutlined />
-          </Breadcrumb.Item>
-          <Breadcrumb.Item>Deployment Options</Breadcrumb.Item>
-          <Breadcrumb.Item>Server Validation</Breadcrumb.Item>
-        </Breadcrumb> */}
-        <h4 style={{marginBottom: "-16px", marginTop: "-17px"}}>
-          Cloud Name: <span style={{ color: "blue" }}>{cloudName}</span>
-        </h4>
+  const columns = [
+    { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
+    {
+      title: 'Validate',
+      key: 'validate',
+      render: (_, record) => (
         <Button
           type="primary"
-          style={{ width: 70, minWidth: 80, height: 36, marginLeft: 8, verticalAlign: 'middle' }}
-          disabled={!(
-            results &&
-            typeof results.validation_result === "string" &&
-            results.validation_result.trim().toLowerCase() === "passed"
-          )}
-          onClick={next}
+          loading={record.validating}
+          onClick={() => handleValidate(record.ip)}
+          disabled={record.validating}
+          style={{ width: '95px' }}
+        >
+          Validate
+        </Button>
+      ),
+    },
+    {
+      title: 'Result',
+      dataIndex: 'result',
+      key: 'result',
+      render: (result) =>
+        result === 'Pass' ? <Tag color="green">Pass</Tag> :
+        result === 'Fail' ? <Tag color="red">Fail</Tag> : <Tag>Pending</Tag>
+    },
+    {
+      title: 'Info',
+      key: 'info',
+      render: (_, record) => (
+        <Button
+          onClick={() => {
+            const recommended = { cpu_cores: 48, memory_gb: 128, disks: 4, network: 2 };
+            const actual = record.validationData || {};
+            const validation = (actual && typeof actual.validation === 'object') ? actual.validation : {};
+            const details = [
+              `CPU Cores: ${actual.cpu_cores ?? 'N/A'} (Recommended: ${recommended.cpu_cores}) (${validation.cpu === true ? '✓' : validation.cpu === false ? '✗' : '-'})`,
+              `Memory: ${actual.memory_gb ?? 'N/A'}GB (Recommended: ${recommended.memory_gb}GB) (${validation.memory === true ? '✓' : validation.memory === false ? '✗' : '-'})`,
+              `Disks: ${actual.data_disks ?? 'N/A'} (Recommended: ${recommended.disks}) (${validation.disks === true ? '✓' : validation.disks === false ? '✗' : '-'})`,
+              `Network Interfaces: ${actual.network_interfaces ?? 'N/A'} (Recommended: ${recommended.network}) (${validation.network === true ? '✓' : validation.network === false ? '✗' : '-'})`
+            ].join('\n');
+            setInfoModal({ visible: true, details });
+          }}
+          disabled={!record.result}
+          style={{ width: '95px' }}
+        >
+          Info
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h4 style={{ marginBottom: '-16px', marginTop: '3px' }}>
+          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+        </h4>
+        <Button
+          size="middle"
+          style={{ width: '75px' }}
+          type="primary"
+          onClick={() => {
+            const anyValidated = data.some(row => row.result !== null);
+            if (!anyValidated) {
+              message.warning('Please validate at least one node before proceeding.');
+              return;
+            }
+            const passed = data.filter(row => row.result === 'Pass');
+            if (passed.length === 0) {
+              message.error('All nodes failed validation. Please ensure at least one node passes before proceeding.');
+              return;
+            }
+            if (onNext) onNext(passed, data);
+            else if (next) next(passed, data);
+          }}
         >
           Next
         </Button>
       </div>
 
-      <Divider/>
+      <Divider />
 
-      <div style={{ display: "flex", flex: "1", gap: "30px", padding: "20px" }}>
-        {/* Button Column */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "60px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <h5>Validation for development environment:</h5>
-            <Button
-              type="primary"
-              size="large"
-              style={{ width: "120px", height: "35px" }}
-              onClick={() => handleValidation("development")}
-            >
-              Validate
-            </Button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <h5>
-              Validation for production <br /> environment:
-            </h5>
-            <Button
-              type="primary"
-              size="large"
-              style={{ width: "120px", height: "35px" }}
-              onClick={() => handleValidation("production")}
-            >
-              Validate
-            </Button>
-          </div>
-        </div>
-
-        {/* Image, Line, and Result Box */}
-        <div style={{ display: "flex", alignItems: "center", flex: 1, gap: "20px" }}>
-          {/* Image + Loading Spinner */}
-          <div style={{ position: "relative" }}>
-            {loading && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "60%",
-                  left: "60%",
-                  transform: "translate(-50%, -50%)",
-                  zIndex: 1,
-                }}
-              >
-                <Spin style={{ marginLeft: "25px" }} ></Spin>
-                <p>Validating...</p>
-              </div>
-            )}
-            <img
-              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAsTAAALEwEAmpwYAAACnElEQVR4nO1azWoUQRBuMIgeNGaz3V4igj8IvoBexKfYY6JvIIJTteBhbm68iw8RFm8q6EVZfYcknjYkgkpAk4u3T2rsLKuuYWa2ZzM9Wx/UpZfurqqvf+arXmMUCoVCocgNR7htCW8d4dAxUAsjHFrGm4td3DJVop3grmX8PPGA/2PiWzvBnWqi7+CUI2z5jD9bfIALpiYQXxzjufdtS3wNPollrI0mSLFg6oYUC46x7VfCWnj22Q+eYFWaHOPjDPf4hyNXJs7rfx+RxNgOugrsOPt+YJl0hvt7MErA5HkH1a2CTsb+5jj7dYYl3PNkfQqyVW3oAavGOGFTr4JOXOwHJ83Gxn7QVdCJk/1g5NkEq5VcKbPChKu7EBzhvV9C902kEN89ie8Kd3aMA+m8xFg0kUJ89wk4KNzZ1UDchDRNQFG4spmrGaZeASZyNDYBN1OcdoynjvDZMfYcYV3aKk+AEzk6Jk+raMvlH2HdX9NfxLy/vbxxTJMA/N0esu3YOsOfdYE9CXw5wTkxS/gqbfEngI6tMwwmJaCV4nyWAMJu9QmgzMFBlW05/euNtsBv9sXfJ3njaMoh2PMH4K4EH/YQJPyQji3CiokUS49xySfge+HOjtD3nV/JQCbG4Amv/eG5UXgA28U1y/h20t/w01oWQxdXCiegneB6UxJgH+Fq+S1AeBnjOSA+y/YtvQXc3B+CHMU1qFrAqhaAaoGWagGoFnCqBf6FagFSLQDVAqxaAKoFuExBhFULIJJ3gaHYvL4LDC+nOCNmCTvz+C4wlOBXHuJsloC5fBcg7Hj2xV99FzA5icz9F5lWhPXAIFrAEl406F2gX3iA5QQ3LGO/AWXxfSnxly8tEzaOKsRRmfhM6JcOXqFQKBSm+fgF8tw4l4opeaIAAAAASUVORK5CYII="
-              alt="server"
-              style={{
-                width: "200px",
-                height: "220px",
-                userSelect: "none",
-                justifyItems: "center",
-                marginLeft: "13%",
-                opacity: loading ? 0.3 : 1,
-              }}
-            />
-          </div>
-
-          {/* Line with arrow */}
-          <div
-            style={{
-              position: "relative",
-              display: "flex",
-              flex: 1,
-              height: "4px",
-              backgroundColor: "#000000",
-              alignItems: "center",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                right: 0,
-                top: "50%",
-                transform: "translateY(-50%) translateX(100%)",
-                width: 0,
-                height: 0,
-                borderTop: "6px solid transparent",
-                borderBottom: "6px solid transparent",
-                borderLeft: "8px solid #000000",
-              }}
-            />
-          </div>
-
-          {/* Result Box */}
-          <div
-            style={{
-              backgroundColor: "#fafafa",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
-              padding: "16px",
-              width: "260px",
-              height: "220px",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05)",
-              overflowY: "auto",
-            }}
-          >
-            <h4
-              style={{
-                marginBottom: "12px",
-                display: "flex",
-                alignItems: "center",
-                gap: "3px",
-              }}
-            >
-              Validation Result:
-              {results && (
-                results.validation_result === "failed" ? (
-                  <span style={{ fontSize: "1.2em", color: "red" }}>❌</span>
-                ) : (
-                  <span style={{ fontSize: "1.2em", color: "green" }}>✅</span>
-                )
-              )}
-            </h4>
-            {renderResult()}
-          </div>
-        </div>
-      </div>
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="ip"
+        pagination={false}
+      />
+      <Modal
+        title="Validation Details"
+        open={infoModal.visible}
+        onCancel={() => setInfoModal({ visible: false, details: '' })}
+        footer={null}
+      >
+        <div style={{ whiteSpace: 'pre-line' }}>{infoModal.details}</div>
+      </Modal>
     </div>
   );
 };

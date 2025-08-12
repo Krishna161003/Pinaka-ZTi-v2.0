@@ -1,244 +1,133 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Divider, Card, Progress, Row, Col, Flex, Spin, Button } from 'antd';
-import { CloudOutlined } from '@ant-design/icons';
+import { Divider, Card, Row, Col, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
-const getCloudName = () => {
+const getCloudNameFromMetadata = () => {
+  let cloudNameMeta = document.querySelector('meta[name="cloud-name"]');
   const fromSession = sessionStorage.getItem('cloudName');
-  if (fromSession) return fromSession;
-  const meta = document.querySelector('meta[name="cloud-name"]');
-  return meta ? meta.content : 'Default';
+  return fromSession || (cloudNameMeta ? cloudNameMeta.content : 'Cloud');
 };
 
 const hostIP = window.location.hostname;
 
-const Report = ({ ibn, onDeploymentComplete }) => {
+const Report = ({ onDeploymentComplete }) => {
   const navigate = useNavigate();
-  const [completionWindowActive, setCompletionWindowActive] = useState(false);
-  const completionWindowTimeoutRef = useRef(null);
-  const revertedRef = useRef(false);
-  const cloudName = getCloudName();
-  const [percent, setPercent] = useState(0);
-  const [completedLogs, setCompletedLogs] = useState([]);
-  const [error, setError] = useState(null);
-  const [deploymentPollingStopped, setDeploymentPollingStopped] = useState(false);
+  const cloudName = getCloudNameFromMetadata();
+  const [deploymentInProgress, setDeploymentInProgress] = useState(true);
+  const finalizedRef = useRef(false);
 
-  // Track serverid for this deployment (from sessionStorage only)
-  const serveridRef = React.useRef(sessionStorage.getItem('currentServerid') || null);
+  // Placeholder images
+  const completedImage = require('../../Images/completed.png');
 
-  const intervalRef = useRef(null);
+  // Poll backend for node deployment progress
   useEffect(() => {
-    let isMounted = true;
-    let completedTime = null;
-    let stopTimeout = null;
-
-    // Debug: Log each time fetchProgress runs and the percent value
-    const debugFetchProgress = (data) => {
-      console.log('fetchProgress polled:', {
-        percent: data.percent,
-        completed_steps: data.completed_steps,
-        serveridRef: serveridRef.current,
-        sessionStorageServerid: sessionStorage.getItem('currentServerid')
-      });
-    };
-
-    // Helper to mark deployment as completed
-    const logDeploymentComplete = async () => {
-      if (!serveridRef.current) return;
-      const currentServerid = serveridRef.current;
-      serveridRef.current = null; // Prevent duplicate calls immediately
-      try {
-        // Mark as completed
-        await fetch(`https://${hostIP}:5000/api/deployment-activity-log/${currentServerid}`, {
-          method: 'PATCH'
-        });
-
-        // Finalize deployment (transfer to appropriate table)
-        // Determine server_type based on deployment type or user selection
-        const server_type = 'host'; // Default to 'host', you can modify this logic
-
-        // Normalize license from sessionStorage
-        const lsRaw = sessionStorage.getItem('licenseStatus') || '{}';
-        const ls = JSON.parse(lsRaw);
-        const lsTypeStr = String(ls?.type || '').toLowerCase();
-        const lsPerpetual = lsTypeStr === 'perpetual' || lsTypeStr === 'perpectual';
-        // If license already activated, set start_date to today and end_date to null (frontend mirror of backend)
-        if (String(ls?.status || '').toLowerCase() === 'activated') {
-          const today = new Date().toISOString().split('T')[0];
-          const updated = {
-            ...ls,
-            period: lsPerpetual ? null : (ls?.period ?? null),
-            start_date: today,
-            end_date: null,
-          };
-          sessionStorage.setItem('licenseStatus', JSON.stringify(updated));
+    let interval = setInterval(() => {
+      fetch(`https://${hostIP}:2020/node-deployment-progress`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && typeof data.in_progress === 'boolean') {
+            setDeploymentInProgress(data.in_progress);
+          }
+        })
+        .catch(() => {});
+    }, 3000);
+    // Initial check
+    fetch(`https://${hostIP}:2020/node-deployment-progress`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.in_progress === 'boolean') {
+          setDeploymentInProgress(data.in_progress);
         }
-        // Re-read after potential update to ensure we send normalized values
-        const lsNow = JSON.parse(sessionStorage.getItem('licenseStatus') || '{}');
+      })
+      .catch(() => {});
+    return () => clearInterval(interval);
+  }, []);
 
-        await fetch(`https://${hostIP}:5000/api/finalize-deployment/${currentServerid}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            server_type,
-            license_code: lsNow?.license_code || null,
-            license_type: lsNow?.type || null,
-            license_period: (String(lsNow?.type || '').toLowerCase() === 'perpetual' || String(lsNow?.type || '').toLowerCase() === 'perpectual') ? null : (lsNow?.period || null),
-            license_start_date: lsNow?.start_date || null,
-            license_end_date: lsNow?.end_date ?? null,
-            role: server_type === 'host' ? 'master' : 'worker',
-            host_serverid: server_type === 'child' ? 'parent-host-id' : null, // Only needed for child nodes
-            Management: sessionStorage.getItem('Management') || null,
-            External_Traffic: sessionStorage.getItem('External_Traffic') || null,
-            Storage: sessionStorage.getItem('Storage') || null,
-            VXLAN: sessionStorage.getItem('VXLAN') || null
-          })
+  // Persist behavior when leaving Report tab while deployment is in progress
+  useEffect(() => {
+    return () => {
+      if (deploymentInProgress) {
+        try {
+          sessionStorage.setItem('serverVirtualization_activeTab', '6');
+          sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '1': true, '2': true, '3': true, '4': true, '5': true, '6': false }));
+          sessionStorage.setItem('disabledTabs', JSON.stringify({ '1': true, '2': true, '3': true, '4': true, '5': true, '6': false }));
+          sessionStorage.setItem('lastMenuPath', '/servervirtualization?tab=6');
+          sessionStorage.setItem('lastServerVirtualizationPath', '/servervirtualization?tab=6');
+        } catch (_) {}
+      }
+    };
+  }, [deploymentInProgress]);
+
+  // Helper to extract role IPs from saved form
+  const extractRoleIps = (form) => {
+    const findIp = (name) => {
+      const row = (form?.tableData || []).find(r => Array.isArray(r.type) ? r.type.includes(name) : r.type === name);
+      return row?.ip || '';
+    };
+    return {
+      Management: findIp('Management'),
+      Storage: findIp('Storage'),
+      External_Traffic: findIp('External Traffic'),
+      VXLAN: findIp('VXLAN'),
+    };
+  };
+
+  // When deployment finishes, finalize child deployments in backend (SV storage keys)
+  useEffect(() => {
+    if (!deploymentInProgress && !finalizedRef.current) {
+      finalizedRef.current = true;
+      try {
+        const nodesRaw = sessionStorage.getItem('sv_lastDeploymentNodes');
+        if (!nodesRaw) return;
+        const nodes = JSON.parse(nodesRaw) || [];
+        const configRaw = sessionStorage.getItem('sv_networkApplyResult');
+        const configMap = configRaw ? JSON.parse(configRaw) : {};
+
+        nodes.forEach(async (node) => {
+          try {
+            const form = configMap[node.serverip] || null;
+            const roleIps = extractRoleIps(form);
+            // 1) Mark node deployment log completed (primary)
+            await fetch(`https://${hostIP}:5000/api/node-deployment-activity-log/${encodeURIComponent(node.serverid)}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'completed' })
+            }).catch(() => {});
+            // 2) Finalize node deployment (upsert into deployed_server and activate license)
+            const roleStr = Array.isArray(form?.selectedRoles) && form.selectedRoles.length > 0
+              ? form.selectedRoles.join(',')
+              : 'child';
+            await fetch(`https://${hostIP}:5000/api/finalize-node-deployment/${encodeURIComponent(node.serverid)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                role: roleStr,
+                ...roleIps,
+              })
+            }).catch(() => {});
+          } catch (e) {
+            // Swallow per-node errors to avoid blocking others
+          }
         });
 
-        console.log(`Deployment finalized as ${server_type}`);
-        sessionStorage.removeItem('currentServerid');
         if (typeof onDeploymentComplete === 'function') {
           onDeploymentComplete();
         }
-      } catch (e) {
-        console.error('Error completing deployment:', e);
-      }
-    };
-
-    // Helper to revert status to progress if needed
-    const revertToProgress = async () => {
-      if (!serveridRef.current) return;
-      try {
-        await fetch(`https://${hostIP}:5000/api/deployment-activity-log/${serveridRef.current}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'progress' })
-        });
-        revertedRef.current = true;
-        console.log('Deployment status reverted to progress due to drop in percent.');
-      } catch (e) {
-        console.error('Failed to revert deployment status:', e);
-      }
-    };
-
-    const fetchProgress = async () => {
-      try {
-        const res = await fetch(`https://${hostIP}:2020/deployment-progress`);
-        if (isMounted) {
-          if (res.ok) {
-            const data = await res.json();
-            setPercent(data.percent || 0);
-            setCompletedLogs(data.completed_steps || []);
-            setError(null);
-
-            debugFetchProgress(data);
-
-            // Stop polling IMMEDIATELY if deployment is complete
-            if ((data.percent || 0) === 100) {
-              if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-              }
-              setDeploymentPollingStopped(true);
-            }
-
-            // Log deployment completion in DB if just completed
-            if ((data.percent || 0) === 100 && serveridRef.current) {
-              await logDeploymentComplete();
-            }
-
-            // Start 3-min window after deployment completes
-            if ((data.percent || 0) === 100 && !completedTime) {
-              completedTime = Date.now();
-              setCompletionWindowActive(true);
-              revertedRef.current = false;
-              if (completionWindowTimeoutRef.current) clearTimeout(completionWindowTimeoutRef.current);
-              completionWindowTimeoutRef.current = setTimeout(() => {
-                setCompletionWindowActive(false);
-                revertedRef.current = false;
-              }, 180000); // 3 minutes
-              // Set a timeout to stop polling after 5 minutes (as before)
-              stopTimeout = setTimeout(() => {
-                if (intervalRef.current) clearInterval(intervalRef.current);
-              }, 300000); // 5 minutes
-            }
-
-            // If in the 3-min window and percent drops below 100, revert status
-            if (
-              completionWindowActive &&
-              (data.percent || 0) < 100 &&
-              !revertedRef.current &&
-              serveridRef.current
-            ) {
-              revertToProgress();
-            }
-          } else {
-            setPercent(0);
-            setCompletedLogs([]);
-            setError(null);
-          }
-        }
-      } catch (err) {
-        if (isMounted) setError('Failed to connect to backend. Please check your network or server.');
-      }
-    };
-
-    // Start polling progress
-    fetchProgress();
-    intervalRef.current = setInterval(fetchProgress, 2000);
-
-    return () => {
-      isMounted = false;
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (stopTimeout) clearTimeout(stopTimeout);
-      if (completionWindowTimeoutRef.current) clearTimeout(completionWindowTimeoutRef.current);
-    };
-  }, [cloudName, completionWindowActive, onDeploymentComplete, deploymentPollingStopped]);
-
-  // Define all possible steps as in backend
-  const allSteps = [
-    'Step 1: Initialization',
-    'Step 2: Resources created',
-    'Step 3: Configuration applied',
-    'Step 4: Services started',
-    'Step 5: Finalizing deployment',
-    'Deployment Completed'
-  ];
-
-  // Render steps: completed, in progress, future
-  let progressList = [];
-  let foundInProgress = false;
-  for (let i = 0; i < allSteps.length; i++) {
-    if (i < completedLogs.length) {
-      // Completed step
-      progressList.push(<li key={i}>{allSteps[i]}</li>);
-    } else if (!foundInProgress) {
-      // First incomplete step is in progress, add loader
-      progressList.push(
-        <li key={i} style={{ display: 'flex', alignItems: 'center' }}>
-          <em>{allSteps[i].replace('Step', 'Step') + ' in progress'}</em>
-          <Spin size="small" style={{ marginLeft: 8 }} />
-        </li>
-      );
-      foundInProgress = true;
-    } else {
-      // Future steps
-      progressList.push(<li key={i} style={{ color: '#bbb' }}>{allSteps[i]}</li>);
+      } catch (_) {}
     }
-  }
+  }, [deploymentInProgress, onDeploymentComplete]);
 
-  // Set reset flag if deployment is complete and user leaves Report tab (SPA navigation or browser unload)
-  // const location = useLocation();
+  // Reset SV tabs to defaults after completion when unloading/leaving
   useEffect(() => {
-    if (percent === 100) {
+    if (deploymentInProgress === false) {
       const handleBeforeUnload = () => {
         sessionStorage.setItem('serverVirtualization_shouldResetOnNextMount', 'true');
         sessionStorage.setItem('lastMenuPath', '/servervirtualization?tab=1');
         sessionStorage.setItem('lastServerVirtualizationPath', '/servervirtualization?tab=1');
         sessionStorage.setItem('lastZtiPath', '/servervirtualization?tab=1');
         sessionStorage.setItem('serverVirtualization_activeTab', '1');
-        sessionStorage.setItem('disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true, "6": true }));
-        sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true, "6": true })); 
+        sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
+        sessionStorage.setItem('disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
       };
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => {
@@ -248,71 +137,65 @@ const Report = ({ ibn, onDeploymentComplete }) => {
         sessionStorage.setItem('lastServerVirtualizationPath', '/servervirtualization?tab=1');
         sessionStorage.setItem('lastZtiPath', '/servervirtualization?tab=1');
         sessionStorage.setItem('serverVirtualization_activeTab', '1');
-        sessionStorage.setItem('disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true, "6": true }));
-        sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true, "6": true })); 
+        sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
+        sessionStorage.setItem('disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
       };
     }
-  }, [percent]);
+  }, [deploymentInProgress]);
 
-  // // Also run disabling logic if navigating away from Report (SPA navigation)
-  // useEffect(() => {
-  //   if (percent === 100) {
-  //     return () => {
-  //       sessionStorage.setItem('serverVirtualization_shouldResetOnNextMount', 'true');
-  //       sessionStorage.setItem('lastMenuPath', '/servervirtualization?tab=1');
-  //       sessionStorage.setItem('lastServerVirtualizationPath', '/servervirtualization?tab=1');
-  //       sessionStorage.setItem('lastZtiPath', '/servervirtualization?tab=1');
-  //       sessionStorage.setItem('serverVirtualization_activeTab', '1');
-  //       sessionStorage.setItem('disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true, "6": true }));
-  //       sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true, "6": true })); 
-  //     };
-  //   }
-  // }, [location.pathname, percent]);
-  
   return (
     <div style={{ padding: '20px' }}>
-      <h5 style={{ display: "flex", flex: "1", marginLeft: "-2%", marginBottom: "1.25%" }}>
-        <CloudOutlined />
-        &nbsp;&nbsp;{cloudName} Cloud
+      <h5 style={{ display: 'flex', flex: 1, marginLeft: '-2%', marginBottom: '1.25%' }}>
+        Node Addition Status
       </h5>
       <Divider />
-      <Card title={`Progress Report for ${cloudName} Cloud (${sessionStorage.getItem('server_ip')})`}>
+      <Card title={`Server Virtualization Deployment Progress for ${cloudName} (${sessionStorage.getItem('server_ip') || 'N/A'})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <Flex gap="small" vertical style={{ marginBottom: '20px' }}>
-              <Progress percent={percent} status={percent === 100 ? "success" : "active"} />
-            </Flex>
-            {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-            <div
-              style={{
-                border: '1px solid #d9d9d9',
-                borderRadius: '4px',
-                padding: '12px',
-                backgroundColor: '#fafafa',
-              }}
-            >
-              <strong>Deployment Progress:</strong>
-              <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
-                {progressList}
-              </ul>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 250 }}>
+              {deploymentInProgress ? (
+                <>
+                  <img
+                    src={require('./../../Images/plane.gif')}
+                    alt="Deployment Progress"
+                    style={{ width: 280, height: 280, objectFit: 'contain' }}
+                  />
+                  <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
+                </>
+              ) : (
+                <>
+                  <img
+                    src={completedImage}
+                    alt="Deployment Completed"
+                    style={{ width: 280, height: 280, objectFit: 'contain' }}
+                  />
+                  <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
+                </>
+              )}
             </div>
-            {percent === 100 && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20, width: '75px' }}>
-                <Button type="primary" onClick={() => {
-                  sessionStorage.setItem('serverVirtualization_shouldResetOnNextMount', 'true');
-                  sessionStorage.setItem('lastMenuPath', '/iaas');
-                  sessionStorage.setItem('lastServerVirtualizationPath', '/iaas');
-                  sessionStorage.setItem('lastZtiPath', '/iaas');
-                  sessionStorage.setItem('serverVirtualization_activeTab', '1');
-                  navigate('/iaas');
-                }}>
-                  Go to IaaS
-                </Button>
-              </div>
-            )}
           </Col>
         </Row>
       </Card>
+      {!deploymentInProgress && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20, width: '75px' }}>
+          <Button
+            type="primary"
+            onClick={() => {
+              try {
+                sessionStorage.setItem('serverVirtualization_shouldResetOnNextMount', 'true');
+                sessionStorage.setItem('lastMenuPath', '/iaas');
+                sessionStorage.setItem('lastServerVirtualizationPath', '/iaas');
+                sessionStorage.setItem('serverVirtualization_activeTab', '1');
+                sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
+                sessionStorage.setItem('disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
+              } catch (_) {}
+              navigate('/iaas');
+            }}
+          >
+            Go to IaaS
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

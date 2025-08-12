@@ -398,38 +398,6 @@ db.connect((err) => {
     if (err) throw err;
     console.log("Deployment_Activity_log table checked/created...");
 
-    // Create new deployment_activity_log table with default timestamp
-    const childDeploymentActivityLogTableSQL = `
-        CREATE TABLE IF NOT EXISTS child_deployment_activity_log (
-          id INT AUTO_INCREMENT PRIMARY KEY, -- S.NO
-          serverid CHAR(36) UNIQUE NOT NULL, -- serverid (generate with nanoid or uuid in app code)
-          user_id CHAR(36),                  -- Userid
-          host_serverid CHAR(36),             -- Host Serverid
-          username VARCHAR(255),             -- username
-          serverip VARCHAR(15),              -- serverip
-          status VARCHAR(255),               -- status
-          type VARCHAR(255),                 -- type
-          role VARCHAR(255),                 -- role
-          Management VARCHAR(255) NULL,
-          Storage VARCHAR(255) NULL,
-          External_Traffic VARCHAR(255) NULL,
-          VXLAN VARCHAR(255) NULL,
-          datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_user_id (user_id)        -- Added index for foreign key
-        ) ENGINE=InnoDB;
-        `;
-
-    db.query(childDeploymentActivityLogTableSQL, (err, result) => {
-      if (err) throw err;
-      console.log("Child Deployment_Activity_log table checked/created...");
-      // Ensure 'role' column exists (MySQL 8 supports IF NOT EXISTS)
-      db.query("ALTER TABLE child_deployment_activity_log ADD COLUMN IF NOT EXISTS role VARCHAR(255)", (altErr) => {
-        if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
-          console.warn("Could not ensure 'role' column on child_deployment_activity_log:", altErr.message);
-        }
-      });
-    });
-
     // Create License table
     const licenseTableSQL = `
       CREATE TABLE IF NOT EXISTS License (
@@ -461,69 +429,33 @@ db.connect((err) => {
         }
       });
 
-      // Create Host table
-      const hostTableSQL = `
-        CREATE TABLE IF NOT EXISTS Host (
+      // Create Deployed Server table (same as deployment_activity_log except no status column)
+      const deployedServerTableSQL = `
+        CREATE TABLE IF NOT EXISTS deployed_server (
           id INT AUTO_INCREMENT PRIMARY KEY, -- S.No
-          user_id CHAR(36), -- User_id (Foreign Key)
-          server_id CHAR(36), -- Server_id (Foreign Key)
-          cloudname VARCHAR(255), -- Cloudname
-          serverip VARCHAR(15), -- ServerIP
-          servervip VARCHAR(255), -- ServerVIP
+          serverid CHAR(36) UNIQUE NOT NULL, -- ServerId (same as log)
+          user_id CHAR(36), -- UserId
+          username VARCHAR(255), -- Username
+          cloudname VARCHAR(255), -- Cloud Name
+          serverip VARCHAR(15), -- Server IP
+          server_vip VARCHAR(255), -- Server VIP
           role VARCHAR(255), -- Role
           license_code VARCHAR(255), -- License_code (Foreign Key)
           Management VARCHAR(255) NULL,
           Storage VARCHAR(255) NULL,
           External_Traffic VARCHAR(255) NULL,
           VXLAN VARCHAR(255) NULL,
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES deployment_activity_log(user_id),
-          FOREIGN KEY (server_id) REFERENCES deployment_activity_log(serverid),
+          datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (license_code) REFERENCES License(license_code)
         ) ENGINE=InnoDB;
       `;
 
-      db.query(hostTableSQL, (err, result) => {
+      db.query(deployedServerTableSQL, (err, result) => {
         if (err) throw err;
-        console.log("Host table checked/created...");
-        // Ensure unique constraint on server_id
-        db.query('ALTER TABLE Host ADD UNIQUE KEY unique_server_id (server_id)', (err) => {
-          if (err && err.code !== 'ER_DUP_KEYNAME' && err.code !== 'ER_DUP_ENTRY' && err.code !== 'ER_ALREADY_EXISTS') {
-            // Ignore if already exists, else log
-            console.error('Error adding unique constraint to Host.server_id:', err.message);
-          } else if (!err) {
-            console.log('Unique constraint on Host.server_id ensured.');
-          }
-        });
-      });
-
-      // Create Child Node table
-      const childNodeTableSQL = `
-        CREATE TABLE IF NOT EXISTS child_node (
-          id INT AUTO_INCREMENT PRIMARY KEY, -- S.No
-          user_id CHAR(36), -- User_id (Foreign Key)
-          server_id CHAR(36), -- Server_id (Foreign Key)
-          host_serverid VARCHAR(255), -- Host_serverid
-          serverip VARCHAR(15), -- ServerIP
-          role VARCHAR(255), -- Role
-          license_code VARCHAR(255), -- License_code (Foreign Key)
-          Management VARCHAR(255) NULL,
-          Storage VARCHAR(255) NULL,
-          External_Traffic VARCHAR(255) NULL,
-          VXLAN VARCHAR(255) NULL,
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (user_id) REFERENCES child_deployment_activity_log(user_id),
-          FOREIGN KEY (server_id) REFERENCES child_deployment_activity_log(serverid),
-          FOREIGN KEY (license_code) REFERENCES License(license_code)
-        ) ENGINE=InnoDB;
-      `;
-
-      db.query(childNodeTableSQL, (err, result) => {
-        if (err) throw err;
-        console.log("Child Node table checked/created...");
+        console.log("Deployed Server table checked/created...");
       });
     });
-    console.log("Child Node table checked/created...");
+    console.log("Deployed Server table ensured...");
   });
   
   // Set up periodic check for expired licenses (run every hour)
@@ -538,7 +470,7 @@ app.get('/api/deployment-activity-log/latest-in-progress/:user_id', (req, res) =
   const { user_id } = req.params;
   const sql = `
     SELECT * FROM deployment_activity_log 
-    WHERE user_id = ? AND status = 'progress' 
+    WHERE user_id = ? AND status = 'progress' AND type = 'primary'
     ORDER BY datetime DESC 
     LIMIT 1
   `;
@@ -744,34 +676,17 @@ app.put('/api/update-license/:serverid', (req, res) => {
         return res.status(500).json({ message: 'Failed to create license entry' });
       }
 
-      // Also update Host and child_node tables to reflect the new license for this server
-      const updateHostSql = 'UPDATE Host SET license_code = ? WHERE server_id = ?';
-      db.query(updateHostSql, [license_code, serverid], (hostErr) => {
-        if (hostErr) {
-          console.error('Error updating Host with new license:', hostErr);
-          return res.status(500).json({ message: 'License created but failed to update Host table' });
+      return res.status(200).json({
+        message: 'License updated successfully',
+        license: {
+          license_code,
+          license_type,
+          license_period: license_period || null,
+          license_status: finalStatus,
+          server_id: serverid,
+          start_date: startDate,
+          end_date: endDate
         }
-
-        const updateChildSql = 'UPDATE child_node SET license_code = ? WHERE server_id = ?';
-        db.query(updateChildSql, [license_code, serverid], (childErr) => {
-          if (childErr) {
-            console.error('Error updating child_node with new license:', childErr);
-            return res.status(500).json({ message: 'License created but failed to update child_node table' });
-          }
-
-          return res.status(200).json({
-            message: 'License updated successfully',
-            license: {
-              license_code,
-              license_type,
-              license_period: license_period || null,
-              license_status: finalStatus,
-              server_id: serverid,
-              start_date: startDate,
-              end_date: endDate
-            }
-          });
-        });
       });
     }
   );
@@ -856,60 +771,36 @@ app.post('/api/finalize-deployment/:serverid', (req, res) => {
         });
       }
 
-      if (server_type === 'host') {
-        // Insert into Host table
-        const hostSQL = `
-          INSERT IGNORE INTO Host (user_id, server_id, cloudname, serverip, servervip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const hostValues = [
-          deployment.user_id,
+      // Insert finalized deployment into deployed_server (both host and child)
+      const finalRole = role || (server_type === 'host' ? 'host' : 'child');
+      const insertDeployedSQL = `
+        INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      db.query(
+        insertDeployedSQL,
+        [
           deployment.serverid,
+          deployment.user_id,
+          deployment.username,
           deployment.cloudname,
           deployment.serverip,
           deployment.server_vip || null,
-          role || 'host',
-          licenseCodeToUse,
+          finalRole,
+          licenseCodeToUse || null,
           req.body.Management || deployment.Management || null,
-          req.body.External_Traffic || deployment.External_Traffic || null,
           req.body.Storage || deployment.Storage || null,
-          req.body.VXLAN || deployment.VXLAN || null
-        ];
-        console.log('Executing host SQL:', { sql: hostSQL, values: hostValues });
-        db.query(hostSQL, hostValues, (err) => {
-          if (err) {
-            console.error('Error creating host record:', err);
-            return res.status(500).json({ error: 'Failed to create host record' });
-          }
-          res.json({ message: 'Host record created successfully' });
-        });
-      } else if (server_type === 'child') {
-        // Insert into child_node table
-        const childSQL = `
-          INSERT INTO child_node (user_id, server_id, host_serverid, serverip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        db.query(childSQL, [
-          deployment.user_id,
-          deployment.serverid,
-          host_serverid || '',
-          deployment.serverip,
-          role || 'child',
-          licenseCodeToUse,
-          req.body.Management || deployment.Management || null,
           req.body.External_Traffic || deployment.External_Traffic || null,
-          req.body.Storage || deployment.Storage || null,
           req.body.VXLAN || deployment.VXLAN || null
-        ], (err) => {
-          if (err) {
-            console.error('Error creating child node record:', err);
-            return res.status(500).json({ error: 'Failed to create child node record' });
+        ],
+        (insErr) => {
+          if (insErr) {
+            console.error('Error creating deployed server record:', insErr);
+            return res.status(500).json({ error: 'Failed to create deployed server record' });
           }
-          res.json({ message: 'Child node record created successfully' });
-        });
-      } else {
-        return res.status(400).json({ error: 'Invalid server_type. Must be "host" or "child"' });
-      }
+          res.json({ message: 'Deployment finalized into deployed_server successfully' });
+        }
+      );
     });
   });
 });
@@ -1030,419 +921,6 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   }
 });
 
-// API: Get first Host server_id for a user (or any user if not provided)
-app.get('/api/first-host-serverid', (req, res) => {
-  const { userId } = req.query;
-  let sql = 'SELECT server_id FROM Host';
-  let params = [];
-  if (userId) {
-    sql += ' WHERE user_id = ?';
-    params.push(userId);
-  }
-  sql += ' ORDER BY id ASC LIMIT 1';
-  db.query(sql, params, (err, results) => {
-    if (err) {
-      console.error('Error fetching first Host server_id:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (results.length > 0) {
-      return res.json({ server_id: results[0].server_id });
-    } else {
-      return res.json({ server_id: null });
-    }
-  });
-});
-
-// API: Check if Host entry exists for a user (cloudName ignored)
-app.get('/api/host-exists', (req, res) => {
-  const { userId } = req.query;
-  if (!userId) return res.status(400).json({ message: 'userId is required' });
-  let sql = 'SELECT 1 FROM Host WHERE user_id = ? LIMIT 1';
-  let params = [userId];
-  db.query(sql, params, (err, results) => {
-    if (err) {
-      console.error('Error checking Host existence:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
-    if (results.length > 0) {
-      return res.json({ exists: true });
-    } else {
-      return res.json({ exists: false });
-    }
-  });
-});
-
-// Nodemailer setup
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-app.post("/check-cloud-name", async (req, res) => {
-  const { cloudName } = req.body;
-
-  try {
-    const existingCloud = await new Promise((resolve, reject) => {
-      const query = "SELECT * FROM deployment_activity_log WHERE cloudname = ?";
-      db.query(query, [cloudName], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-
-    if (existingCloud.length > 0) {
-      return res.status(400).json({ message: "Cloud name already exists. Please choose a different name." });
-    }
-
-    res.status(200).json({ message: "Cloud name is available." });
-  } catch (error) {
-    console.error("Error checking cloud name:", error);
-    res.status(500).json({ message: "An error occurred while checking the cloud name." });
-  }
-});
-
-app.post('/store-user-id', (req, res) => {
-  const { userId } = req.body;
-  if (!userId) return res.status(400).json({ message: 'User ID is required' });
-
-  const sql = 'INSERT IGNORE INTO users (id) VALUES (?)';
-  db.query(sql, [userId], (err) => {
-    if (err) return res.status(500).json({ message: 'Error storing user ID' });
-    res.status(200).json({ message: 'User ID stored successfully' });
-  });
-});
-
-
-// API to fetch bmc data from the `all_in_one` table
-app.post("/api/get-power-details", (req, res) => {
-  const { userID } = req.body;
-
-  if (!userID) {
-    return res.status(400).json({ error: "Missing userID" });
-  }
-
-  // Query to fetch data
-  const query = "SELECT bmc_ip AS ip, bmc_username AS username, bmc_password AS password, cloudName FROM all_in_one WHERE user_id = ?";
-  db.query(query, [userID], (err, results) => {
-    if (err) {
-      console.error("Database query error:", err);
-      return res.status(500).json({ error: "Database query failed" });
-    }
-
-    if (results.length === 0) {
-      return res.status(404).json({ error: "No data found for the given userID" });
-    }
-
-    // Return all matching records
-    res.json(results);  // Return the entire results array
-  });
-});
-
-
-
-// API to check if a license code exists in the License table
-app.post('/api/check-license-exists', (req, res) => {
-  const { license_code } = req.body;
-  if (!license_code) {
-    return res.status(400).json({ message: 'license_code is required' });
-  }
-  const sql = 'SELECT 1 FROM License WHERE license_code = ? LIMIT 1';
-  db.query(sql, [license_code], (err, results) => {
-    if (err) {
-      console.error('Error checking license existence:', err);
-      return res.status(500).json({ message: 'Database error' });
-    }
-    if (results.length > 0) {
-      return res.json({ exists: true });
-    } else {
-      return res.json({ exists: false });
-    }
-  });
-});
-
-app.post("/register", async (req, res) => {
-  const { companyName, email, password } = req.body;
-
-  try {
-    // Check if the email already exists
-    const existingUser = await new Promise((resolve, reject) => {
-      const checkEmailSql = "SELECT * FROM users WHERE email = ?";
-      db.query(checkEmailSql, [email], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-
-    if (existingUser.length > 0) {
-      return res.status(400).json({ message: "Email already exists !" });
-    }
-
-    // Dynamically import nanoid with custom alphabet
-    const { customAlphabet } = await import("nanoid");
-    const nanoid = customAlphabet("ABCDEVSR0123456789abcdefgzkh", 6);
-    const id = nanoid(); // Generate unique ID with custom alphabet
-
-    // Hash the password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    const sql =
-      "INSERT INTO users (id, companyName, email, password) VALUES (?, ?, ?, ?)";
-    await new Promise((resolve, reject) => {
-      db.query(sql, [id, companyName, email, hashedPassword], (err, result) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(result);
-        }
-      });
-    });
-
-
-    // Set the user session after registration
-    req.session.userId = id;
-
-    // Send registration email
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      cc: ["support@pinakastra.cloud"],
-      subject: "Welcome to Pinakastra!",
-      html: `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
-      
-      <!-- Banner/Header -->
-      <div style="background-color: #002147; padding: 20px; text-align: center;">
-        <img src="https://pinakastra.com/assets/images/logo/logo.png" alt="Pinakastra" style="height: 50px;">
-      </div>
-      
-      <!-- Main Content -->
-      <div style="background-color: #f5f5f5; padding: 30px; text-align: center;">
-        <h2 style="color: #1f75b6;">Welcome to Pinakastra!</h2>
-        <p style="font-size: 16px; color: #333;">
-          Hello <strong>${companyName}</strong>,
-        </p>
-        <p style="font-size: 16px; color: #333;">
-          Thank you for joining us! Your account has been successfully registered.
-        </p>
-        <div style="background-color: #ffffff; border-radius: 10px; padding: 20px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-          <p style="font-size: 14px; color: #555; margin: 0;">
-            <strong>Your User ID :</strong>
-          </p>
-          <p style="font-size: 16px; color: #333; margin: 10px 0;">
-          </p>
-          <p style="font-size: 24px; color: #1f75b6; font-weight: bold; margin: 0;">
-            ${id}
-          </p>
-        </div>
-        <p style="font-size: 14px; color: #555;">
-          Please keep this information secure.
-        </p>
-        <p style="font-size: 14px; color: #555;">
-          If you have any questions or need assistance, feel free to contact our support team.
-        </p>
-      </div>
-      
-      <!-- Footer -->
-      <div style="background-color: #002147; padding: 10px; text-align: center; color: #fff;">
-        <p style="margin: 0;">Pinakastra Cloud </p>
-        <p style="margin: 0;">
-          <a href="mailto:cloud@pinakastra.com" style="color: #ffeb3b; text-decoration: none;">support@pinakastra.cloud</a>
-        </p>
-        <div style="margin-top: 10px;">
-          <a href="https://www.facebook.com/profile.php?id=61552535922993&mibextid=kFxxJD" style="margin: 0 5px; color: #fff; text-decoration: none;">Facebook</a>
-          <a href="https://x.com/pinakastra" style="margin: 0 5px; color: #fff; text-decoration: none;">X</a>
-          <a href="https://linkedin.com/company/pinakastra-computing" style="margin: 0 5px; color: #fff; text-decoration: none;">LinkedIn</a>
-        </div>
-        <p style="margin-top: 10px; font-size: 12px;">&copy; Copyright  2021, All Right Reserved Pinakastra</p>
-      </div>
-    </div>
-  `
-    };
-
-    await new Promise((resolve, reject) => {
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          reject(error);
-        } else {
-          console.log("Email sent:", info.response);
-          resolve(info);
-        }
-      });
-    });
-
-    res
-      .status(200)
-      .json({ message: "User registered successfully", userId: id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error registering user" });
-  }
-});
-
-
-// API: Get cloud deployments summary
-app.get('/api/cloud-deployments-summary', (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) return res.json([]);
-  // Query distinct cloud names from Host table for this user
-  const cloudQuery = `SELECT cloudname, MIN(timestamp) as createdAt FROM Host WHERE user_id = ? GROUP BY cloudname ORDER BY createdAt DESC`;
-  db.query(cloudQuery, [userId], async (err, clouds) => {
-    if (err) {
-      console.error('Error fetching clouds:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    // For each cloud, get number of hosts and children
-    const results = await Promise.all(clouds.map(async (cloud, idx) => {
-      // Get all hosts for this cloud
-      const hostQuery = `SELECT server_id, serverip, servervip, timestamp FROM Host WHERE cloudname = ? AND user_id = ?`;
-      const hosts = await new Promise((resolve, reject) => {
-        db.query(hostQuery, [cloud.cloudname, userId], (err, hostRows) => {
-          if (err) return reject(err);
-          resolve(hostRows);
-        });
-      });
-      const hostCount = hosts.length;
-      let childCount = 0;
-      let hostserverip = null;
-      let hostservervip = null;
-      let createdAt = cloud.createdAt;
-      if (hostCount > 0) {
-        const serverIds = hosts.map(h => h.server_id);
-        // Use the first host's serverip and servervip for the cloud
-        hostserverip = hosts[0]?.serverip || null;
-        hostservervip = hosts[0]?.servervip || null;
-        createdAt = hosts[0]?.timestamp || cloud.createdAt;
-        // Count all child nodes for these hosts
-        const childQuery = `SELECT COUNT(*) AS cnt FROM child_node WHERE host_serverid IN (${serverIds.map(() => '?').join(',')})`;
-        if (serverIds.length > 0) {
-          const childRows = await new Promise((resolve, reject) => {
-            db.query(childQuery, serverIds, (err, rows) => {
-              if (err) return reject(err);
-              resolve(rows);
-            });
-          });
-          childCount = (childRows && childRows[0] && typeof childRows[0].cnt === 'number') ? childRows[0].cnt : 0;
-        }
-      }
-      return {
-        sno: idx + 1,
-        cloudName: cloud.cloudname,
-        numberOfNodes: hostCount + childCount,
-        credentials: {
-          hostserverip,
-          hostservervip
-        },
-        createdAt: createdAt
-      };
-    }));
-    res.json(results);
-  });
-});
-
-// API: Get all hosts for Flight Deck tab
-app.get('/api/flight-deck-hosts', async (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) return res.json([]);
-  // Get all hosts for this user
-  const hostQuery = `SELECT id, server_id, serverip, servervip, role, license_code, timestamp FROM Host WHERE user_id = ? ORDER BY timestamp DESC`;
-  db.query(hostQuery, [userId], async (err, hosts) => {
-    if (err) {
-      console.error('Error fetching hosts:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    // For each host, get license status and squadron node count
-    const results = await Promise.all(hosts.map(async (host, idx) => {
-      // Get license status if license_code exists
-      let licenseCode = null;
-      if (host.license_code) {
-        const licStatus = await new Promise((resolve) => {
-          db.query('SELECT license_status FROM License WHERE license_code = ? LIMIT 1', [host.license_code], (err, rows) => {
-            if (err || !rows.length) return resolve(null);
-            resolve(rows[0].license_status === 'activated' ? host.license_code : null);
-          });
-        });
-        licenseCode = licStatus;
-      }
-      // Get squadron node count
-      const squadronNodeCount = await new Promise((resolve) => {
-        db.query('SELECT COUNT(*) AS cnt FROM child_node WHERE host_serverid = ?', [host.server_id], (err, rows) => {
-          if (err || !rows.length) return resolve(0);
-          resolve(rows[0].cnt);
-        });
-      });
-      return {
-        sno: idx + 1,
-        serverid: host.server_id,
-        serverip: host.serverip,
-        vip: host.servervip,
-        role: host.role,
-        licensecode: licenseCode,
-        squadronNode: squadronNodeCount,
-        credentialsUrl: host.serverip ? `https://${host.serverip}/` : null,
-        createdAt: host.timestamp
-      };
-    }));
-    res.json(results);
-  });
-});
-
-// API: Get all squadron nodes for Squadron tab
-app.get('/api/squadron-nodes', async (req, res) => {
-  const userId = req.query.userId;
-  if (!userId) return res.json([]);
-  const nodeQuery = `SELECT id, server_id, serverip, role, license_code, host_serverid, timestamp FROM child_node WHERE user_id = ? ORDER BY timestamp DESC`;
-  db.query(nodeQuery, [userId], async (err, nodes) => {
-    if (err) {
-      console.error('Error fetching squadron nodes:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    const results = await Promise.all(nodes.map(async (node, idx) => {
-      // Get license status if license_code exists
-      let licenseCode = null;
-      if (node.license_code) {
-        const licStatus = await new Promise((resolve) => {
-          db.query('SELECT license_status FROM License WHERE license_code = ? LIMIT 1', [node.license_code], (err, rows) => {
-            if (err || !rows.length) return resolve(null);
-            resolve(rows[0].license_status === 'activated' ? node.license_code : null);
-          });
-        });
-        licenseCode = licStatus;
-      }
-      // Get VIP from Host table for host_serverid
-      let vip = null;
-      if (node.host_serverid) {
-        vip = await new Promise((resolve) => {
-          db.query('SELECT servervip FROM Host WHERE server_id = ? LIMIT 1', [node.host_serverid], (err, rows) => {
-            if (err || !rows.length) return resolve(null);
-            resolve(rows[0].servervip);
-          });
-        });
-      }
-      return {
-        sno: idx + 1,
-        serverid: node.server_id,
-        serverip: node.serverip,
-        role: node.role,
-        licensecode: licenseCode,
-        credentialUrl: node.serverip ? `https://${node.serverip}/` : null,
-        vip: vip,
-        createdAt: node.timestamp
-      };
-    }));
-    res.json(results);
-  });
-});
-
 // API: Get dashboard counts for Cloud, Flight Deck, and Squadron
 app.get('/api/dashboard-counts/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -1452,14 +930,14 @@ app.get('/api/dashboard-counts/:userId', async (req, res) => {
   }
 
   try {
-    // Get unique cloud count from Host table
-    const cloudCountQuery = `SELECT COUNT(DISTINCT cloudname) AS cloudCount FROM Host WHERE user_id = ?`;
+    // Get unique cloud count from deployment_activity_log (completed host deployments)
+    const cloudCountQuery = `SELECT COUNT(DISTINCT cloudname) AS cloudCount FROM deployment_activity_log WHERE user_id = ? AND status = 'completed' AND type = 'host'`;
 
-    // Get flight deck count from Host table
-    const flightDeckCountQuery = `SELECT COUNT(*) AS flightDeckCount FROM Host WHERE user_id = ?`;
+    // Get flight deck count from deployment_activity_log (completed host deployments)
+    const flightDeckCountQuery = `SELECT COUNT(*) AS flightDeckCount FROM deployment_activity_log WHERE user_id = ? AND status = 'completed' AND type = 'host'`;
 
-    // Get squadron count from child_node table
-    const squadronCountQuery = `SELECT COUNT(*) AS squadronCount FROM child_node WHERE user_id = ?`;
+    // Get squadron count from deployed_server table
+    const squadronCountQuery = `SELECT COUNT(*) AS squadronCount FROM deployed_server WHERE user_id = ? AND role LIKE '%child%'`;
 
     // Execute all queries in parallel
     const [cloudResult, flightDeckResult, squadronResult] = await Promise.all([
@@ -1495,31 +973,13 @@ app.get('/api/dashboard-counts/:userId', async (req, res) => {
   }
 });
 
-// API: Get all hosts (for Inventory tab 1)
-app.get('/api/hosts', (req, res) => {
-  const userId = req.query.userId;
-  let sql = 'SELECT * FROM Host';
-  let params = [];
-  if (userId) {
-    sql += ' WHERE user_id = ?';
-    params.push(userId);
-  }
-  db.query(sql, params, (err, results) => {
-    if (err) {
-      console.error('Error fetching hosts:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    res.json(results);
-  });
-});
-
 // API: Get all child nodes (for Inventory tab 2)
 app.get('/api/child-nodes', (req, res) => {
   const userId = req.query.userId;
-  let sql = 'SELECT * FROM child_node';
-  let params = [];
+  let sql = "SELECT * FROM deployed_server WHERE role LIKE '%child%'";
+  const params = [];
   if (userId) {
-    sql += ' WHERE user_id = ?';
+    sql += ' AND user_id = ?';
     params.push(userId);
   }
   db.query(sql, params, (err, results) => {
@@ -1531,18 +991,325 @@ app.get('/api/child-nodes', (req, res) => {
   });
 });
 
+// API: Get all squadron nodes for Squadron tab (from deployed_server)
+app.get('/api/squadron-nodes', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.json([]);
+
+  const nodeQuery = `
+    SELECT serverid, serverip, role, license_code, server_vip, datetime
+    FROM deployed_server
+    WHERE user_id = ? AND role LIKE '%child%'
+    ORDER BY datetime DESC
+  `;
+
+  db.query(nodeQuery, [userId], async (err, rows) => {
+    if (err) {
+      console.error('Error fetching squadron nodes:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    try {
+      const results = (rows || []).map((row, idx) => ({
+        sno: idx + 1,
+        serverid: row.serverid,
+        serverip: row.serverip,
+        role: row.role,
+        licensecode: row.license_code || null,
+        credentialUrl: row.serverip ? `https://${row.serverip}/` : null,
+        vip: row.server_vip || null,
+        createdAt: row.datetime
+      }));
+
+      res.json(results);
+    } catch (e) {
+      console.error('Error building squadron nodes response:', e);
+      res.status(500).json({ error: 'Failed to build response' });
+    }
+  });
+});
+
+// API: Get cloud deployments summary (uses deployed_server table)
+app.get('/api/cloud-deployments-summary', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.json([]);
+
+  const cloudQuery = `
+    SELECT cloudname, MIN(datetime) as createdAt
+    FROM deployed_server
+    WHERE user_id = ?
+    GROUP BY cloudname
+    ORDER BY createdAt DESC
+  `;
+
+  db.query(cloudQuery, [userId], async (err, clouds) => {
+    if (err) {
+      console.error('Error fetching clouds from deployed_server:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    try {
+      const results = await Promise.all((clouds || []).map(async (cloud, idx) => {
+        // Count all nodes (rows) for this cloud
+        const countQuery = `SELECT COUNT(*) AS cnt FROM deployed_server WHERE cloudname = ? AND user_id = ?`;
+        const nodeCount = await new Promise((resolve, reject) => {
+          db.query(countQuery, [cloud.cloudname, userId], (e, rows) => {
+            if (e) return reject(e);
+            resolve(rows && rows[0] ? rows[0].cnt : 0);
+          });
+        });
+
+        // Pick the earliest row as representative for credentials
+        const credQuery = `
+          SELECT serverip, server_vip, datetime
+          FROM deployed_server
+          WHERE cloudname = ? AND user_id = ?
+          ORDER BY datetime ASC
+          LIMIT 1
+        `;
+        const firstRow = await new Promise((resolve, reject) => {
+          db.query(credQuery, [cloud.cloudname, userId], (e, rows) => {
+            if (e) return reject(e);
+            resolve(rows && rows[0] ? rows[0] : null);
+          });
+        });
+
+        return {
+          sno: idx + 1,
+          cloudname: cloud.cloudname,
+          numberOfNodes: nodeCount,
+          credentials: {
+            serverip: firstRow?.serverip || null,
+            server_vip: firstRow?.server_vip || null
+          },
+          createdAt: firstRow?.datetime || cloud.createdAt || null
+        };
+      }));
+
+      res.json(results);
+    } catch (e) {
+      console.error('Error building cloud deployments summary:', e);
+      res.status(500).json({ error: 'Failed to build summary' });
+    }
+  });
+});
+
+// Insert multiple node deployment activity logs into deployment_activity_log (type = 'primary')
+app.post('/api/node-deployment-activity-log', async (req, res) => {
+  const nodes = req.body.nodes; // Array of node objects
+  const { user_id, username, cloudname } = req.body;
+
+  // Validate required fields
+  if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
+    return res.status(400).json({ error: 'Missing or invalid nodes array' });
+  }
+  if (!user_id || !username) {
+    return res.status(400).json({ error: 'Missing required fields: user_id or username' });
+  }
+
+  try {
+    const insertedNodes = [];
+    for (const node of nodes) {
+      const { serverip, server_vip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period } = node;
+      if (!serverip) {
+        return res.status(400).json({ error: 'Each node must have serverip' });
+      }
+
+      // Generate unique serverid with SQDN- prefix
+      const nanoid6 = customAlphabet('ABCDEVSR0123456789abcdefgzkh', 6);
+      const serverid = 'SQDN-' + nanoid6();
+
+      // Insert deployment activity log (type = 'primary')
+      const insSql = `
+        INSERT INTO deployment_activity_log
+          (serverid, user_id, username, cloudname, serverip, status, type, server_vip, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, 'progress', 'primary', ?, ?, ?, ?, ?)
+      `;
+      await new Promise((resolve, reject) => {
+        db.query(
+          insSql,
+          [serverid, user_id, username, cloudname || null, serverip, server_vip || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null],
+          (err) => (err ? reject(err) : resolve())
+        );
+      });
+
+      // Upsert license if present and bind to serverid
+      if (license_code) {
+        const licenseInsertSQL = `
+          INSERT INTO License (license_code, license_type, license_period, license_status, server_id)
+          VALUES (?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            license_type=VALUES(license_type),
+            license_period=VALUES(license_period),
+            license_status=VALUES(license_status),
+            server_id=VALUES(server_id)
+        `;
+        await new Promise((resolve, reject) => {
+          db.query(licenseInsertSQL, [license_code, license_type, license_period, 'validated', serverid], (licErr) => (licErr ? reject(licErr) : resolve()));
+        });
+      }
+
+      insertedNodes.push({ serverid, serverip });
+    }
+
+    return res.status(200).json({ message: 'Node deployment activity logs created successfully', nodes: insertedNodes });
+  } catch (error) {
+    console.error('Error inserting node deployment activity logs:', error);
+    return res.status(500).json({ error: 'Failed to insert node deployment activity logs' });
+  }
+});
+
+// Update node deployment activity log status (deployment_activity_log)
+app.patch('/api/node-deployment-activity-log/:serverid', (req, res) => {
+  const { serverid } = req.params;
+  const { status } = req.body;
+  const newStatus = status || 'completed';
+  const sql = `UPDATE deployment_activity_log SET status = ? WHERE serverid = ?`;
+  db.query(sql, [newStatus, serverid], (err) => {
+    if (err) {
+      console.error('Error updating node deployment activity log:', err);
+      return res.status(500).json({ error: 'Failed to update node deployment activity log' });
+    }
+    return res.status(200).json({ message: `Node deployment activity log updated to ${newStatus}` });
+  });
+});
+
+// Finalize a node deployment from deployment_activity_log into deployed_server (type = 'primary')
+app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
+  const { serverid } = req.params;
+  const { role } = req.body || {};
+
+  const getSql = `SELECT * FROM deployment_activity_log WHERE serverid = ? LIMIT 1`;
+  db.query(getSql, [serverid], (err, rows) => {
+    if (err) {
+      console.error('Error fetching node deployment activity log:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Node deployment not found' });
+    }
+
+    const dep = rows[0];
+
+    // 1) Update status to completed (idempotent)
+    const updateStatusSQL = `UPDATE deployment_activity_log SET status = 'completed' WHERE serverid = ?`;
+    db.query(updateStatusSQL, [serverid], (upErr) => {
+      if (upErr) {
+        console.error('Error marking node deployment completed:', upErr);
+      }
+
+      // 2) Fetch linked license
+      const licQuery = 'SELECT license_code FROM License WHERE server_id = ? LIMIT 1';
+      db.query(licQuery, [serverid], (licErr, licRows) => {
+        if (licErr) {
+          console.error('Error fetching license_code for node:', licErr);
+        }
+        const licenseCodeToUse = licRows && licRows.length > 0 ? licRows[0].license_code : null;
+
+        // 3) Activate license and set start/end dates
+        if (licenseCodeToUse) {
+          const getLicenseSQL = `SELECT license_period FROM License WHERE license_code = ?`;
+          db.query(getLicenseSQL, [licenseCodeToUse], (getLicErr, licResults) => {
+            if (getLicErr) {
+              console.error('Error fetching license period for node:', getLicErr);
+              const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ? WHERE license_code = ?`;
+              db.query(updLicSQL, [serverid, licenseCodeToUse], (licUpdErr) => {
+                if (licUpdErr) console.error('Error activating node license:', licUpdErr);
+              });
+            } else {
+              const licensePeriod = licResults[0]?.license_period;
+              const startDate = new Date().toISOString().split('T')[0];
+              const endDate = calculateEndDate(licensePeriod);
+              const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = ? WHERE license_code = ?`;
+              db.query(updLicSQL, [serverid, startDate, endDate, licenseCodeToUse], (licUpdErr) => {
+                if (licUpdErr) console.error('Error activating node license:', licUpdErr);
+              });
+            }
+          });
+        }
+
+        // 4) Upsert into deployed_server
+        const checkSQL = 'SELECT id FROM deployed_server WHERE serverid = ? LIMIT 1';
+        db.query(checkSQL, [serverid], (chkErr, chkRows) => {
+          if (chkErr) {
+            console.error('Error checking existing deployed server:', chkErr);
+            return res.status(500).json({ error: 'Failed to finalize node (check)' });
+          }
+
+          const resolvedRole = role || 'child';
+
+          if (chkRows && chkRows.length > 0) {
+            const updSQL = `
+              UPDATE deployed_server
+              SET user_id=?, username=?, cloudname=?, serverip=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
+              WHERE serverid=?
+            `;
+            const updValues = [
+              dep.user_id,
+              dep.username || null,
+              dep.cloudname || null,
+              dep.serverip,
+              dep.server_vip || null,
+              resolvedRole,
+              licenseCodeToUse || null,
+              dep.Management || null,
+              dep.Storage || null,
+              dep.External_Traffic || null,
+              dep.VXLAN || null,
+              serverid
+            ];
+            db.query(updSQL, updValues, (updErr) => {
+              if (updErr) {
+                console.error('Error updating deployed server record:', updErr);
+                return res.status(500).json({ error: 'Failed to update deployed server record' });
+              }
+              return res.json({ message: 'Deployed server record updated successfully' });
+            });
+          } else {
+            const insSQL = `
+              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            const insValues = [
+              serverid,
+              dep.user_id,
+              dep.username || null,
+              dep.cloudname || null,
+              dep.serverip,
+              dep.server_vip || null,
+              resolvedRole,
+              licenseCodeToUse || null,
+              dep.Management || null,
+              dep.Storage || null,
+              dep.External_Traffic || null,
+              dep.VXLAN || null
+            ];
+            db.query(insSQL, insValues, (insErr) => {
+              if (insErr) {
+                console.error('Error creating deployed server record:', insErr);
+                return res.status(500).json({ error: 'Failed to create deployed server record' });
+              }
+              return res.json({ message: 'Deployed server record created successfully' });
+            });
+          }
+        });
+      });
+    });
+  });
+});
+
 // API: Get server counts (total, online, offline)
 app.get('/api/server-counts', async (req, res) => {
   const hostIP = req.hostname;
   try {
-    // Get count of servers from Host table
-    const hostCountQuery = `SELECT COUNT(*) as host_count FROM Host`;
+    // Get count of completed host deployments from deployment_activity_log
+    const hostCountQuery = `SELECT COUNT(*) as host_count FROM deployment_activity_log WHERE status = 'completed' AND type = 'host'`;
 
-    // Get count of servers from child_node table
-    const childCountQuery = `SELECT COUNT(*) as child_count FROM child_node`;
+    // Get count of child servers from deployed_server
+    const childCountQuery = `SELECT COUNT(*) as child_count FROM deployed_server WHERE role LIKE '%child%'`;
 
-    // Get all server IPs for status check
-    const serverIpsQuery = `SELECT serverip FROM Host UNION SELECT serverip FROM child_node`;
+    // Get all server IPs for status check (hosts from deployment_activity_log + deployed_server entries)
+    const serverIpsQuery = `SELECT serverip FROM deployment_activity_log WHERE status = 'completed' AND type = 'host' UNION SELECT serverip FROM deployed_server`;
 
     // Execute all queries in parallel
     const [hostResult, childResult, serversResult] = await Promise.all([
@@ -1627,7 +1394,7 @@ app.patch('/api/child-deployment-activity-log/:serverid', (req, res) => {
   const { serverid } = req.params;
   const { status } = req.body;
   const newStatus = status || 'completed';
-  const sql = `UPDATE child_deployment_activity_log SET status = ? WHERE serverid = ?`;
+  const sql = `UPDATE deployment_activity_log SET status = ? WHERE serverid = ?`;
   db.query(sql, [newStatus, serverid], (err, result) => {
     if (err) {
       console.error('Error updating child deployment activity log:', err);
@@ -1637,12 +1404,12 @@ app.patch('/api/child-deployment-activity-log/:serverid', (req, res) => {
   });
 });
 
-// Finalize a child deployment: mark completed and create child_node entry
+// Finalize a child deployment: mark completed and upsert into deployed_server
 app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
   const { serverid } = req.params;
 
   // Fetch child deployment data (prefer completed, but accept progress too if needed)
-  const getChildSQL = `SELECT * FROM child_deployment_activity_log WHERE serverid = ? LIMIT 1`;
+  const getChildSQL = `SELECT * FROM deployment_activity_log WHERE serverid = ? LIMIT 1`;
   db.query(getChildSQL, [serverid], (err, rows) => {
     if (err) {
       console.error('Error fetching child deployment activity log:', err);
@@ -1655,7 +1422,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
     const dep = rows[0];
 
     // 1) Update status to completed (idempotent)
-    const updateStatusSQL = `UPDATE child_deployment_activity_log SET status = 'completed' WHERE serverid = ?`;
+    const updateStatusSQL = `UPDATE deployment_activity_log SET status = 'completed' WHERE serverid = ?`;
     db.query(updateStatusSQL, [serverid], (upErr) => {
       if (upErr) {
         console.error('Error marking child deployment completed:', upErr);
@@ -1699,8 +1466,8 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
           });
         }
 
-        // 4) Insert/update child_node entry
-        const checkSQL = 'SELECT id FROM child_node WHERE server_id = ? LIMIT 1';
+        // 4) Insert/update deployed_server entry
+        const checkSQL = 'SELECT id FROM deployed_server WHERE serverid = ? LIMIT 1';
         db.query(checkSQL, [serverid], (chkErr, chkRows) => {
           if (chkErr) {
             console.error('Error checking existing child node:', chkErr);
@@ -1708,52 +1475,85 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
           }
 
           const resolvedRole = (dep.role || 'child');
-          const values = [
-            dep.user_id,
-            serverid,
-            dep.host_serverid || '',
-            dep.serverip,
-            resolvedRole,
-            licenseCodeToUse,
-            req.body.Management || dep.Management || null,
-            req.body.Storage || dep.Storage || null,
-            req.body.External_Traffic || dep.External_Traffic || null,
-            req.body.VXLAN || dep.VXLAN || null
-          ];
 
           if (chkRows && chkRows.length > 0) {
             // Update existing
             const updSQL = `
-              UPDATE child_node
-              SET user_id=?, host_serverid=?, serverip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
-              WHERE server_id=?
+              UPDATE deployed_server
+              SET user_id=?, username=?, cloudname=?, serverip=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
+              WHERE serverid=?
             `;
             const updValues = [
-              values[0], values[2], values[3], values[4], values[5], values[6], values[7], values[8], values[9], serverid
+              dep.user_id,
+              dep.username || null,
+              null,
+              dep.serverip,
+              null,
+              resolvedRole,
+              licenseCodeToUse || null,
+              req.body.Management || dep.Management || null,
+              req.body.Storage || dep.Storage || null,
+              req.body.External_Traffic || dep.External_Traffic || null,
+              req.body.VXLAN || dep.VXLAN || null,
+              serverid
             ];
             db.query(updSQL, updValues, (updErr) => {
               if (updErr) {
-                console.error('Error updating child node record:', updErr);
-                return res.status(500).json({ error: 'Failed to update child node record' });
+                console.error('Error updating deployed server record:', updErr);
+                return res.status(500).json({ error: 'Failed to update deployed server record' });
               }
-              return res.json({ message: 'Child node record updated successfully' });
+              return res.json({ message: 'Deployed server record updated successfully' });
             });
           } else {
             // Insert new
             const insSQL = `
-              INSERT INTO child_node (user_id, server_id, host_serverid, serverip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
-            db.query(insSQL, values, (insErr) => {
+            const insValues = [
+              serverid,
+              dep.user_id,
+              dep.username || null,
+              null,
+              dep.serverip,
+              null,
+              resolvedRole,
+              licenseCodeToUse || null,
+              req.body.Management || dep.Management || null,
+              req.body.Storage || dep.Storage || null,
+              req.body.External_Traffic || dep.External_Traffic || null,
+              req.body.VXLAN || dep.VXLAN || null
+            ];
+            db.query(insSQL, insValues, (insErr) => {
               if (insErr) {
-                console.error('Error creating child node record:', insErr);
-                return res.status(500).json({ error: 'Failed to create child node record' });
+                console.error('Error creating deployed server record:', insErr);
+                return res.status(500).json({ error: 'Failed to create deployed server record' });
               }
-              return res.json({ message: 'Child node record created successfully' });
+              return res.json({ message: 'Deployed server record created successfully' });
             });
           }
         });
       });
     });
+  });
+});
+
+
+// API: Check if Host entry exists for a user (cloudName ignored)
+app.get('/api/host-exists', (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ message: 'userId is required' });
+  let sql = 'SELECT 1 FROM deployed_server WHERE user_id = ? LIMIT 1';
+  let params = [userId];
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error('Error checking Host existence:', err);
+      return res.status(500).json({ message: 'Database error' });
+    }
+    if (results.length > 0) {
+      return res.json({ exists: true });
+    } else {
+      return res.json({ exists: false });
+    }
   });
 });

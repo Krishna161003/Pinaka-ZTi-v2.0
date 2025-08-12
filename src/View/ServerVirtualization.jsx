@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Tabs } from "antd";
+import { Tabs, message } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import Zti from "../Components/Zti";
 import DeploymentOptions from "../Components/ServerVirtualization/Deployop";
@@ -110,6 +110,7 @@ const App = () => {
   }, []);
 
   const [selectedNodes, setSelectedNodes] = useState([]);
+  const [validatedNodes, setValidatedNodes] = useState([]);
   const [ibn, setIbn] = useState("");
 
   // --- RESET LOGIC: Only if flag is set and user is returning from another menu ---
@@ -163,13 +164,34 @@ const App = () => {
 
   // Handler to enable only Validation tab after Deployment Option modal is confirmed
   const handleDeploymentStart = (cloudName) => {
-    setDisabledTabs({
-      "2": false, // Enable Validation
+    // Reset flow-related session keys to avoid stale state affecting a new run
+    try {
+      const keysToClear = [
+        'selectedNodes',
+        'validatedNodes',
+        'sv_licenseStatus',
+        'sv_licenseNodes',
+        'sv_licenseActivationResults',
+        'sv_networkApplyCardStatus',
+        'sv_networkApplyForms',
+        'sv_networkApplyResult',
+        'sv_networkApplyRestartEndTimes',
+        'sv_networkApplyBootEndTimes',
+      ];
+      keysToClear.forEach(k => sessionStorage.removeItem(k));
+    } catch (_) {}
+
+    const nextDisabled = {
+      "2": false, // Enable Discovery (tab 2)
       "3": true,
       "4": true,
       "5": true,
       "6": true,
-    });
+      "1": false,
+    };
+    setDisabledTabs(nextDisabled);
+    sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(nextDisabled));
+    sessionStorage.setItem("disabledTabs", JSON.stringify(nextDisabled));
     setActiveTab("2"); // Optionally switch to Validation tab
     // Optionally store cloudName if needed
   };
@@ -194,17 +216,48 @@ const App = () => {
         <Tabs.TabPane tab="Deployment Options" key="1" disabled={disabledTabs["1"]}>
           <DeploymentOptions onStart={handleDeploymentStart} />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Validation" key="2" disabled={disabledTabs["2"]}>
+        <Tabs.TabPane tab="Discovery" key="2" disabled={disabledTabs["2"]}>
+          <Discovery next={(nodes) => {
+            // nodes are selected node objects from scan
+            if (!nodes || nodes.length === 0) {
+              message.warning('Please select at least one node.');
+              return;
+            }
+            setSelectedNodes(nodes);
+            sessionStorage.setItem('selectedNodes', JSON.stringify(nodes));
+            setDisabledTabs(prev => {
+              const updated = { ...prev, "2": false, "3": false };
+              sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
+              sessionStorage.setItem("disabledTabs", JSON.stringify(updated));
+              return updated;
+            });
+            setActiveTab("3");
+          }} />
+        </Tabs.TabPane>
+        <Tabs.TabPane tab="Validation" key="3" disabled={disabledTabs["3"]}>
           <Validation
-            next={() => {
-              setDisabledTabs((prev) => ({ ...prev, "3": false }));
-              setActiveTab("3");
+            nodes={selectedNodes}
+            next={(passed /* array of nodes that passed */, allRows) => {
+              const passedNodes = passed || [];
+              if (passedNodes.length === 0) {
+                message.error('Please ensure at least one node passes validation.');
+                return;
+              }
+              setValidatedNodes(passedNodes);
+              sessionStorage.setItem('validatedNodes', JSON.stringify(passedNodes));
+              setDisabledTabs((prev) => {
+                const updated = { ...prev, "4": false };
+                sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
+                sessionStorage.setItem("disabledTabs", JSON.stringify(updated));
+                return updated;
+              });
+              setActiveTab("4");
             }}
             onValidationResult={(result) => {
               if (result === "failed") {
                 setDisabledTabs({
                   "2": false,
-                  "3": true,
+                  "3": false,
                   "4": true,
                   "5": true,
                   "6": true,
@@ -213,24 +266,30 @@ const App = () => {
             }}
           />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="System Interface" key="3" disabled={disabledTabs["3"]}>
-          <Discovery next={() => {
-            setDisabledTabs(prev => ({
-              ...prev,
-              "2": false,
-              "3": false,
-              "4": false
-            }));
-            setActiveTab("4");
-          }} />
-        </Tabs.TabPane>
         <Tabs.TabPane tab="Activate Key" key="4" disabled={disabledTabs["4"]}>
           <ActivateKey
-            next={() => {
-              setDisabledTabs(prev => ({
-                ...prev,
-                "5": false
-              }));
+            nodes={validatedNodes}
+            next={(successfulNodes = []) => {
+              if (!Array.isArray(successfulNodes) || successfulNodes.length === 0) {
+                message.warning('Please activate license for at least one node to proceed.');
+                return;
+              }
+              // Persist nodes for Deployment.js consumption
+              const licenseNodes = successfulNodes.map(n => ({ ip: n.ip }));
+              sessionStorage.setItem('sv_licenseNodes', JSON.stringify(licenseNodes));
+              // Build sv_licenseActivationResults array from per-IP map stored by ActivateKey
+              try {
+                const mapRaw = sessionStorage.getItem('sv_licenseStatus');
+                const map = mapRaw ? JSON.parse(mapRaw) : {};
+                const arr = successfulNodes.map(n => ({ ip: n.ip, details: map[n.ip] || {} }));
+                sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
+              } catch (_) {}
+              setDisabledTabs(prev => {
+                const updated = { ...prev, "5": false };
+                sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
+                sessionStorage.setItem("disabledTabs", JSON.stringify(updated));
+                return updated;
+              });
               setActiveTab("5");
             }}
             onValidationResult={(result) => {
@@ -244,15 +303,11 @@ const App = () => {
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Deployment" key="5" disabled={disabledTabs["5"]}>
-          <Deployment next={() => {
-            setDisabledTabs({
-              "1": true,
-              "2": true,
-              "3": true,
-              "4": true,
-              "5": true,
-              "6": false
-            });
+          <Deployment onGoToReport={() => {
+            const updated = { "1": true, "2": true, "3": true, "4": true, "5": true, "6": false };
+            setDisabledTabs(updated);
+            sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
+            sessionStorage.setItem("disabledTabs", JSON.stringify(updated));
             setActiveTab("6");
           }} />
         </Tabs.TabPane>
