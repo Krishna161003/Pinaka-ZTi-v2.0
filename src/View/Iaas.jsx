@@ -370,7 +370,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
       ) : <span style={{ color: '#aaa' }}>-</span>}</div>
       
       {/* Temporarily enabled for testing - remove license status check */}
-      {license.license_status && license.license_status.toLowerCase() === 'expired' (
+      {license.license_status && license.license_status.toLowerCase() === 'expired' && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #d9d9d9' }}>
           <Button 
             type="primary" 
