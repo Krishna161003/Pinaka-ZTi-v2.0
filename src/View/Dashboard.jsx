@@ -570,7 +570,7 @@ const Dashboard = () => {
                 </div>
               </Col>
               <Col className="gutter-row" span={7} style={hoveredCard === 'flightDeck' ? hoverStyle : style}
-                onClick={() => navigateToIaasTab("2")}
+                // onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('flightDeck')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 {/* ...Flight Deck card content... */}
@@ -583,7 +583,7 @@ const Dashboard = () => {
                 </div>
               </Col>
               <Col className="gutter-row" span={7} style={hoveredCard === 'squadron' ? hoverStyle : style}
-                onClick={() => navigateToIaasTab("3")}
+                onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('squadron')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 {/* ...Squadron card content... */}
