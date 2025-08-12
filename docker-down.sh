@@ -22,19 +22,19 @@ else
 fi
 
 # Remove specific Docker volumes
-if docker volume remove pinaka-zti-v15_mysql-data; then
+if docker volume remove pinaka-zti-v20_mysql-data; then
     echo "Volume pinaka-zti_05_mysql-data removed successfully."
 else
     echo "Failed to remove volume pinaka-zti_v15_mysql-data."
 fi
 
-if docker volume remove pinaka-zti-v15_mongodb_data; then
+if docker volume remove pinaka-zti-v20_mongodb_data; then
     echo "Volume pinaka-zti_05_mongodb_data removed successfully."
 else
     echo "Failed to remove volume pinaka-zti_v15_mongodb_data."
 fi
 
-if docker volume remove pinaka-zti-v15_shared-data; then
+if docker volume remove pinaka-zti-v20_shared-data; then
     echo "Volume pinaka-zti_v15_shared-data removed successfully."
 else
     echo "Failed to remove volume pinaka-zti_v15_shared-data."
