@@ -1585,3 +1585,29 @@ app.post('/store-user-id', (req, res) => {
     res.status(200).json({ message: 'User ID stored successfully' });
   });
 });
+
+app.post("/check-cloud-name", async (req, res) => {
+  const { cloudName } = req.body;
+
+  try {
+    const existingCloud = await new Promise((resolve, reject) => {
+      const query = "SELECT * FROM deployment_activity_log WHERE cloudname = ?";
+      db.query(query, [cloudName], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+
+    if (existingCloud.length > 0) {
+      return res.status(400).json({ message: "Cloud name already exists. Please choose a different name." });
+    }
+
+    res.status(200).json({ message: "Cloud name is available." });
+  } catch (error) {
+    console.error("Error checking cloud name:", error);
+    res.status(500).json({ message: "An error occurred while checking the cloud name." });
+  }
+});
