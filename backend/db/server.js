@@ -980,27 +980,18 @@ app.get('/api/dashboard-counts/:userId', async (req, res) => {
   }
 
   try {
-    // Get unique cloud count from deployment_activity_log (completed host deployments)
-    const cloudCountQuery = `SELECT COUNT(DISTINCT cloudname) AS cloudCount FROM deployment_activity_log WHERE user_id = ? AND status = 'completed' AND type = 'host'`;
-
-    // Get flight deck count from deployment_activity_log (completed host deployments)
-    const flightDeckCountQuery = `SELECT COUNT(*) AS flightDeckCount FROM deployment_activity_log WHERE user_id = ? AND status = 'completed' AND type = 'host'`;
+    // Get unique cloud count from deployed_server table
+    const cloudCountQuery = `SELECT COUNT(DISTINCT cloudname) AS cloudCount FROM deployed_server WHERE user_id = ?`;
 
     // Get squadron count from deployed_server table
-    const squadronCountQuery = `SELECT COUNT(*) AS squadronCount FROM deployed_server WHERE user_id = ? AND role LIKE '%child%'`;
+    const squadronCountQuery = `SELECT COUNT(*) AS squadronCount FROM deployed_server WHERE user_id = ?`;
 
-    // Execute all queries in parallel
-    const [cloudResult, flightDeckResult, squadronResult] = await Promise.all([
+    // Execute queries in parallel
+    const [cloudResult, squadronResult] = await Promise.all([
       new Promise((resolve, reject) => {
         db.query(cloudCountQuery, [userId], (err, result) => {
           if (err) reject(err);
           else resolve(result[0].cloudCount);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        db.query(flightDeckCountQuery, [userId], (err, result) => {
-          if (err) reject(err);
-          else resolve(result[0].flightDeckCount);
         });
       }),
       new Promise((resolve, reject) => {
@@ -1014,7 +1005,6 @@ app.get('/api/dashboard-counts/:userId', async (req, res) => {
     // Return the counts
     res.status(200).json({
       cloudCount: cloudResult,
-      flightDeckCount: flightDeckResult,
       squadronCount: squadronResult
     });
   } catch (error) {
@@ -1023,18 +1013,18 @@ app.get('/api/dashboard-counts/:userId', async (req, res) => {
   }
 });
 
-// API: Get all child nodes (for Inventory tab 2)
-app.get('/api/child-nodes', (req, res) => {
+// API: Get deployed servers (alias of child-nodes; source: deployed_server)
+app.get('/api/deployed-servers', (req, res) => {
   const userId = req.query.userId;
-  let sql = "SELECT * FROM deployed_server WHERE role LIKE '%child%'";
+  let sql = "SELECT * FROM deployed_server";
   const params = [];
   if (userId) {
-    sql += ' AND user_id = ?';
+    sql += ' WHERE user_id = ?';
     params.push(userId);
   }
   db.query(sql, params, (err, results) => {
     if (err) {
-      console.error('Error fetching child nodes:', err);
+      console.error('Error fetching deployed servers:', err);
       return res.status(500).json({ error: 'Database error' });
     }
     res.json(results);
@@ -1368,39 +1358,24 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
 app.get('/api/server-counts', async (req, res) => {
   const hostIP = req.hostname;
   try {
-    // Get count of completed host deployments from deployment_activity_log
-    const hostCountQuery = `SELECT COUNT(*) as host_count FROM deployment_activity_log WHERE status = 'completed' AND type = 'host'`;
+    // Use deployed_server as the single source of truth for inventory counts
+    const totalCountQuery = `SELECT COUNT(*) AS total_count FROM deployed_server`;
+    const serverIpsQuery = `SELECT serverip FROM deployed_server`;
 
-    // Get count of child servers from deployed_server
-    const childCountQuery = `SELECT COUNT(*) as child_count FROM deployed_server WHERE role LIKE '%child%'`;
-
-    // Get all server IPs for status check (hosts from deployment_activity_log + deployed_server entries)
-    const serverIpsQuery = `SELECT serverip FROM deployment_activity_log WHERE status = 'completed' AND type = 'host' UNION SELECT serverip FROM deployed_server`;
-
-    // Execute all queries in parallel
-    const [hostResult, childResult, serversResult] = await Promise.all([
+    const [total_count, serversResult] = await Promise.all([
       new Promise((resolve, reject) => {
-        db.query(hostCountQuery, (err, result) => {
+        db.query(totalCountQuery, (err, result) => {
           if (err) reject(err);
-          else resolve(result[0].host_count);
-        });
-      }),
-      new Promise((resolve, reject) => {
-        db.query(childCountQuery, (err, result) => {
-          if (err) reject(err);
-          else resolve(result[0].child_count);
+          else resolve(result[0].total_count || 0);
         });
       }),
       new Promise((resolve, reject) => {
         db.query(serverIpsQuery, (err, result) => {
           if (err) reject(err);
-          else resolve(result);
+          else resolve(result || []);
         });
       })
     ]);
-
-    // Calculate total count
-    const total_count = hostResult + childResult;
 
     // For the Node.js implementation, we'll call the Flask endpoint to check server status
     // This is a temporary solution until we implement SSH functionality directly in Node.js

@@ -30,7 +30,6 @@ const Inventory = () => {
   const navigate = useNavigate();
 
   // State for server data
-  const [flightDeckServers, setFlightDeckServers] = useState([]);
   const [squadronServers, setSquadronServers] = useState([]);
   const [serverCounts, setServerCounts] = useState({ total: 0, online: 0, offline: 0 });
   const [loading, setLoading] = useState(true);
@@ -109,27 +108,9 @@ const Inventory = () => {
         offline: countsResponse.data.offline_count
       });
       
-      // Fetch Host table for Flight Deck tab
+      // Fetch deployed servers for Squadron tab (from deployed_server table)
       const userId = localStorage.getItem('userId');
-      const flightDeckResponse = await axios.get(`https://${hostIP}:5000/api/hosts`, {
-        params: { userId }
-      });
-      const flightDeckData = await Promise.all(flightDeckResponse.data.map(async (server, index) => {
-        const isOnline = await checkServerStatus(server.serverip);
-        return {
-          key: index.toString(),
-          sno: index + 1,
-          serverid: server.server_id,
-          serverip: server.serverip,
-          cloudname: server.cloudname || server.servervip || 'N/A',
-          status: isOnline ? 'online' : 'offline',
-          isOnline
-        };
-      }));
-      setFlightDeckServers(flightDeckData);
-      
-      // Fetch child_node table for Squadron tab
-      const squadronResponse = await axios.get(`https://${hostIP}:5000/api/child-nodes`, {
+      const squadronResponse = await axios.get(`https://${hostIP}:5000/api/deployed-servers`, {
         params: { userId }
       });
       const squadronData = await Promise.all(squadronResponse.data.map(async (server, index) => {
@@ -137,9 +118,9 @@ const Inventory = () => {
         return {
           key: index.toString(),
           sno: index + 1,
-          serverid: server.server_id,
+          serverid: server.serverid,
           serverip: server.serverip,
-          host_serverid: server.host_serverid || 'N/A',
+          cloudname: server.cloudname || 'N/A',
           status: isOnline ? 'online' : 'offline',
           isOnline
         };
@@ -332,7 +313,7 @@ const Inventory = () => {
                   moreIcon={null}
                   items={[
                     {
-                      label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Flight Deck</span>,
+                      label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Squadron</span>,
                       key: '1',
                       children: (
                         <Table
@@ -342,86 +323,6 @@ const Inventory = () => {
                             { title: 'Server ID', dataIndex: 'serverid', key: 'serverid', width: '15%' },
                             { title: 'Server IP', dataIndex: 'serverip', key: 'serverip', width: '15%' },
                             { title: 'Cloud Name', dataIndex: 'cloudname', key: 'cloudname', width: '15%' },
-                            { 
-                              title: 'Status', 
-                              dataIndex: 'status', 
-                              key: 'status',
-                              width: '10%',
-                              render: (status) => (
-                                <Badge 
-                                  status={status === 'online' ? 'success' : 'error'} 
-                                  text={status === 'online' ? 'Online' : 'Offline'} 
-                                />
-                              )
-                            },
-                            {
-                              title: 'Power Controls',
-                              key: 'actions',
-                              width: '20%',
-                              render: (_, record) => (
-                                <div>
-                                  <Popconfirm
-                                    title="Are you sure?"
-                                    onConfirm={() => shutdownServer(record.serverip)}
-                                    okText="Yes"
-                                    cancelText="No"
-                                    disabled={!record.isOnline}
-                                    overlayStyle={{ width: '180px' }}
-                                    okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
-                                    cancelButtonProps={{ style: { width: '70px' } }}
-                                  >
-                                    <Button 
-                                      type="primary" 
-                                      danger 
-                                      style={{ marginRight: '8px' , width: '80px'}}
-                                      disabled={!record.isOnline}
-                                    >
-                                      Shutdown
-                                    </Button>
-                                  </Popconfirm>
-                                  <Popconfirm
-                                    title="Are you sure?"
-                                    onConfirm={() => rebootServer(record.serverip)}
-                                    okText="Yes"
-                                    cancelText="No"
-                                    disabled={!record.isOnline}
-                                    overlayStyle={{ width: '180px' }}
-                                    okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
-                                    cancelButtonProps={{ style: { width: '70px' } }}
-                                  >
-                                    <Button 
-                                      type="primary"
-                                      disabled={!record.isOnline}
-                                      style={{ width: '75px'}}
-                                    >
-                                      Reboot
-                                    </Button>
-                                  </Popconfirm>
-                                </div>
-                              )
-                            }
-                          ]}
-                          dataSource={flightDeckServers}
-                          pagination={{
-                            pageSize: 10,
-                            showSizeChanger: true,
-                            showQuickJumper: true,
-                            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} servers`,
-                          }}
-                        />
-                      )
-                    },
-                    {
-                      label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Squadron</span>,
-                      key: '2',
-                      children: (
-                        <Table
-                          loading={loading}
-                          columns={[
-                            { title: 'S.No', dataIndex: 'sno', key: 'sno', width: '5%' },
-                            { title: 'Server ID', dataIndex: 'serverid', key: 'serverid', width: '15%' },
-                            { title: 'Server IP', dataIndex: 'serverip', key: 'serverip', width: '15%' },
-                            { title: 'Host Server ID', dataIndex: 'host_serverid', key: 'host_serverid', width: '15%' },
                             { 
                               title: 'Status', 
                               dataIndex: 'status', 

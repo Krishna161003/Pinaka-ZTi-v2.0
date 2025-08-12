@@ -1480,8 +1480,8 @@ def store_deployment_configs():
         # If list, expect each item to have a unique 'ip' or 'hostname'
         node_items = [(str(i+1), node) for i, node in enumerate(data)]
 
-    # Directory to store configs
-    configs_dir = pathlib.Path('deployment_configs')
+    # Directory to store configs (must match node_deployment_progress)
+    configs_dir = pathlib.Path('/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/flask-back/deployment_configs')
     configs_dir.mkdir(exist_ok=True)
     results = []
     for idx, (node_key, node_cfg) in enumerate(node_items, 1):

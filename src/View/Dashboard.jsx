@@ -385,7 +385,6 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true); // For loading state
   const [counts, setCounts] = useState({
     cloudCount: 0,
-    flightDeckCount: 0,
     squadronCount: 0
   });
   // State for hover effects
@@ -509,7 +508,6 @@ const Dashboard = () => {
 
         setCounts({
           cloudCount: countsData.cloudCount || 0,
-          flightDeckCount: countsData.flightDeckCount || 0,
           squadronCount: countsData.squadronCount || 0
         });
       } catch (error) {
@@ -581,7 +579,7 @@ const Dashboard = () => {
                     <img src={node} alt="server" style={{ width: "64px", height: "64px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
                   </div>
-                  <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>{counts.flightDeckCount}</span>
+                  <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>1</span>
                 </div>
               </Col>
               <Col className="gutter-row" span={7} style={hoveredCard === 'squadron' ? hoverStyle : style}
