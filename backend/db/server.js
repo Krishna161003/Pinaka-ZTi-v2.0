@@ -992,6 +992,22 @@ app.get('/api/child-nodes', (req, res) => {
   });
 });
 
+// API: Get distinct server IPs from deployed_server for dropdowns
+app.get('/api/deployed-server-ips', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.json([req.hostname]);
+  const sql = `SELECT DISTINCT serverip FROM deployed_server WHERE user_id = ? AND serverip IS NOT NULL AND serverip <> '' ORDER BY serverip`;
+  db.query(sql, [userId], (err, rows) => {
+    if (err) {
+      console.error('Error fetching deployed server IPs:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    const ips = (rows || []).map(r => r.serverip).filter(Boolean);
+    if (!ips.length) return res.json([req.hostname]);
+    return res.json(ips);
+  });
+});
+
 // API: Get all squadron nodes for Squadron tab (from deployed_server)
 app.get('/api/squadron-nodes', (req, res) => {
   const userId = req.query.userId;
@@ -1556,5 +1572,16 @@ app.get('/api/host-exists', (req, res) => {
     } else {
       return res.json({ exists: false });
     }
+  });
+});
+
+app.post('/store-user-id', (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ message: 'User ID is required' });
+
+  const sql = 'INSERT IGNORE INTO users (id) VALUES (?)';
+  db.query(sql, [userId], (err) => {
+    if (err) return res.status(500).json({ message: 'Error storing user ID' });
+    res.status(200).json({ message: 'User ID stored successfully' });
   });
 });

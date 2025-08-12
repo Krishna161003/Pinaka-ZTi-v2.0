@@ -78,24 +78,14 @@ const Dashboard = () => {
   const [hostIpOptions, setHostIpOptions] = useState([]);
   const [selectedHostIP, setSelectedHostIP] = useState(window.location.hostname);
 
-  // Fetch unique server IPs from Host and child_node tables
+  // Fetch unique server IPs from deployed_server table (backend aggregates)
   useEffect(() => {
-    
     async function fetchServerIps() {
       try {
         const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
-        const hostsRes = await fetch(`https://${hostIP}:5000/api/hosts${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
-        const hosts = await hostsRes.json();
-        const childrenRes = await fetch(`https://${hostIP}:5000/api/child-nodes${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
-        const children = await childrenRes.json();
-        const ips = new Set();
-        if (Array.isArray(hosts)) {
-          hosts.forEach(h => { if (h && h.serverip) ips.add(h.serverip); });
-        }
-        if (Array.isArray(children)) {
-          children.forEach(c => { if (c && c.serverip) ips.add(c.serverip); });
-        }
-        let uniqueIps = Array.from(ips);
+        const res = await fetch(`https://${hostIP}:5000/api/deployed-server-ips${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
+        const ips = await res.json();
+        let uniqueIps = Array.isArray(ips) ? ips.filter(Boolean) : [];
         if (uniqueIps.length === 0) {
           uniqueIps = [window.location.hostname];
         }
