@@ -1117,7 +1117,9 @@ app.get('/api/cloud-deployments-summary', (req, res) => {
 
         // Pick the earliest row as representative for credentials
         const credQuery = `
-          SELECT serverip, server_vip, datetime
+          SELECT serverip,
+                 COALESCE(server_vip, vip) AS server_vip,
+                 datetime
           FROM deployed_server
           WHERE cloudname = ? AND user_id = ?
           ORDER BY datetime ASC

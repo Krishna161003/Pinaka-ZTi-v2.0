@@ -679,9 +679,9 @@ const CloudDeploymentsTable = () => {
     },
     {
       title: 'Cloud Name',
-      dataIndex: 'cloudName',
-      key: 'cloudName',
-      ...getColumnSearchProps('cloudName', 'Cloud Name'),
+      dataIndex: 'cloudname',
+      key: 'cloudname',
+      ...getColumnSearchProps('cloudname', 'Cloud Name'),
 
     },
     {
@@ -722,7 +722,7 @@ const CloudDeploymentsTable = () => {
         <Table
           columns={columns}
           dataSource={data}
-          rowKey={row => row.sno + '-' + row.cloudName}
+          rowKey={row => row.sno + '-' + row.cloudname}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -744,10 +744,10 @@ const CloudDeploymentsTable = () => {
         <div>
           <b>1. Cloud</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>{modalCredentials?.hostservervip ? (
+            <li>{modalCredentials?.server_vip ? (
               <div>
-                <a href={`https://${modalCredentials.hostservervip}`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.hostservervip}
+                <a href={`https://${modalCredentials.server_vip}`} target="_blank" rel="noopener noreferrer">
+                  https://{modalCredentials.server_vip}
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</div>
               </div>
@@ -755,10 +755,10 @@ const CloudDeploymentsTable = () => {
           </ul>
           <b>2. Storage</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>{modalCredentials?.hostservervip ? (
+            <li>{modalCredentials?.server_vip ? (
               <div>
-                <a href={`https://${modalCredentials.hostservervip}:8443/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.hostservervip}:8443/
+                <a href={`https://${modalCredentials.server_vip}:8443/`} target="_blank" rel="noopener noreferrer">
+                  https://{modalCredentials.server_vip}:8443/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: </div>
               </div>
@@ -766,10 +766,10 @@ const CloudDeploymentsTable = () => {
           </ul>
           <b>3. Monitoring</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>{modalCredentials?.hostservervip ? (
+            <li>{modalCredentials?.server_vip ? (
               <div>
-                <a href={`https://${modalCredentials.hostservervip}:7000/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.hostservervip}:7000/
+                <a href={`https://${modalCredentials.server_vip}:7000/`} target="_blank" rel="noopener noreferrer">
+                  https://{modalCredentials.server_vip}:7000/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</div>
               </div>
@@ -777,10 +777,10 @@ const CloudDeploymentsTable = () => {
           </ul>
           <b>4. Diagnosis Dashboard</b>
           <ul style={{ marginBottom: 0 }}>
-            <li>{modalCredentials?.hostservervip ? (
+            <li>{modalCredentials?.server_vip ? (
               <div>
-                <a href={`https://${modalCredentials.hostservervip}:5601/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.hostservervip}:5601/
+                <a href={`https://${modalCredentials.server_vip}:5601/`} target="_blank" rel="noopener noreferrer">
+                  https://{modalCredentials.server_vip}:5601/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</div>
               </div>
