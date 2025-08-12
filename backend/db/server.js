@@ -677,17 +677,26 @@ app.put('/api/update-license/:serverid', (req, res) => {
         return res.status(500).json({ message: 'Failed to create license entry' });
       }
 
-      return res.status(200).json({
-        message: 'License updated successfully',
-        license: {
-          license_code,
-          license_type,
-          license_period: license_period || null,
-          license_status: finalStatus,
-          server_id: serverid,
-          start_date: startDate,
-          end_date: endDate
+      // Also reflect the license code on the deployed_server row for this server
+      const updDepSql = `UPDATE deployed_server SET license_code = ? WHERE serverid = ?`;
+      db.query(updDepSql, [license_code, serverid], (updErr) => {
+        if (updErr) {
+          console.error('Error updating deployed_server license_code:', updErr);
+          // Do not fail the whole request; the License row is already inserted.
         }
+
+        return res.status(200).json({
+          message: 'License updated successfully',
+          license: {
+            license_code,
+            license_type,
+            license_period: license_period || null,
+            license_status: finalStatus,
+            server_id: serverid,
+            start_date: startDate,
+            end_date: endDate
+          }
+        });
       });
     }
   );
@@ -842,7 +851,16 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
   }
 
   try {
-    // Generate server IDs for each node and insert into child_deployment_activity_log
+    // Get latest host deployment to inherit cloudname and VIP for secondary logs
+    const hostLog = await new Promise((resolve) => {
+      const hostSql = `SELECT cloudname, server_vip FROM deployment_activity_log WHERE user_id = ? AND type = 'host' ORDER BY datetime DESC LIMIT 1`;
+      db.query(hostSql, [user_id], (e, r) => {
+        if (e || !r || r.length === 0) return resolve(null);
+        resolve(r[0]);
+      });
+    });
+
+    // Generate server IDs for each node and insert into child_deployment_activity_log and deployment_activity_log (secondary)
     const insertedNodes = [];
 
     for (const node of nodes) {
@@ -859,7 +877,7 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
       const nanoid6 = customAlphabet('ABCDEVSR0123456789abcdefgzkh', 6);
       const serverid = 'SQDN-' + nanoid6();
 
-      // Insert child deployment activity log
+      // Insert child deployment activity log (store type as 'secondary')
       const sql = `
 INSERT INTO child_deployment_activity_log 
     (serverid, user_id, host_serverid, username, serverip, status, type, role, Management, Storage, External_Traffic, VXLAN)
@@ -868,7 +886,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
       await new Promise((resolve, reject) => {
         db.query(sql, [
-          serverid, user_id, host_serverid, username, serverip, 'progress', 'child',
+          serverid, user_id, host_serverid, username, serverip, 'progress', 'secondary',
           normalizedRole || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null
         ], (err, result) => {
           if (err) {
@@ -877,6 +895,37 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             resolve(result);
           }
         });
+      });
+
+      // Also insert into unified deployment_activity_log with type 'secondary' and VIP from host
+      const insDepSql = `
+        INSERT INTO deployment_activity_log 
+          (serverid, user_id, username, cloudname, serverip, status, type, server_vip, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, 'progress', 'secondary', ?, ?, ?, ?, ?)
+      `;
+      await new Promise((resolve, reject) => {
+        db.query(
+          insDepSql,
+          [
+            serverid,
+            user_id,
+            username,
+            hostLog ? hostLog.cloudname : null,
+            serverip,
+            hostLog ? hostLog.server_vip : null,
+            Management || null,
+            Storage || null,
+            External_Traffic || null,
+            VXLAN || null
+          ],
+          (derr) => {
+            if (derr) {
+              console.error('Error inserting secondary deployment log:', derr);
+              // continue without failing the entire request
+            }
+            resolve();
+          }
+        );
       });
 
       // Insert or update license details if provided
@@ -1016,7 +1065,7 @@ app.get('/api/squadron-nodes', (req, res) => {
   const nodeQuery = `
     SELECT serverid, serverip, role, license_code, server_vip, datetime
     FROM deployed_server
-    WHERE user_id = ? AND role LIKE '%child%'
+    WHERE user_id = ? AND (role IS NULL OR role NOT LIKE '%host%')
     ORDER BY datetime DESC
   `;
 

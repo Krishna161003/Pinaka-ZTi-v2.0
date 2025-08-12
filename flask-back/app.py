@@ -1668,7 +1668,7 @@ def check_ssh_status():
 @app.route('/node-deployment-progress', methods=['GET'])
 def node_deployment_progress():
     try:
-        configs_dir = pathlib.Path('/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/deployment_configs')
+        configs_dir = pathlib.Path('/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/flask-back/deployment_configs')
         if not configs_dir.exists():
             # No folder means no pending node_* files → consider completed
             return jsonify({
