@@ -26,6 +26,7 @@ const DataTable = ({ next }) => {
   const [scanLoading, setScanLoading] = useState(false);
   const [data, setData] = useState([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [searchText, setSearchText] = useState('');
 
   const fetchScan = async (customSubnet = '') => {
     setScanLoading(true);
@@ -96,7 +97,7 @@ const DataTable = ({ next }) => {
 
       <Divider style={{ marginBottom: '18px', marginTop: '28px' }} />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <Form form={form} layout="inline" initialValues={{ subnet: '' }}>
           <Form.Item
             name="subnet"
@@ -116,6 +117,15 @@ const DataTable = ({ next }) => {
             </Button>
           </Form.Item>
         </Form>
+        <Input.Search
+          placeholder="Search IP / MAC / Last Seen"
+          allowClear
+          onSearch={(val) => setSearchText(val)}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 280 }}
+          enterButton
+          size="middle"
+        />
       </div>
 
       <Table
@@ -125,7 +135,15 @@ const DataTable = ({ next }) => {
           onChange: setSelectedRowKeys,
         }}
         columns={columns}
-        dataSource={data}
+        dataSource={data.filter((row) => {
+          if (!searchText) return true;
+          const q = searchText.toLowerCase();
+          return (
+            (row.ip || '').toLowerCase().includes(q) ||
+            (row.mac || '').toLowerCase().includes(q) ||
+            (row.last_seen || '').toLowerCase().includes(q)
+          );
+        })}
         rowKey={(record) => record.ip + (record.mac || '')}
         loading={scanLoading}
         pagination={false}

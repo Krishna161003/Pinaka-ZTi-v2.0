@@ -11,6 +11,7 @@ const Cloud = ({ onNext, results, setResults }) => {
   // const [refreshLoading, setRefreshLoading] = useState(false);
   const [data, setData] = useState(results || []);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [searchText, setSearchText] = useState('');
 
   // Fetch scan results
   const fetchScan = async (customSubnet = '', type = 'scan') => {
@@ -40,10 +41,6 @@ const Cloud = ({ onNext, results, setResults }) => {
       // setRefreshLoading(false);
     }
   };
-
-  // useEffect(() => {
-  //   fetchScan(); // Default: scan local network
-  // }, []);
 
   const handleSubnetScan = () => {
     form.validateFields().then(values => {
@@ -80,7 +77,7 @@ const Cloud = ({ onNext, results, setResults }) => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <Form
           form={form}
           layout="inline"
@@ -112,6 +109,15 @@ const Cloud = ({ onNext, results, setResults }) => {
             </Button>
           </Form.Item> */}
         </Form>
+        <Input.Search
+          placeholder="Search IP / MAC / Last Seen"
+          allowClear
+          onSearch={(val) => setSearchText(val)}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 280 }}
+          enterButton
+          size="middle"
+        />
         <Button
           type="primary"
           disabled={selectedRowKeys.length === 0}
@@ -131,12 +137,21 @@ const Cloud = ({ onNext, results, setResults }) => {
           onChange: setSelectedRowKeys,
         }}
         columns={columns}
-        dataSource={data}
+        dataSource={data.filter((row) => {
+          if (!searchText) return true;
+          const q = searchText.toLowerCase();
+          return (
+            (row.ip || '').toLowerCase().includes(q) ||
+            (row.mac || '').toLowerCase().includes(q) ||
+            (row.last_seen || '').toLowerCase().includes(q)
+          );
+        })}
         rowKey={record => record.ip + (record.mac || '')}
         loading={scanLoading}
         pagination={false}
         style={{ marginBottom: 16 }}
       />
+
     </div>
   );
 };
