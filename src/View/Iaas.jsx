@@ -370,7 +370,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
       ) : <span style={{ color: '#aaa' }}>-</span>}</div>
       
       {/* Temporarily enabled for testing - remove license status check */}
-      {license.license_status && license.license_status.toLowerCase() === 'expired' && (
+      {license.license_code && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #d9d9d9' }}>
           <Button 
             type="primary" 
@@ -741,55 +741,50 @@ const CloudDeploymentsTable = () => {
         footer={null}
         width={600}
       >
-
         <div>
           <b>1. Cloud</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>Cloud - {modalCredentials.hostservervip ? (
+            <li>{modalCredentials?.hostservervip ? (
               <div>
-                <a href={`https://${modalCredentials.hostservervip}/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.hostservervip}/
+                <a href={`https://${modalCredentials.hostservervip}`} target="_blank" rel="noopener noreferrer">
+                  https://{modalCredentials.hostservervip}
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</div>
               </div>
-            ) : 'N/A'}
-            </li>
+            ) : <span>No URL</span>}</li>
           </ul>
           <b>2. Storage</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>Ceph - {modalCredentials.hostservervip ? (
+            <li>{modalCredentials?.hostservervip ? (
               <div>
                 <a href={`https://${modalCredentials.hostservervip}:8443/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.hostservervip}:8443/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: </div>
               </div>
-            ) : 'N/A'}
-            </li>
+            ) : <span>No URL</span>}</li>
           </ul>
           <b>3. Monitoring</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>Grafana - {modalCredentials.hostservervip ? (
+            <li>{modalCredentials?.hostservervip ? (
               <div>
                 <a href={`https://${modalCredentials.hostservervip}:7000/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.hostservervip}:7000/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</div>
               </div>
-            ) : 'N/A'}
-            </li>
+            ) : <span>No URL</span>}</li>
           </ul>
           <b>4. Diagnosis Dashboard</b>
           <ul style={{ marginBottom: 0 }}>
-            <li>Opensearch - {modalCredentials.hostservervip ? (
+            <li>{modalCredentials?.hostservervip ? (
               <div>
                 <a href={`https://${modalCredentials.hostservervip}:5601/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.hostservervip}:5601/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</div>
               </div>
-            ) : 'N/A'}
-            </li>
+            ) : <span>No URL</span>}</li>
           </ul>
         </div>
       </Modal>
