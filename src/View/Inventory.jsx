@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout1 from '../Components/layout';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Row, Col, Tabs, Table, theme, Button, Tag, Badge, message, Popconfirm, Input } from 'antd';
+import { Layout, Row, Col, Table, theme, Button, Badge, message, Popconfirm, Input } from 'antd';
+
 import upImage from '../Images/up_15362984.png';
 import downImage from '../Images/down_15362973.png';
 import node from '../Images/database_666406.png';
@@ -25,9 +25,7 @@ const Inventory = () => {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
   
-  // React Router hooks
-  const location = useLocation();
-  const navigate = useNavigate();
+  // React Router hooks removed (no tabs)
 
   // State for server data
   const [squadronServers, setSquadronServers] = useState([]);
@@ -35,13 +33,6 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
 
-  // Always use tab from URL as the single source of truth
-  const getTabFromURL = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || '1';
-  };
-  const [activeTab, setActiveTab] = useState(getTabFromURL);
-  
   // Function to control server (shutdown, reboot)
   const controlServer = async (serverIp, action) => {
     try {
@@ -144,32 +135,7 @@ const Inventory = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync state from URL
-  useEffect(() => {
-    const tabParam = getTabFromURL();
-    if (tabParam !== activeTab) {
-      setActiveTab(tabParam);
-    }
-    // Save menu memory on unmount
-    return () => {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get('tab') || activeTab;
-      const pathWithTab = `/inventory?tab=${tabParam}`;
-      sessionStorage.setItem('lastInventoryPath', pathWithTab);
-      sessionStorage.setItem('lastMenuPath', pathWithTab);
-    };
-  }, [location.search, activeTab]);
-
-  // Sync URL and sessionStorage from state (only on tab change)
-  const onTabChange = (key) => {
-    if (key !== activeTab) {
-      setActiveTab(key);
-      const params = new URLSearchParams(window.location.search);
-      params.set('tab', key);
-      navigate({ search: params.toString() }, { replace: true });
-      sessionStorage.setItem('inventory_activeTab', key);
-    }
-  };
+  // Removed tab URL sync logic
 
   // On mount, save last visited menu path
   useEffect(() => {
@@ -306,133 +272,101 @@ const Inventory = () => {
               }}
             >
               <div style={{ width: '100%' }}>
-                <Tabs
-                  activeKey={activeTab}
-                  onChange={onTabChange}
-                  style={{ width: '100%' }}
-                  tabBarStyle={{ width: '100%' }}
-                  moreIcon={null}
-                  items={[
+                <h3 style={{ margin: 0, marginBottom: 16, fontWeight: 600 }}>Squadron</h3>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <Input.Search
+                    placeholder="Search by Server ID / IP / Cloud / Status"
+                    allowClear
+                    onSearch={(val) => setSearchText(val)}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    style={{ maxWidth: 360 }}
+                    enterButton
+                    size="middle"
+                  />
+                </div>
+                <Table
+                  loading={loading}
+                  columns={[
+                    { title: 'S.No', dataIndex: 'sno', key: 'sno', width: '5%' },
+                    { title: 'Server ID', dataIndex: 'serverid', key: 'serverid', width: '15%' },
+                    { title: 'Server IP', dataIndex: 'serverip', key: 'serverip', width: '15%' },
+                    { title: 'Cloud Name', dataIndex: 'cloudname', key: 'cloudname', width: '15%' },
+                    { 
+                      title: 'Status', 
+                      dataIndex: 'status', 
+                      key: 'status',
+                      width: '10%',
+                      render: (status) => (
+                        <Badge 
+                          status={status === 'online' ? 'success' : 'error'} 
+                          text={status === 'online' ? 'Online' : 'Offline'} 
+                        />
+                      )
+                    },
                     {
-                      label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Squadron</span>,
-                      key: '1',
-                      children: (
-                        <>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-                            <Input.Search
-                              placeholder="Search by Server ID / IP / Cloud / Status"
-                              allowClear
-                              onSearch={(val) => setSearchText(val)}
-                              onChange={(e) => setSearchText(e.target.value)}
-                              style={{ maxWidth: 360 }}
-                              enterButton
-                              size="middle"
-                            />
-                          </div>
-                          <Table
-                            loading={loading}
-                            columns={[
-                              { title: 'S.No', dataIndex: 'sno', key: 'sno', width: '5%' },
-                              { title: 'Server ID', dataIndex: 'serverid', key: 'serverid', width: '15%' },
-                              { title: 'Server IP', dataIndex: 'serverip', key: 'serverip', width: '15%' },
-                              { title: 'Cloud Name', dataIndex: 'cloudname', key: 'cloudname', width: '15%' },
-                              { 
-                                title: 'Status', 
-                                dataIndex: 'status', 
-                                key: 'status',
-                                width: '10%',
-                                render: (status) => (
-                                  <Badge 
-                                    status={status === 'online' ? 'success' : 'error'} 
-                                    text={status === 'online' ? 'Online' : 'Offline'} 
-                                  />
-                                )
-                              },
-                              {
-                                title: 'Power Controls',
-                                key: 'actions',
-                                width: '20%',
-                                render: (_, record) => (
-                                  <div>
-                                    <Popconfirm
-                                      title="Are you sure?"
-                                      onConfirm={() => shutdownServer(record.serverip)}
-                                      okText="Yes"
-                                      cancelText="No"
-                                      disabled={!record.isOnline}
-                                      overlayStyle={{ width: '180px' }}
-                                      okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
-                                      cancelButtonProps={{ style: { width: '70px' } }}
-                                    >
-                                      <Button 
-                                        type="primary" 
-                                        danger 
-                                        style={{ marginRight: '8px', width: '80px' }}
-                                        disabled={!record.isOnline}
-                                      >
-                                        Shutdown
-                                      </Button>
-                                    </Popconfirm>
-                                    <Popconfirm
-                                      title="Are you sure?"
-                                      onConfirm={() => rebootServer(record.serverip)}
-                                      okText="Yes"
-                                      cancelText="No"
-                                      disabled={!record.isOnline}
-                                      overlayStyle={{ width: '180px' }}
-                                      okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
-                                      cancelButtonProps={{ style: { width: '70px' } }}
-                                    >
-                                      <Button 
-                                        type="primary"
-                                        disabled={!record.isOnline}
-                                        style={{ width: '75px' }}
-                                      >
-                                        Reboot
-                                      </Button>
-                                    </Popconfirm>
-                                  </div>
-                                )
-                              }
-                            ]}
-                            dataSource={squadronServers.filter((row) => {
-                              if (!searchText) return true;
-                              const q = searchText.toLowerCase();
-                              return (
-                                (row.serverid || '').toLowerCase().includes(q) ||
-                                (row.serverip || '').toLowerCase().includes(q) ||
-                                (row.cloudname || '').toLowerCase().includes(q) ||
-                                (row.status || '').toLowerCase().includes(q)
-                              );
-                            })}
-                            pagination={{
-                              pageSize: 10,
-                              showSizeChanger: true,
-                              showQuickJumper: true,
-                              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} servers`,
-                            }}
-                          />
-                        </>
+                      title: 'Power Controls',
+                      key: 'actions',
+                      width: '20%',
+                      render: (_, record) => (
+                        <div>
+                          <Popconfirm
+                            title="Are you sure?"
+                            onConfirm={() => shutdownServer(record.serverip)}
+                            okText="Yes"
+                            cancelText="No"
+                            disabled={!record.isOnline}
+                            overlayStyle={{ width: '180px' }}
+                            okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
+                            cancelButtonProps={{ style: { width: '70px' } }}
+                          >
+                            <Button 
+                              type="primary" 
+                              danger 
+                              style={{ marginRight: '8px', width: '80px' }}
+                              disabled={!record.isOnline}
+                            >
+                              Shutdown
+                            </Button>
+                          </Popconfirm>
+                          <Popconfirm
+                            title="Are you sure?"
+                            onConfirm={() => rebootServer(record.serverip)}
+                            okText="Yes"
+                            cancelText="No"
+                            disabled={!record.isOnline}
+                            overlayStyle={{ width: '180px' }}
+                            okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
+                            cancelButtonProps={{ style: { width: '70px' } }}
+                          >
+                            <Button 
+                              type="primary"
+                              disabled={!record.isOnline}
+                              style={{ width: '75px' }}
+                            >
+                              Reboot
+                            </Button>
+                          </Popconfirm>
+                        </div>
                       )
                     }
                   ]}
+                  dataSource={squadronServers.filter((row) => {
+                    if (!searchText) return true;
+                    const q = searchText.toLowerCase();
+                    return (
+                      (row.serverid || '').toLowerCase().includes(q) ||
+                      (row.serverip || '').toLowerCase().includes(q) ||
+                      (row.cloudname || '').toLowerCase().includes(q) ||
+                      (row.status || '').toLowerCase().includes(q)
+                    );
+                  })}
+                  pagination={{
+                    pageSize: 10,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} servers`,
+                  }}
                 />
-                {/* Custom style for AntD tabs to make tabs fill and center */}
-                <style>{`
-                  .ant-tabs-nav {
-                    width: 100%;
-                  }
-                  .ant-tabs-nav-list {
-                    width: 100%;
-                    display: flex !important;
-                  }
-                  .ant-tabs-tab {
-                    flex: 1 1 0;
-                    justify-content: center;
-                    text-align: center;
-                    margin: 0 !important;
-                  }
-                `}</style>
               </div>
             </div>
           </div>
