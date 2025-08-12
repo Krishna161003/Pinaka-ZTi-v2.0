@@ -78,7 +78,7 @@ const App = () => {
     const userId = loginDetails?.data?.id;
     if (!userId) return;
     const hostIP = window.location.hostname;
-    fetch(`https://${hostIP}:5000/api/child-deployment-activity-log/latest-in-progress/${userId}`)
+    fetch(`https://${hostIP}:5000/api/deployment-activity-log/latest-in-progress/secondary/${userId}`)
       .then(res => res.json())
       .then(data => {
         if (data.inProgress) {

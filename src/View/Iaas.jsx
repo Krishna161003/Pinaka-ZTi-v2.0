@@ -370,7 +370,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
       ) : <span style={{ color: '#aaa' }}>-</span>}</div>
       
       {/* Temporarily enabled for testing - remove license status check */}
-      {license.license_code && (
+      {license.license_status && license.license_status.toLowerCase() === 'expired'  (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #d9d9d9' }}>
           <Button 
             type="primary" 
@@ -757,10 +757,10 @@ const CloudDeploymentsTable = () => {
           </ul>
           <b>2. Storage</b>
           <ul style={{ marginBottom: 8 }}>
-            <li>Ceph - {modalCredentials.hostserverip ? (
+            <li>Ceph - {modalCredentials.hostservervip ? (
               <div>
-                <a href={`https://${modalCredentials.hostserverip}:8443/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.hostserverip}:8443/
+                <a href={`https://${modalCredentials.hostservervip}:8443/`} target="_blank" rel="noopener noreferrer">
+                  https://{modalCredentials.hostservervip}:8443/
                 </a>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: </div>
               </div>

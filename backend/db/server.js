@@ -487,19 +487,19 @@ app.get('/api/deployment-activity-log/latest-in-progress/:user_id', (req, res) =
   });
 });
 
-// Get latest in-progress child deployment activity log for a user
-app.get('/api/child-deployment-activity-log/latest-in-progress/:user_id', (req, res) => {
+// Get latest in-progress secondary deployment activity log for a user (from deployment_activity_log)
+app.get('/api/deployment-activity-log/latest-in-progress/secondary/:user_id', (req, res) => {
   const { user_id } = req.params;
   const sql = `
-    SELECT * FROM child_deployment_activity_log 
-    WHERE user_id = ? AND status = 'progress' 
-    ORDER BY datetime DESC 
+    SELECT * FROM deployment_activity_log
+    WHERE user_id = ? AND status = 'progress' AND type = 'secondary'
+    ORDER BY datetime DESC
     LIMIT 1
   `;
   db.query(sql, [user_id], (err, results) => {
     if (err) {
-      console.error('Error fetching in-progress child deployment:', err);
-      return res.status(500).json({ error: 'Failed to fetch child deployment status' });
+      console.error('Error fetching in-progress secondary deployment:', err);
+      return res.status(500).json({ error: 'Failed to fetch secondary deployment status' });
     }
     res.json({
       inProgress: results.length > 0,
