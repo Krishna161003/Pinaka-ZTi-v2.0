@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout1 from '../Components/layout';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { theme, Layout, Tabs, Table, Button, Modal, Spin, Alert, Input, message } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, CopyTwoTone } from '@ant-design/icons';
 
 // LicenseDetailsModalContent: fetches and displays license details for a serverid
 function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
@@ -388,6 +388,30 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 const { Content } = Layout;
 const hostIP = window.location.hostname;
 
+// Copy helper
+async function copyToClipboard(text) {
+  try {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    message.success('Copied to clipboard');
+  } catch (e) {
+    console.error('Copy failed', e);
+    message.error('Failed to copy');
+  }
+}
+
 // Helper for column search (AntD Table)
 function getColumnSearchProps(dataIndex, placeholder) {
   return {
@@ -588,7 +612,10 @@ const SquadronNodesTable = () => {
                 <a href={`https://${modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
                   https://{modalRecord.serverip}
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</div>
+                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
+                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
+                </div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
@@ -599,7 +626,7 @@ const SquadronNodesTable = () => {
                 <a href={`https://${modalRecord.serverip}:8443/`} target="_blank" rel="noopener noreferrer">
                   https://{modalRecord.serverip}:8443/
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: </div>
+                <div style={{ marginTop: 4, color: '#666' }}>Password: -</div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
@@ -610,7 +637,10 @@ const SquadronNodesTable = () => {
                 <a href={`https://${modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
                   https://{modalRecord.serverip}:7000/
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</div>
+                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
+                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
+                </div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
@@ -621,7 +651,10 @@ const SquadronNodesTable = () => {
                 <a href={`https://${modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
                   https://{modalRecord.serverip}:5601/
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</div>
+                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
+                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
+                </div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
@@ -749,7 +782,10 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</div>
+                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
+                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
+                </div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
@@ -771,7 +807,10 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}:7000/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}:7000/
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</div>
+                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
+                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
+                </div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
@@ -782,7 +821,10 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}:5601/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}:5601/
                 </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</div>
+                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
+                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
+                </div>
               </div>
             ) : <span>No URL</span>}</li>
           </ul>
