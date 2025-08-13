@@ -914,7 +914,6 @@ const Iaas = () => {
                 style={{ width: '100%' }}
                 tabBarStyle={{ width: '100%' }}
                 moreIcon={null}
-                animated={{ inkBar: false, tabPane: false }}
                 items={[
                   {
                     label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Cloud</span>,
@@ -948,7 +947,6 @@ const Iaas = () => {
                   display: block !important;
                   height: 2px;
                   background: #1677ff;
-                  transition: none !important; /* prevent misaligned animation */
                 }
               `}</style>
             </div>
