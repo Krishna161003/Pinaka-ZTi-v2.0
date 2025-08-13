@@ -281,7 +281,7 @@ const Inventory = () => {
                       size="small" 
                       onClick={fetchServerData}
                       disabled={loading}
-                      style={{ marginLeft: 8, marginTop: 2 }}
+                      style={{ marginLeft: 8, marginTop: 5 }}
                     />
                   </Space>
                   <Input.Search
