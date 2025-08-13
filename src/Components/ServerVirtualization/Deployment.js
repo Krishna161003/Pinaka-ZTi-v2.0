@@ -191,6 +191,8 @@ const Deployment = ({ onGoToReport } = {}) => {
     }));
   };
   const [forms, setForms] = useState(getInitialForms);
+  // Loading state for Deploy button
+  const [deployLoading, setDeployLoading] = useState(false);
 
   // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
   useEffect(() => {
@@ -851,6 +853,7 @@ const Deployment = ({ onGoToReport } = {}) => {
 
     // Validate VIP availability with backend before proceeding
     try {
+      setDeployLoading(true);
       const vipResp = await fetch(`https://${hostIP}:2020/is-vip-available?vip=${encodeURIComponent(vip)}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -859,12 +862,14 @@ const Deployment = ({ onGoToReport } = {}) => {
       if (!vipResp.ok || vipData?.success === false) {
         const errMsg = vipData?.message || vipData?.error || 'VIP validation failed';
         message.error(errMsg);
+        setDeployLoading(false);
         return; // Stop deployment flow if VIP not available/invalid
       }
       // Optional: notify success
       // message.success('VIP is available');
     } catch (e) {
       message.error('Unable to validate VIP: ' + e.message);
+      setDeployLoading(false);
       return;
     }
 
@@ -887,11 +892,13 @@ const Deployment = ({ onGoToReport } = {}) => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        setDeployLoading(false);
         throw new Error(errorData.error || 'Failed to store deployment configs');
       }
 
       const result = await response.json();
       if (!result.success) {
+        setDeployLoading(false);
         throw new Error('Failed to store deployment configs');
       }
 
@@ -899,6 +906,7 @@ const Deployment = ({ onGoToReport } = {}) => {
     } catch (error) {
       console.error('Error storing deployment configs:', error);
       message.error('Error storing deployment configurations: ' + error.message);
+      setDeployLoading(false);
       return; // Stop further execution if backend storage fails
     }
 
@@ -934,12 +942,14 @@ const Deployment = ({ onGoToReport } = {}) => {
       });
       const data = await res.json();
       if (!res.ok) {
+        setDeployLoading(false);
         throw new Error(data.error || 'Failed to start deployment log');
       }
       // Optionally store the returned serverids for later use
       sessionStorage.setItem('sv_lastDeploymentNodes', JSON.stringify(data.nodes));
       // Prefer parent-provided navigation if available
       if (typeof onGoToReport === 'function') {
+        setDeployLoading(false);
         onGoToReport();
       } else {
         // Fallback: Enable Report tab (tab 5) and switch to it via URL
@@ -950,12 +960,14 @@ const Deployment = ({ onGoToReport } = {}) => {
           sessionStorage.setItem('sv_disabledTabs', JSON.stringify(disabledTabs));
           sessionStorage.setItem('sv_activeTab', '5');
         } catch (_) {}
+        setDeployLoading(false);
         const url = new URL(window.location.href);
         url.searchParams.set('tab', '5');
         window.location.href = url.toString();
       }
     } catch (err) {
       message.error('Failed to start deployment: ' + err.message);
+      setDeployLoading(false);
     }
     // (Optionally, you may still want to transform configs for other purposes)
     // const transformedConfigs = {};
@@ -973,7 +985,8 @@ const Deployment = ({ onGoToReport } = {}) => {
           type="primary"
           onClick={handleNext}
           style={{ width: 120, visibility: 'visible' }}
-          disabled={!allApplied}
+          disabled={!allApplied || deployLoading}
+          loading={deployLoading}
         >
           Deploy
         </Button>

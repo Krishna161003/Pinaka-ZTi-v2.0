@@ -133,6 +133,218 @@ app.post('/api/check-license-exists', (req, res) => {
   });
 });
 
+// Insert multiple child node deployment activity logs (type = 'secondary') for Cloud module
+app.post('/api/child-deployment-activity-log', async (req, res) => {
+  const nodes = req.body.nodes; // Array of node objects
+  const { user_id, username } = req.body;
+
+  if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
+    return res.status(400).json({ error: 'Missing or invalid nodes array' });
+  }
+  if (!user_id || !username) {
+    return res.status(400).json({ error: 'Missing required fields: user_id or username' });
+  }
+
+  try {
+    // Fetch earliest deployed_server entry to copy VIP and cloudname
+    const firstVipAndCloud = await new Promise((resolve) => {
+      const q = `SELECT server_vip, cloudname FROM deployed_server WHERE cloudname IS NOT NULL AND cloudname <> '' ORDER BY datetime ASC LIMIT 1`;
+      db.query(q, [], (err, rows) => {
+        if (err) {
+          console.error('Error fetching first VIP/cloudname:', err);
+          return resolve({ server_vip: null, cloudname: null });
+        }
+        const r = rows && rows[0] ? rows[0] : {};
+        resolve({ server_vip: r?.server_vip || null, cloudname: r?.cloudname || null });
+      });
+    });
+
+    const insertedNodes = [];
+    for (const node of nodes) {
+      const { serverip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period, role } = node;
+      if (!serverip) {
+        return res.status(400).json({ error: 'Each node must have serverip' });
+      }
+
+      const nanoid6 = customAlphabet('ABCDEVSR0123456789abcdefgzkh', 6);
+      const serverid = 'SQDN-' + nanoid6();
+
+      // Prefer cloudname sent from client per-node; fallback to earliest deployed_server cloudname
+      const chosenCloudname = (node && node.cloudname) ? node.cloudname : (firstVipAndCloud.cloudname || null);
+
+      const insSql = `
+        INSERT INTO deployment_activity_log
+          (serverid, user_id, username, cloudname, serverip, status, type, role, server_vip, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, 'progress', 'secondary', ?, ?, ?, ?, ?, ?)
+      `;
+      await new Promise((resolve, reject) => {
+        db.query(
+          insSql,
+          [
+            serverid,
+            user_id,
+            username,
+            chosenCloudname,
+            serverip,
+            role || null,
+            firstVipAndCloud.server_vip || null,
+            Management || null,
+            Storage || null,
+            External_Traffic || null,
+            VXLAN || null,
+          ],
+          (err) => (err ? reject(err) : resolve())
+        );
+      });
+
+      // Upsert license if present and bind to serverid
+      if (license_code) {
+        const licenseInsertSQL = `
+          INSERT INTO License (license_code, license_type, license_period, license_status, server_id)
+          VALUES (?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            license_type=VALUES(license_type),
+            license_period=VALUES(license_period),
+            license_status=VALUES(license_status),
+            server_id=VALUES(server_id)
+        `;
+        await new Promise((resolve, reject) => {
+          db.query(licenseInsertSQL, [license_code, license_type, license_period, 'validated', serverid], (licErr) => (licErr ? reject(licErr) : resolve()));
+        });
+      }
+
+      insertedNodes.push({ serverid, serverip });
+    }
+
+    return res.status(200).json({ message: 'Child node deployment activity logs created successfully', nodes: insertedNodes });
+  } catch (error) {
+    console.error('Error inserting child node deployment activity logs:', error);
+    return res.status(500).json({ error: 'Failed to insert child node deployment activity logs' });
+  }
+});
+
+// Finalize a child node deployment (Cloud) from deployment_activity_log into deployed_server (type = 'secondary')
+app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
+  const { serverid } = req.params;
+
+  const getSql = `SELECT * FROM deployment_activity_log WHERE serverid = ? LIMIT 1`;
+  db.query(getSql, [serverid], (err, rows) => {
+    if (err) {
+      console.error('Error fetching child node deployment activity log:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Child node deployment not found' });
+    }
+
+    const dep = rows[0];
+
+    // Mark completed
+    const updateStatusSQL = `UPDATE deployment_activity_log SET status = 'completed' WHERE serverid = ?`;
+    db.query(updateStatusSQL, [serverid], (upErr) => {
+      if (upErr) {
+        console.error('Error marking child node deployment completed:', upErr);
+      }
+
+      // License handling
+      const licQuery = 'SELECT license_code FROM License WHERE server_id = ? LIMIT 1';
+      db.query(licQuery, [serverid], (licErr, licRows) => {
+        if (licErr) {
+          console.error('Error fetching license_code for child node:', licErr);
+        }
+        const licenseCodeToUse = licRows && licRows.length > 0 ? licRows[0].license_code : null;
+
+        if (licenseCodeToUse) {
+          const getLicenseSQL = `SELECT license_period FROM License WHERE license_code = ?`;
+          db.query(getLicenseSQL, [licenseCodeToUse], (getLicErr, licResults) => {
+            if (getLicErr) {
+              console.error('Error fetching license period for child node:', getLicErr);
+              const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ? WHERE license_code = ?`;
+              db.query(updLicSQL, [serverid, licenseCodeToUse], (licUpdErr) => {
+                if (licUpdErr) console.error('Error activating child node license:', licUpdErr);
+              });
+            } else {
+              const licensePeriod = licResults[0]?.license_period;
+              const startDate = new Date().toISOString().split('T')[0];
+              const endDate = calculateEndDate(licensePeriod);
+              const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = ? WHERE license_code = ?`;
+              db.query(updLicSQL, [serverid, startDate, endDate, licenseCodeToUse], (licUpdErr) => {
+                if (licUpdErr) console.error('Error activating child node license:', licUpdErr);
+              });
+            }
+          });
+        }
+
+        // Upsert into deployed_server
+        const checkSQL = 'SELECT id FROM deployed_server WHERE serverid = ? LIMIT 1';
+        db.query(checkSQL, [serverid], (chkErr, chkRows) => {
+          if (chkErr) {
+            console.error('Error checking existing deployed child server:', chkErr);
+            return res.status(500).json({ error: 'Failed to finalize child node (check)' });
+          }
+
+          const resolvedRole = (dep.role || 'child');
+
+          if (chkRows && chkRows.length > 0) {
+            const updSQL = `
+              UPDATE deployed_server
+              SET user_id=?, username=?, cloudname=?, serverip=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
+              WHERE serverid=?
+            `;
+            const updValues = [
+              dep.user_id,
+              dep.username || null,
+              dep.cloudname || null,
+              dep.serverip,
+              dep.server_vip || null,
+              resolvedRole,
+              licenseCodeToUse || null,
+              dep.Management || null,
+              dep.Storage || null,
+              dep.External_Traffic || null,
+              dep.VXLAN || null,
+              serverid
+            ];
+            db.query(updSQL, updValues, (updErr) => {
+              if (updErr) {
+                console.error('Error updating deployed child server record:', updErr);
+                return res.status(500).json({ error: 'Failed to update deployed child server record' });
+              }
+              return res.json({ message: 'Deployed child server record updated successfully' });
+            });
+          } else {
+            const insSQL = `
+              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            const insValues = [
+              serverid,
+              dep.user_id,
+              dep.username || null,
+              dep.cloudname || null,
+              dep.serverip,
+              dep.server_vip || null,
+              resolvedRole,
+              licenseCodeToUse || null,
+              dep.Management || null,
+              dep.Storage || null,
+              dep.External_Traffic || null,
+              dep.VXLAN || null
+            ];
+            db.query(insSQL, insValues, (insErr) => {
+              if (insErr) {
+                console.error('Error creating deployed child server record:', insErr);
+                return res.status(500).json({ error: 'Failed to create deployed child server record' });
+              }
+              return res.json({ message: 'Deployed child server record created successfully' });
+            });
+          }
+        });
+      });
+    });
+  });
+});
+
 // API: List pending child (secondary) deployments with optional filters
 app.get('/api/pending-child-deployments', (req, res) => {
   const { status = 'progress', user_id, cloudname } = req.query || {};
@@ -408,6 +620,7 @@ db.connect((err) => {
       serverip VARCHAR(15),              -- serverip
       status VARCHAR(255),               -- status
       type VARCHAR(255),                 -- type
+      role VARCHAR(255) NULL,            -- role (host/child/other, comma-separated for multi)
       server_vip VARCHAR(255),           -- Server_vip (can be NULL or value)
       Management VARCHAR(255) NULL,
       Storage VARCHAR(255) NULL,
@@ -421,6 +634,13 @@ db.connect((err) => {
   db.query(deploymentActivityLogTableSQL, (err, result) => {
     if (err) throw err;
     console.log("Deployment_Activity_log table checked/created...");
+
+    // Ensure role column exists for older databases
+    db.query("ALTER TABLE deployment_activity_log ADD COLUMN role VARCHAR(255) NULL", (altErr) => {
+      if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
+        console.warn("Could not ensure 'role' column on deployment_activity_log:", altErr.message);
+      }
+    });
 
     // Create License table
     const licenseTableSQL = `
@@ -726,118 +946,6 @@ app.put('/api/update-license/:serverid', (req, res) => {
   );
 });
 
-// API to transfer completed deployment to appropriate table
-
-app.post('/api/finalize-deployment/:serverid', (req, res) => {
-  const { serverid } = req.params;
-  // ... (rest of the code remains the same)
-  const { server_type, role, host_serverid } = req.body;
-
-  // First get the deployment data
-  const getDeploymentSQL = `SELECT * FROM deployment_activity_log WHERE serverid = ? AND status = 'completed'`;
-
-  db.query(getDeploymentSQL, [serverid], (err, results) => {
-    if (err) {
-      console.error('Error fetching deployment:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-
-    if (results.length === 0) {
-      return res.status(404).json({ error: 'Deployment not found or not completed' });
-    }
-
-    const deployment = results[0];
-
-    // Fetch the latest license_code for the serverid from License table
-    const licenseQuery = 'SELECT license_code FROM License WHERE server_id = ? ORDER BY id DESC LIMIT 1';
-    db.query(licenseQuery, [deployment.serverid], (licErr, licResults) => {
-      if (licErr) {
-        console.error('Error fetching license_code:', licErr);
-        return res.status(500).json({ error: 'Failed to fetch license_code' });
-      }
-      const licenseCodeToUse = licResults.length > 0 ? licResults[0].license_code : null;
-
-      // Update license status to 'activated' and set start/end dates
-      if (licenseCodeToUse) {
-        // Fetch license details to determine type and period
-        const getLicenseSQL = `SELECT license_period, license_type FROM License WHERE license_code = ?`;
-        db.query(getLicenseSQL, [licenseCodeToUse], (getLicErr, licResults) => {
-          if (getLicErr) {
-            console.error('Error fetching license period:', getLicErr);
-            // Continue with basic update
-            const updateLicenseSQL = `UPDATE License SET license_status = 'activated', server_id = ? WHERE license_code = ?`;
-            db.query(updateLicenseSQL, [deployment.serverid, licenseCodeToUse], (licUpdateErr, result) => {
-              if (licUpdateErr) {
-                console.error('Error updating license status:', licUpdateErr);
-              } else {
-                console.log('License status updated:', result);
-              }
-            });
-          } else {
-            const licensePeriod = licResults[0]?.license_period;
-            const licenseType = String(licResults[0]?.license_type || '').toLowerCase();
-            const isPerpetual = licenseType === 'perpetual' || licenseType === 'perpectual';
-            const startDate = new Date().toISOString().split('T')[0]; // Today's date
-
-            if (isPerpetual) {
-              // Perpetual: set start_date, keep end_date NULL
-              const updateLicenseSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = NULL WHERE license_code = ?`;
-              db.query(updateLicenseSQL, [deployment.serverid, startDate, licenseCodeToUse], (licUpdateErr, result) => {
-                if (licUpdateErr) {
-                  console.error('Error updating perpetual license status:', licUpdateErr);
-                } else {
-                  console.log('Perpetual license activated with start date and NULL end date:', result);
-                }
-              });
-            } else {
-              // Term licenses: compute end date from period
-              const endDate = calculateEndDate(licensePeriod);
-              const updateLicenseSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = ? WHERE license_code = ?`;
-              db.query(updateLicenseSQL, [deployment.serverid, startDate, endDate, licenseCodeToUse], (licUpdateErr, result) => {
-                if (licUpdateErr) {
-                  console.error('Error updating term license status:', licUpdateErr);
-                } else {
-                  console.log('Term license activated with dates:', result);
-                }
-              });
-            }
-          }
-        });
-      }
-
-      // Insert finalized deployment into deployed_server (both host and child)
-      const finalRole = role || (server_type === 'host' ? 'host' : 'child');
-      const insertDeployedSQL = `
-        INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-      db.query(
-        insertDeployedSQL,
-        [
-          deployment.serverid,
-          deployment.user_id,
-          deployment.username,
-          deployment.cloudname,
-          deployment.serverip,
-          deployment.server_vip || null,
-          finalRole,
-          licenseCodeToUse || null,
-          req.body.Management || deployment.Management || null,
-          req.body.Storage || deployment.Storage || null,
-          req.body.External_Traffic || deployment.External_Traffic || null,
-          req.body.VXLAN || deployment.VXLAN || null
-        ],
-        (insErr) => {
-          if (insErr) {
-            console.error('Error creating deployed server record:', insErr);
-            return res.status(500).json({ error: 'Failed to create deployed server record' });
-          }
-          res.json({ message: 'Deployment finalized into deployed_server successfully' });
-        }
-      );
-    });
-  });
-});
 
 // Get latest in-progress deployment activity log for a user
 app.get('/api/deployment-activity-log/latest-in-progress/:user_id', (req, res) => {
@@ -860,140 +968,6 @@ app.get('/api/deployment-activity-log/latest-in-progress/:user_id', (req, res) =
   });
 });
 
-// Insert multiple child node deployment activity logs
-app.post('/api/child-deployment-activity-log', async (req, res) => {
-  const nodes = req.body.nodes; // Array of node objects
-  const { user_id, username, host_serverid } = req.body;
-
-  // Validate required fields
-  if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
-    return res.status(400).json({ error: 'Missing or invalid nodes array' });
-  }
-
-  if (!user_id || !username || !host_serverid) {
-    return res.status(400).json({ error: 'Missing required fields: user_id, username, or host_serverid' });
-  }
-
-  try {
-    // Get latest host deployment to inherit cloudname and VIP for secondary logs
-    const hostLog = await new Promise((resolve) => {
-      const hostSql = `SELECT cloudname, server_vip FROM deployment_activity_log WHERE user_id = ? AND type = 'host' ORDER BY datetime DESC LIMIT 1`;
-      db.query(hostSql, [user_id], (e, r) => {
-        if (e || !r || r.length === 0) return resolve(null);
-        resolve(r[0]);
-      });
-    });
-
-    // Generate server IDs for each node and insert into child_deployment_activity_log and deployment_activity_log (secondary)
-    const insertedNodes = [];
-
-    for (const node of nodes) {
-      const { serverip, type, role, Management, Storage, External_Traffic, VXLAN } = node;
-      // Normalize role: allow array of roles to be stored as comma-separated string
-      const normalizedRole = Array.isArray(role) ? role.join(',') : role;
-
-      // Validate node required fields
-      if (!serverip || !type) {
-        return res.status(400).json({ error: 'Each node must have serverip and type' });
-      }
-
-      // Generate unique serverid with SQDN- prefix
-      const nanoid6 = customAlphabet('ABCDEVSR0123456789abcdefgzkh', 6);
-      const serverid = 'SQDN-' + nanoid6();
-
-      // Insert child deployment activity log (store type as 'secondary')
-      const sql = `
-INSERT INTO child_deployment_activity_log 
-    (serverid, user_id, host_serverid, username, serverip, status, type, role, Management, Storage, External_Traffic, VXLAN)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`;
-
-      await new Promise((resolve, reject) => {
-        db.query(sql, [
-          serverid, user_id, host_serverid, username, serverip, 'progress', 'secondary',
-          normalizedRole || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null
-        ], (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
-          }
-        });
-      });
-
-      // Also insert into unified deployment_activity_log with type 'secondary' and VIP from host
-      const insDepSql = `
-        INSERT INTO deployment_activity_log 
-          (serverid, user_id, username, cloudname, serverip, status, type, server_vip, Management, Storage, External_Traffic, VXLAN)
-        VALUES (?, ?, ?, ?, ?, 'progress', 'secondary', ?, ?, ?, ?, ?)
-      `;
-      await new Promise((resolve, reject) => {
-        db.query(
-          insDepSql,
-          [
-            serverid,
-            user_id,
-            username,
-            hostLog ? hostLog.cloudname : null,
-            serverip,
-            hostLog ? hostLog.server_vip : null,
-            Management || null,
-            Storage || null,
-            External_Traffic || null,
-            VXLAN || null
-          ],
-          (derr) => {
-            if (derr) {
-              console.error('Error inserting secondary deployment log:', derr);
-              // continue without failing the entire request
-            }
-            resolve();
-          }
-        );
-      });
-
-      // Insert or update license details if provided
-      const { license_code, license_type, license_period } = node;
-      if (license_code) {
-        const licenseInsertSQL = `
-          INSERT INTO License (license_code, license_type, license_period, license_status, server_id) 
-          VALUES (?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE 
-            license_type=VALUES(license_type), 
-            license_period=VALUES(license_period), 
-            license_status=VALUES(license_status),
-            server_id=VALUES(server_id)
-        `;
-
-        await new Promise((resolve, reject) => {
-          db.query(licenseInsertSQL, [license_code, license_type, license_period, 'validated', serverid], (licErr) => {
-            if (licErr) {
-              reject(licErr);
-            } else {
-              resolve();
-            }
-          });
-        });
-      }
-
-      insertedNodes.push({
-        serverid,
-        serverip,
-        type,
-        role: role || null
-      });
-    }
-
-    res.status(200).json({
-      message: 'Child deployment activity logs created successfully',
-      nodes: insertedNodes
-    });
-
-  } catch (error) {
-    console.error('Error inserting child deployment activity logs:', error);
-    res.status(500).json({ error: 'Failed to insert child deployment activity logs' });
-  }
-});
 
 // API: Get dashboard counts for Cloud, Flight Deck, and Squadron
 app.get('/api/dashboard-counts/:userId', async (req, res) => {
@@ -1052,6 +1026,24 @@ app.get('/api/deployed-servers', (req, res) => {
       return res.status(500).json({ error: 'Database error' });
     }
     res.json(results);
+  });
+});
+
+// API: Get first cloudname from deployed_server globally (earliest row)
+app.get('/api/first-cloudname', (req, res) => {
+  const sql = `
+    SELECT cloudname FROM deployed_server
+    WHERE cloudname IS NOT NULL AND cloudname <> ''
+    ORDER BY datetime ASC
+    LIMIT 1
+  `;
+  db.query(sql, [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching first cloudname:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    const cloudname = rows && rows[0] ? rows[0].cloudname : null;
+    return res.json({ cloudname });
   });
 });
 
@@ -1190,7 +1182,7 @@ app.post('/api/node-deployment-activity-log', async (req, res) => {
   try {
     const insertedNodes = [];
     for (const node of nodes) {
-      const { serverip, server_vip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period } = node;
+      const { serverip, server_vip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period, role } = node;
       if (!serverip) {
         return res.status(400).json({ error: 'Each node must have serverip' });
       }
@@ -1202,13 +1194,13 @@ app.post('/api/node-deployment-activity-log', async (req, res) => {
       // Insert deployment activity log (type = 'primary')
       const insSql = `
         INSERT INTO deployment_activity_log
-          (serverid, user_id, username, cloudname, serverip, status, type, server_vip, Management, Storage, External_Traffic, VXLAN)
-        VALUES (?, ?, ?, ?, ?, 'progress', 'primary', ?, ?, ?, ?, ?)
+          (serverid, user_id, username, cloudname, serverip, status, type, role, server_vip, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, 'progress', 'primary', ?, ?, ?, ?, ?, ?)
       `;
       await new Promise((resolve, reject) => {
         db.query(
           insSql,
-          [serverid, user_id, username, cloudname || null, serverip, server_vip || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null],
+          [serverid, user_id, username, cloudname || null, serverip, role || null, server_vip || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null],
           (err) => (err ? reject(err) : resolve())
         );
       });
@@ -1257,7 +1249,7 @@ app.patch('/api/node-deployment-activity-log/:serverid', (req, res) => {
 // Finalize a node deployment from deployment_activity_log into deployed_server (type = 'primary')
 app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
   const { serverid } = req.params;
-  const { role } = req.body || {};
+  const { role } = req.body || {}; // Ignored; role is taken from log table
 
   const getSql = `SELECT * FROM deployment_activity_log WHERE serverid = ? LIMIT 1`;
   db.query(getSql, [serverid], (err, rows) => {
@@ -1316,7 +1308,7 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
             return res.status(500).json({ error: 'Failed to finalize node (check)' });
           }
 
-          const resolvedRole = role || 'child';
+          const resolvedRole = (dep.role || 'child');
 
           if (chkRows && chkRows.length > 0) {
             const updSQL = `

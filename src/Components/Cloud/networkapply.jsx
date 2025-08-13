@@ -8,11 +8,11 @@ const hostIP = window.location.hostname;
 
 const NetworkApply = ({ onGoToReport } = {}) => {
   const [hostServerId, setHostServerId] = useState(() => sessionStorage.getItem('host_server_id') || '');
+  const [firstCloudName, setFirstCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
 
   const { Option } = Select;
   const ipRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/;
   const subnetRegex = /^(255|254|252|248|240|224|192|128|0+)\.((255|254|252|248|240|224|192|128|0+)\.){2}(255|254|252|248|240|224|192|128|0+)$/;
-
   // Get the nodes from sessionStorage (as in Addnode.jsx)
   function getLicenseNodes() {
     const saved = sessionStorage.getItem('cloud_licenseNodes');
@@ -42,6 +42,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     const networkApplyResult = getNetworkApplyResult();
     networkApplyResult[nodeIp] = {
       ...form,
+      // Persist cloud name alongside each node definition
+      cloudname: firstCloudName || sessionStorage.getItem('cloud_first_cloudname') || '',
       tableData: Array.isArray(form.tableData) ? form.tableData.map(row => ({ ...row, type: row.type })) : [],
     };
     sessionStorage.setItem('cloud_networkApplyResult', JSON.stringify(networkApplyResult));
@@ -123,7 +125,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     }
   };
 
-  // On mount, fetch for all nodes and fetch host server_id
+  // On mount, fetch for all nodes and fetch host server_id and first cloudname
   useEffect(() => {
     licenseNodes.forEach(node => {
       if (node.ip) fetchNodeData(node.ip);
@@ -145,8 +147,21 @@ const NetworkApply = ({ onGoToReport } = {}) => {
         setHostServerId('');
       }
     }
+    async function fetchFirstCloudname() {
+      try {
+        const url = `https://${hostIP}:5000/api/first-cloudname`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && typeof data.cloudname !== 'undefined') {
+          setFirstCloudName(data.cloudname || '');
+          sessionStorage.setItem('cloud_first_cloudname', data.cloudname || '');
+        }
+      } catch (_) {}
+    }
     fetchHostServerId();
+    fetchFirstCloudname();
   }, [licenseNodes]);
+
   // Per-card loading and applied state, restore from sessionStorage if available
   const getInitialCardStatus = () => {
     const saved = sessionStorage.getItem('cloud_networkApplyCardStatus');
@@ -388,7 +403,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
         }
         // Validation for interface (bonding: max 2)
         if (field === 'interface') {
-          if (f.useBond && value.length > 2) {
+          if (f.useBond && Array.isArray(value) && value.length > 2) {
             value = value.slice(0, 2);
           }
           row.interface = value;
@@ -890,6 +905,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       license_code: form.licenseCode || '',
       license_type: form.licenseType || '',
       license_period: form.licensePeriod || '',
+      cloudname: firstCloudName || sessionStorage.getItem('cloud_first_cloudname') || '',
     }));
 
     // Get user info and cloudname
@@ -910,7 +926,15 @@ const NetworkApply = ({ onGoToReport } = {}) => {
         throw new Error(data.error || 'Failed to start deployment log');
       }
       // Optionally store the returned serverids for later use
-      sessionStorage.setItem('cloud_lastDeploymentNodes', JSON.stringify(data.nodes));
+      try {
+        const cloudname = firstCloudName || sessionStorage.getItem('cloud_first_cloudname') || '';
+        const nodesWithCloud = Array.isArray(data.nodes)
+          ? data.nodes.map(n => ({ ...n, cloudname }))
+          : [];
+        sessionStorage.setItem('cloud_lastDeploymentNodes', JSON.stringify(nodesWithCloud));
+      } catch (_) {
+        sessionStorage.setItem('cloud_lastDeploymentNodes', JSON.stringify(data.nodes || []));
+      }
       // Prefer parent-provided navigation if available
       if (typeof onGoToReport === 'function') {
         onGoToReport();
@@ -959,6 +983,11 @@ const NetworkApply = ({ onGoToReport } = {}) => {
             {hostServerId && (
               <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 8, color: '#2a3f5c' }}>
                 Host Node: {hostServerId}
+              </div>
+            )}
+            {firstCloudName && (
+              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 8, color: '#2a3f5c' }}>
+                Cloud Name: {firstCloudName}
               </div>
             )}
             <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
