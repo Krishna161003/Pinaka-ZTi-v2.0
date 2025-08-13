@@ -84,19 +84,17 @@ const Dashboard = () => {
       try {
         const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
         const res = await fetch(`https://${hostIP}:5000/api/deployed-server-ips${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
-        const ips = await res.json();
-        let uniqueIps = Array.isArray(ips) ? ips.filter(Boolean) : [];
-        if (uniqueIps.length === 0) {
-          uniqueIps = [window.location.hostname];
-        }
+        const json = await res.json();
+        // Support both shapes: ["ip1", ...] or { ips: ["ip1", ...] }
+        const arr = Array.isArray(json) ? json : (Array.isArray(json?.ips) ? json.ips : []);
+        // Filter truthy, unique, and exclude current host (we add it as "Flight Deck")
+        const currentHost = window.location.hostname;
+        const uniqueIps = Array.from(new Set(arr.filter(ip => ip && ip !== currentHost)));
         setHostIpOptions(uniqueIps);
-        // Keep current selection if still valid; otherwise default to first available or hostname
-        if (!uniqueIps.includes(selectedHostIP)) {
-          setSelectedHostIP(uniqueIps[0] || window.location.hostname);
-        }
+        // Do not override current selection; default remains current host (Flight Deck)
       } catch (e) {
-        // Fallback to current hostname if fetch fails
-        setHostIpOptions([window.location.hostname]);
+        // On failure, keep only Flight Deck option by leaving hostIpOptions empty
+        setHostIpOptions([]);
         setSelectedHostIP(prev => prev || window.location.hostname);
       }
     }
@@ -603,7 +601,10 @@ const Dashboard = () => {
                 style={{ width: 220 }}
                 value={selectedHostIP}
                 onChange={setSelectedHostIP}
-                options={(hostIpOptions || []).map(ip => ({ label: ip, value: ip }))}
+                options={[
+                  { label: 'Flight Deck', value: window.location.hostname },
+                  ...((hostIpOptions || []).map(ip => ({ label: ip, value: ip })))
+                ]}
                 showSearch
                 optionFilterProp="children"
                 filterOption={(input, option) => (option?.label || '').toLowerCase().includes((input || '').toLowerCase())}

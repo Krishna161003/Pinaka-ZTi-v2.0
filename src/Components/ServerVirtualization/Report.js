@@ -85,6 +85,9 @@ const Report = ({ onDeploymentComplete }) => {
         'sv_networkApplyRestartEndTimes',
         'sv_networkApplyBootEndTimes',
         'sv_lastDeploymentNodes',
+        'sv_vip',
+        'validatedNodes',
+        'selectedNodes',
       ];
       keysToRemove.forEach(k => sessionStorage.removeItem(k));
     } catch (_) {}
