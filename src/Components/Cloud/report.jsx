@@ -83,6 +83,26 @@ const Report = ({ onDeploymentComplete }) => {
     };
   };
 
+  // Clear only Cloud flow-specific session data (keep tab/navigation keys intact)
+  const clearCloudSessionData = () => {
+    try {
+      const keysToRemove = [
+        'cloud_discoveryResults',
+        'cloud_validationResults',
+        'cloud_licenseActivationResults',
+        'cloud_selectedNodes',
+        'cloud_licenseNodes',
+        'cloud_networkApplyCardStatus',
+        'cloud_networkApplyForms',
+        'cloud_networkApplyResult',
+        'cloud_networkApplyRestartEndTimes',
+        'cloud_networkApplyBootEndTimes',
+        'cloud_lastDeploymentNodes',
+      ];
+      keysToRemove.forEach(k => sessionStorage.removeItem(k));
+    } catch (_) {}
+  };
+
   // When deployment finishes, finalize child deployments in backend (with session fallback)
   useEffect(() => {
     if (!deploymentInProgress && !finalizedRef.current) {
@@ -153,10 +173,18 @@ const Report = ({ onDeploymentComplete }) => {
             }
           }
         }
+
+        // After finalization, clear flow-specific session data
+        clearCloudSessionData();
+
+        // Notify parent if needed
+        if (typeof onDeploymentComplete === 'function') {
+          onDeploymentComplete();
+        }
       };
       runFinalize().catch(() => {});
     }
-  }, [deploymentInProgress]);
+  }, [deploymentInProgress, onDeploymentComplete]);
 
   useEffect(() => {
     if (deploymentInProgress === false) {

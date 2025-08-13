@@ -72,6 +72,24 @@ const Report = ({ onDeploymentComplete }) => {
     };
   };
 
+  // Clear only flow-specific session data (keep tab/navigation keys intact)
+  const clearSVSessionData = () => {
+    try {
+      const keysToRemove = [
+        'sv_licenseStatus',
+        'sv_licenseNodes',
+        'sv_licenseActivationResults',
+        'sv_networkApplyCardStatus',
+        'sv_networkApplyForms',
+        'sv_networkApplyResult',
+        'sv_networkApplyRestartEndTimes',
+        'sv_networkApplyBootEndTimes',
+        'sv_lastDeploymentNodes',
+      ];
+      keysToRemove.forEach(k => sessionStorage.removeItem(k));
+    } catch (_) {}
+  };
+
   // When deployment finishes, finalize deployments in backend (with session fallback)
   useEffect(() => {
     if (!deploymentInProgress && !finalizedRef.current) {
@@ -147,6 +165,9 @@ const Report = ({ onDeploymentComplete }) => {
             }
           }
         }
+
+        // After finalization, clear flow-specific session data
+        clearSVSessionData();
 
         if (typeof onDeploymentComplete === 'function') {
           onDeploymentComplete();
