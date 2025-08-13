@@ -79,15 +79,7 @@ const App = () => {
     const pathWithTab = `/servervirtualization?tab=${tabParam || activeTab}`;
     sessionStorage.setItem("lastZtiPath", pathWithTab);
     if (tabParam && tabParam !== activeTab) {
-      if (disabledTabs[tabParam]) {
-        // Prevent forcing a disabled tab via URL; restore to current active
-        const p = new URLSearchParams(location.search);
-        p.set('tab', activeTab);
-        navigate({ search: p.toString() }, { replace: true });
-        message.warning('This step is locked. Complete previous steps first.');
-      } else {
-        setActiveTab(tabParam);
-      }
+      setActiveTab(tabParam);
     }
     const savedDisabled = sessionStorage.getItem("serverVirtualization_disabledTabs");
     if (savedDisabled) setDisabledTabs(JSON.parse(savedDisabled));
@@ -101,7 +93,7 @@ const App = () => {
       sessionStorage.setItem("lastZtiPath", pathWithTab);
       // DO NOT reset serverVirtualization_activeTab to '1'
     };
-  }, [location.search, disabledTabs, activeTab]);
+  }, [location.search]);
 
 
 
@@ -166,11 +158,22 @@ const App = () => {
   }, [disabledTabs]);
 
   const handleTabChange = (key) => {
-    // Block navigation to disabled tabs even if DOM is manipulated
-    if (disabledTabs[key]) {
-      message.warning('This step is locked. Complete previous steps first.');
-      return;
-    }
+    // Prevent navigating away from Deployment Options if an environment is already deployed.
+    // This protects against DOM inspection hacks removing disabled attributes.
+    try {
+      const deployedLock = sessionStorage.getItem('sv_hostDeployed') === 'true';
+      if (deployedLock && key !== '1') {
+        message.warning('This environment is already deployed. Navigation is restricted.');
+        // Ensure URL reflects tab 1 to avoid desync
+        const params = new URLSearchParams(location.search);
+        if (params.get('tab') !== '1') {
+          params.set('tab', '1');
+          navigate({ search: params.toString() }, { replace: true });
+        }
+        setActiveTab('1');
+        return;
+      }
+    } catch (_) { /* ignore */ }
     setActiveTab(key);
     // All session/URL sync is handled by the effect above
   };
