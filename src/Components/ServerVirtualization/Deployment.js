@@ -534,11 +534,14 @@ const Deployment = ({ onGoToReport } = {}) => {
                       VXLAN
                     </Tooltip>
                   </Option>
-                  <Option value="Storage">
-                    <Tooltip placement="right" title="Storage">
-                      Storage
-                    </Tooltip>
-                  </Option>
+                  {/* Only show Storage if disks are present */}
+                  {Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
+                    <Option value="Storage">
+                      <Tooltip placement="right" title="Storage">
+                        Storage
+                      </Tooltip>
+                    </Option>
+                  )}
                   <Option value="External Traffic">
                     <Tooltip placement="right" title="External Traffic">
                       External Traffic
