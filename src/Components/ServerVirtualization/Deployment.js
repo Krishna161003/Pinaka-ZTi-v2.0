@@ -979,8 +979,11 @@ const Deployment = ({ onGoToReport } = {}) => {
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>Network Apply</Typography.Title>
+      {/* Cloud Name header with Deploy button on the right */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h4 style={{ marginBottom: 0 }}>
+          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+        </h4>
         <Button
           type="primary"
           onClick={handleNext}
@@ -990,12 +993,6 @@ const Deployment = ({ onGoToReport } = {}) => {
         >
           Deploy
         </Button>
-      </div>
-      {/* Cloud Name header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-        <h4 style={{ marginBottom: 0 }}>
-          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
-        </h4>
       </div>
       {/* VIP input below Cloud Name */}
       <div style={{ marginTop: 12 }}>
