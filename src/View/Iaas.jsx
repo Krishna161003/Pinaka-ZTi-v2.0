@@ -760,7 +760,7 @@ const CloudDeploymentsTable = () => {
             pageSize: 10,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} deployments`,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} cloud`,
           }}
           bordered
           size="middle"
@@ -907,47 +907,22 @@ const Iaas = () => {
               // borderRadius: borderRadiusLG,
             }}
           >
-            <div style={{ width: '100%' }}>
-              <Tabs
-                activeKey={activeTab}
-                onChange={onTabChange}
-                style={{ width: '100%' }}
-                tabBarStyle={{ width: '100%' }}
-                moreIcon={null}
-                items={[
-                  {
-                    label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Cloud</span>,
-                    key: '1',
-                    children: (<CloudDeploymentsTable />)
-                  },
-                  {
-                    label: <span style={{ width: '100%', display: 'block', textAlign: 'center' }}>Squadron</span>,
-                    key: '2',
-                    children: (<SquadronNodesTable />)
-                  }
-                ]}
-              />
-              {/* Custom style for AntD tabs to make tabs fill and center */}
-              <style>{`
-                .ant-tabs-nav {
-                  width: 100%;
+            <Tabs
+              activeKey={activeTab}
+              onChange={onTabChange}
+              items={[
+                {
+                  label: 'Cloud',
+                  key: '1',
+                  children: <CloudDeploymentsTable />
+                },
+                {
+                  label: 'Squadron',
+                  key: '2',
+                  children: <SquadronNodesTable />
                 }
-                .ant-tabs-nav-list {
-                  width: 100%;
-                  display: flex !important;
-                }
-                .ant-tabs-tab {
-                  flex: 1 1 0;
-                  justify-content: center;
-                  text-align: center;
-                  margin: 0 !important;
-                }
-                /* Fix: Make the highlight/ink bar always full width */
-                .ant-tabs-ink-bar {
-                  display: none !important;
-                }
-              `}</style>
-            </div>
+              ]}
+            />
           </div>
         </Content>
       </Layout>

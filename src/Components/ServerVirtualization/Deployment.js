@@ -534,11 +534,14 @@ const Deployment = ({ onGoToReport } = {}) => {
                       VXLAN
                     </Tooltip>
                   </Option>
-                  <Option value="Storage">
-                    <Tooltip placement="right" title="Storage">
-                      Storage
-                    </Tooltip>
-                  </Option>
+                  {/* Only show Storage if disks are present */}
+                  {Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
+                    <Option value="Storage">
+                      <Tooltip placement="right" title="Storage">
+                        Storage
+                      </Tooltip>
+                    </Option>
+                  )}
                   <Option value="External Traffic">
                     <Tooltip placement="right" title="External Traffic">
                       External Traffic
@@ -874,9 +877,16 @@ const Deployment = ({ onGoToReport } = {}) => {
     }
 
     // Transform configs for backend storage
+    // Assign sequential hostnames SQDN-01, SQDN-02, ... based on card order
+    const hostnameMap = {};
+    forms.forEach((f, idx) => {
+      const hn = `SQDN-${String(idx + 1).padStart(2, '0')}`;
+      if (f?.ip) hostnameMap[f.ip] = hn;
+    });
+
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {
-      const base = buildDeployConfigPayload(form);
+      const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
       transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip };
     });
 
@@ -979,8 +989,11 @@ const Deployment = ({ onGoToReport } = {}) => {
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>Network Apply</Typography.Title>
+      {/* Cloud Name header with Deploy button on the right */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h4 style={{ marginBottom: 0 }}>
+          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+        </h4>
         <Button
           type="primary"
           onClick={handleNext}
@@ -990,12 +1003,6 @@ const Deployment = ({ onGoToReport } = {}) => {
         >
           Deploy
         </Button>
-      </div>
-      {/* Cloud Name header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-        <h4 style={{ marginBottom: 0 }}>
-          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
-        </h4>
       </div>
       {/* VIP input below Cloud Name */}
       <div style={{ marginTop: 12 }}>
