@@ -79,7 +79,15 @@ const App = () => {
     const pathWithTab = `/servervirtualization?tab=${tabParam || activeTab}`;
     sessionStorage.setItem("lastZtiPath", pathWithTab);
     if (tabParam && tabParam !== activeTab) {
-      setActiveTab(tabParam);
+      if (disabledTabs[tabParam]) {
+        // Prevent forcing a disabled tab via URL; restore to current active
+        const p = new URLSearchParams(location.search);
+        p.set('tab', activeTab);
+        navigate({ search: p.toString() }, { replace: true });
+        message.warning('This step is locked. Complete previous steps first.');
+      } else {
+        setActiveTab(tabParam);
+      }
     }
     const savedDisabled = sessionStorage.getItem("serverVirtualization_disabledTabs");
     if (savedDisabled) setDisabledTabs(JSON.parse(savedDisabled));
@@ -93,7 +101,7 @@ const App = () => {
       sessionStorage.setItem("lastZtiPath", pathWithTab);
       // DO NOT reset serverVirtualization_activeTab to '1'
     };
-  }, [location.search]);
+  }, [location.search, disabledTabs, activeTab]);
 
 
 
@@ -158,6 +166,11 @@ const App = () => {
   }, [disabledTabs]);
 
   const handleTabChange = (key) => {
+    // Block navigation to disabled tabs even if DOM is manipulated
+    if (disabledTabs[key]) {
+      message.warning('This step is locked. Complete previous steps first.');
+      return;
+    }
     setActiveTab(key);
     // All session/URL sync is handled by the effect above
   };
