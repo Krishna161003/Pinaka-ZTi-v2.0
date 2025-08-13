@@ -211,6 +211,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     }));
   };
   const [forms, setForms] = useState(getInitialForms);
+  // Global deploy button loading state
+  const [deployLoading, setDeployLoading] = useState(false);
 
   // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
   useEffect(() => {
@@ -851,6 +853,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       message.warning('Please apply all nodes before deploying.');
       return;
     }
+    if (deployLoading) return; // prevent double-clicks
     // Get all node configs from sessionStorage
     const configs = getNetworkApplyResult();
     if (Object.keys(configs).length === 0) {
@@ -863,6 +866,45 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     Object.entries(configs).forEach(([ip, form]) => {
       transformedConfigs[ip] = buildDeployConfigPayload(form);
     });
+
+    // Pre-deployment check: ensure all nodes in this cloud are up
+    setDeployLoading(true);
+    try {
+      const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
+      const user_id_param = loginDetails?.data?.id || '';
+      const cloudnameParam = firstCloudName || sessionStorage.getItem('cloud_first_cloudname') || '';
+      const qs = new URLSearchParams({ cloudname: cloudnameParam, ...(user_id_param ? { user_id: user_id_param } : {}) }).toString();
+      const ipsRes = await fetch(`https://${hostIP}:5000/api/deployed-server-ips?${qs}`);
+      const ipsData = await ipsRes.json().catch(() => ({}));
+      if (ipsRes.ok && Array.isArray(ipsData.ips) && ipsData.ips.length > 0) {
+        const checks = await Promise.all(
+          ipsData.ips.map(async (ip) => {
+            try {
+              const r = await fetch(`https://${hostIP}:2020/check-server-status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ server_ip: ip })
+              });
+              const j = await r.json().catch(() => ({}));
+              return j && j.status === 'online';
+            } catch (_) {
+              return false;
+            }
+          })
+        );
+        const allUp = checks.every(Boolean);
+        if (!allUp) {
+          message.error('Some nodes in the Cloud are not up and running. Please turn them up.');
+          setDeployLoading(false);
+          return;
+        }
+      }
+    } catch (_) {
+      // If check fails unexpectedly, fail safe by stopping here with message
+      message.error('Pre-deployment check failed. Please try again.');
+      setDeployLoading(false);
+      return;
+    }
 
     // Send to backend for storage as JSON
     try {
@@ -888,6 +930,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     } catch (error) {
       console.error('Error storing deployment configs:', error);
       message.error('Error storing deployment configurations: ' + error.message);
+      setDeployLoading(false);
       return; // Stop further execution if backend storage fails
     }
 
@@ -953,6 +996,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       }
     } catch (err) {
       message.error('Failed to start deployment: ' + err.message);
+      setDeployLoading(false);
     }
     // (Optionally, you may still want to transform configs for other purposes)
     // const transformedConfigs = {};
@@ -970,7 +1014,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
           type="primary"
           onClick={handleNext}
           style={{ width: 120, visibility: 'visible' }}
-          disabled={!allApplied}
+          loading={deployLoading}
+          disabled={!allApplied || deployLoading}
         >
           Deploy
         </Button>

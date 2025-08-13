@@ -50,6 +50,33 @@ function checkAndUpdateExpiredLicenses() {
       console.log(`Updated ${result.affectedRows} expired license(s)`);
     }
   });
+
+// Fetch deployed server IPs for a given cloudname (and optional user filter)
+app.get('/api/deployed-server-ips', (req, res) => {
+  try {
+    const { cloudname, user_id } = req.query;
+    if (!cloudname) {
+      return res.status(400).json({ error: 'cloudname is required' });
+    }
+    // Fetch distinct IPs from deployed_server for the cloud
+    // If user_id provided and column exists in schema, filter by it; otherwise ignore
+    const params = [cloudname];
+    const whereUser = user_id ? ' AND (user_id = ?)' : '';
+    if (user_id) params.push(user_id);
+    const sql = `SELECT DISTINCT serverip FROM deployed_server WHERE cloudname = ?${whereUser}`;
+    db.query(sql, params, (err, rows) => {
+      if (err) {
+        console.error('Error fetching deployed server IPs:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      const ips = Array.isArray(rows) ? rows.map(r => r.serverip).filter(Boolean) : [];
+      return res.json({ ips });
+    });
+  } catch (e) {
+    console.error('Unexpected error in /api/deployed-server-ips:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 }
 const https = require('https');
 const fs = require('fs');
