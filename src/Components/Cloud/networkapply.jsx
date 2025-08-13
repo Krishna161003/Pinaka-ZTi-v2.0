@@ -861,14 +861,12 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       return;
     }
 
-    // Transform configs for backend storage
-    const transformedConfigs = {};
-    Object.entries(configs).forEach(([ip, form]) => {
-      transformedConfigs[ip] = buildDeployConfigPayload(form);
-    });
+    // We'll build transformedConfigs after we know how many nodes are already deployed
 
     // Pre-deployment check: ensure all nodes in this cloud are up
     setDeployLoading(true);
+    // Track how many servers are already deployed to compute hostname offset
+    let deployedCount = 0;
     try {
       const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
       const user_id_param = loginDetails?.data?.id || '';
@@ -877,6 +875,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       const ipsRes = await fetch(`https://${hostIP}:5000/api/deployed-server-ips?${qs}`);
       const ipsData = await ipsRes.json().catch(() => ({}));
       if (ipsRes.ok && Array.isArray(ipsData.ips) && ipsData.ips.length > 0) {
+        deployedCount = ipsData.ips.length;
         const checks = await Promise.all(
           ipsData.ips.map(async (ip) => {
             try {
@@ -898,6 +897,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
           setDeployLoading(false);
           return;
         }
+      } else if (ipsRes.ok) {
+        deployedCount = 0;
       }
     } catch (_) {
       // If check fails unexpectedly, fail safe by stopping here with message
@@ -905,6 +906,20 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       setDeployLoading(false);
       return;
     }
+
+    // Transform configs for backend storage, now that we know deployedCount
+    // Assign sequential hostnames SQDN-(deployedCount+1), SQDN-(deployedCount+2), ... based on card order
+    const hostnameMap = {};
+    forms.forEach((f, idx) => {
+      const seq = deployedCount + idx + 1;
+      const hn = `SQDN-${String(seq).padStart(2, '0')}`;
+      if (f?.ip) hostnameMap[f.ip] = hn;
+    });
+
+    const transformedConfigs = {};
+    Object.entries(configs).forEach(([ip, form]) => {
+      transformedConfigs[ip] = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
+    });
 
     // Send to backend for storage as JSON
     try {

@@ -877,9 +877,16 @@ const Deployment = ({ onGoToReport } = {}) => {
     }
 
     // Transform configs for backend storage
+    // Assign sequential hostnames SQDN-01, SQDN-02, ... based on card order
+    const hostnameMap = {};
+    forms.forEach((f, idx) => {
+      const hn = `SQDN-${String(idx + 1).padStart(2, '0')}`;
+      if (f?.ip) hostnameMap[f.ip] = hn;
+    });
+
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {
-      const base = buildDeployConfigPayload(form);
+      const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
       transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip };
     });
 

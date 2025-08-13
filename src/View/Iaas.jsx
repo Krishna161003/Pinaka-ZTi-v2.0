@@ -760,7 +760,7 @@ const CloudDeploymentsTable = () => {
             pageSize: 10,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} deployments`,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} cloud`,
           }}
           bordered
           size="middle"
