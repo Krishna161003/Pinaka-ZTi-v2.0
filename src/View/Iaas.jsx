@@ -910,6 +910,7 @@ const Iaas = () => {
             <Tabs
               activeKey={activeTab}
               onChange={onTabChange}
+              style={{ width: '100%' }}
               items={[
                 {
                   label: 'Cloud',
