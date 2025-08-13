@@ -133,6 +133,30 @@ app.post('/api/check-license-exists', (req, res) => {
   });
 });
 
+// API: List pending child (secondary) deployments with optional filters
+app.get('/api/pending-child-deployments', (req, res) => {
+  const { status = 'progress', user_id, cloudname } = req.query || {};
+  let sql = `SELECT serverid, serverip, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
+             FROM deployment_activity_log WHERE status = ? AND type = 'secondary'`;
+  const params = [status];
+  if (user_id) {
+    sql += ' AND user_id = ?';
+    params.push(user_id);
+  }
+  if (cloudname) {
+    sql += ' AND cloudname = ?';
+    params.push(cloudname);
+  }
+  sql += ' ORDER BY datetime ASC';
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching pending child deployments:', err);
+      return res.status(500).json({ error: 'Failed to fetch pending child deployments' });
+    }
+    return res.json({ rows });
+  });
+});
+
 // Get license details by server ID
 app.get("/api/check-password-status/:userId", (req, res) => {
   const { userId } = req.params;
@@ -1351,6 +1375,30 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
         });
       });
     });
+  });
+});
+
+// API: List pending node deployments filtered by status/type (defaults: progress/primary)
+app.get('/api/pending-node-deployments', (req, res) => {
+  const { status = 'progress', type = 'primary', user_id, cloudname } = req.query || {};
+  let sql = `SELECT serverid, serverip, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
+             FROM deployment_activity_log WHERE status = ? AND type = ?`;
+  const params = [status, type];
+  if (user_id) {
+    sql += ' AND user_id = ?';
+    params.push(user_id);
+  }
+  if (cloudname) {
+    sql += ' AND cloudname = ?';
+    params.push(cloudname);
+  }
+  sql += ' ORDER BY datetime ASC';
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching pending node deployments:', err);
+      return res.status(500).json({ error: 'Failed to fetch pending node deployments' });
+    }
+    return res.json({ rows });
   });
 });
 

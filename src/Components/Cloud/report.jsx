@@ -83,41 +83,78 @@ const Report = ({ onDeploymentComplete }) => {
     };
   };
 
-  // When deployment finishes, finalize child deployments in backend
+  // When deployment finishes, finalize child deployments in backend (with session fallback)
   useEffect(() => {
     if (!deploymentInProgress && !finalizedRef.current) {
       finalizedRef.current = true;
-      try {
-        const nodesRaw = sessionStorage.getItem('cloud_lastDeploymentNodes');
-        if (!nodesRaw) return;
-        const nodes = JSON.parse(nodesRaw) || [];
-        const configRaw = sessionStorage.getItem('cloud_networkApplyResult');
-        const configMap = configRaw ? JSON.parse(configRaw) : {};
+      const runFinalize = async () => {
+        // Try session first
+        let nodes = [];
+        try {
+          const nodesRaw = sessionStorage.getItem('cloud_lastDeploymentNodes');
+          if (nodesRaw) nodes = JSON.parse(nodesRaw) || [];
+        } catch (_) {}
 
-        nodes.forEach(async (node) => {
+        // If session missing, fetch pending secondary nodes from backend
+        if (!nodes || nodes.length === 0) {
           try {
-            const form = configMap[node.serverip] || null;
-            const roleIps = extractRoleIps(form);
-            // 1) Mark child deployment log completed
-            await fetch(`https://${hostIP}:5000/api/child-deployment-activity-log/${encodeURIComponent(node.serverid)}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'completed' })
-            }).catch(() => {});
-            // 2) Finalize child deployment (insert/update child_node)
-            await fetch(`https://${hostIP}:5000/api/finalize-child-deployment/${encodeURIComponent(node.serverid)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                role: node.type || 'child',
-                ...roleIps,
-              })
-            }).catch(() => {});
-          } catch (e) {
-            // Swallow per-node errors to avoid blocking others
+            let storedUserId = '';
+            try {
+              const loginRaw = sessionStorage.getItem('loginDetails');
+              if (loginRaw) {
+                const loginObj = JSON.parse(loginRaw);
+                storedUserId = loginObj?.data?.id || '';
+              }
+            } catch (_) { storedUserId = ''; }
+            if (!storedUserId) {
+              storedUserId = sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || '';
+            }
+            const params = { status: 'progress', cloudname: cloudName };
+            if (storedUserId) params.user_id = storedUserId;
+            const qs = new URLSearchParams(params).toString();
+            const res = await fetch(`https://${hostIP}:5000/api/pending-child-deployments?${qs}`);
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && Array.isArray(data?.rows)) {
+              nodes = data.rows.map(r => ({ serverid: r.serverid, serverip: r.serverip, type: 'secondary' }));
+            }
+          } catch (_) {}
+        }
+
+        // Load config map if present; OK if missing
+        let configMap = {};
+        try {
+          const configRaw = sessionStorage.getItem('cloud_networkApplyResult');
+          configMap = configRaw ? JSON.parse(configRaw) : {};
+        } catch (_) { configMap = {}; }
+
+        // Process each node
+        if (Array.isArray(nodes) && nodes.length > 0) {
+          for (const node of nodes) {
+            try {
+              const form = configMap[node.serverip] || null;
+              const roleIps = extractRoleIps(form);
+              // 1) Mark child deployment log completed
+              await fetch(`https://${hostIP}:5000/api/child-deployment-activity-log/${encodeURIComponent(node.serverid)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'completed' })
+              }).catch(() => {});
+              // 2) Finalize child deployment (insert/update child_node)
+              await fetch(`https://${hostIP}:5000/api/finalize-child-deployment/${encodeURIComponent(node.serverid)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  role: node.type || 'child',
+                  ...roleIps,
+                })
+              }).catch(() => {});
+            } catch (e) {
+              // Swallow per-node errors to avoid blocking others
+            }
           }
-        });
-      } catch (_) {}
+        }
+      };
+      runFinalize().catch(() => {});
     }
   }, [deploymentInProgress]);
 

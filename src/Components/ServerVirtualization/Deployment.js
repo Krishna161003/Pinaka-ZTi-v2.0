@@ -849,6 +849,25 @@ const Deployment = ({ onGoToReport } = {}) => {
       return;
     }
 
+    // Validate VIP availability with backend before proceeding
+    try {
+      const vipResp = await fetch(`https://${hostIP}:2020/is-vip-available?vip=${encodeURIComponent(vip)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const vipData = await vipResp.json().catch(() => ({}));
+      if (!vipResp.ok || vipData?.success === false) {
+        const errMsg = vipData?.message || vipData?.error || 'VIP validation failed';
+        message.error(errMsg);
+        return; // Stop deployment flow if VIP not available/invalid
+      }
+      // Optional: notify success
+      // message.success('VIP is available');
+    } catch (e) {
+      message.error('Unable to validate VIP: ' + e.message);
+      return;
+    }
+
     // Transform configs for backend storage
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {

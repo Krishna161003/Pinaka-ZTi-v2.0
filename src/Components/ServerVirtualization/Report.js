@@ -72,48 +72,87 @@ const Report = ({ onDeploymentComplete }) => {
     };
   };
 
-  // When deployment finishes, finalize child deployments in backend (SV storage keys)
+  // When deployment finishes, finalize deployments in backend (with session fallback)
   useEffect(() => {
     if (!deploymentInProgress && !finalizedRef.current) {
       finalizedRef.current = true;
-      try {
-        const nodesRaw = sessionStorage.getItem('sv_lastDeploymentNodes');
-        if (!nodesRaw) return;
-        const nodes = JSON.parse(nodesRaw) || [];
-        const configRaw = sessionStorage.getItem('sv_networkApplyResult');
-        const configMap = configRaw ? JSON.parse(configRaw) : {};
-
-        nodes.forEach(async (node) => {
-          try {
-            const form = configMap[node.serverip] || null;
-            const roleIps = extractRoleIps(form);
-            // 1) Mark node deployment log completed (primary)
-            await fetch(`https://${hostIP}:5000/api/node-deployment-activity-log/${encodeURIComponent(node.serverid)}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: 'completed' })
-            }).catch(() => {});
-            // 2) Finalize node deployment (upsert into deployed_server and activate license)
-            const roleStr = Array.isArray(form?.selectedRoles) && form.selectedRoles.length > 0
-              ? form.selectedRoles.join(',')
-              : 'child';
-            await fetch(`https://${hostIP}:5000/api/finalize-node-deployment/${encodeURIComponent(node.serverid)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                role: roleStr,
-                ...roleIps,
-              })
-            }).catch(() => {});
-          } catch (e) {
-            // Swallow per-node errors to avoid blocking others
+      const runFinalize = async () => {
+        // Try session first
+        let nodes = [];
+        try {
+          const nodesRaw = sessionStorage.getItem('sv_lastDeploymentNodes');
+          if (nodesRaw) {
+            nodes = JSON.parse(nodesRaw) || [];
           }
-        });
+        } catch (_) {}
+
+        // If session missing, fetch pending nodes from backend filtered by type=primary
+        if (!nodes || nodes.length === 0) {
+          try {
+            let storedUserId = '';
+            try {
+              const loginRaw = sessionStorage.getItem('loginDetails');
+              if (loginRaw) {
+                const loginObj = JSON.parse(loginRaw);
+                storedUserId = loginObj?.data?.id || '';
+              }
+            } catch (_) { storedUserId = ''; }
+            if (!storedUserId) {
+              storedUserId = sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || '';
+            }
+            const params = { status: 'progress', type: 'primary', cloudname: cloudName };
+            if (storedUserId) params.user_id = storedUserId;
+            const qs = new URLSearchParams(params).toString();
+            const res = await fetch(`https://${hostIP}:5000/api/pending-node-deployments?${qs}`);
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && Array.isArray(data?.rows)) {
+              nodes = data.rows.map(r => ({ serverid: r.serverid, serverip: r.serverip }));
+            }
+          } catch (_) {}
+        }
+
+        // Load config map if present (role IPs); missing is OK
+        let configMap = {};
+        try {
+          const configRaw = sessionStorage.getItem('sv_networkApplyResult');
+          configMap = configRaw ? JSON.parse(configRaw) : {};
+        } catch (_) { configMap = {}; }
+
+        // Process each node
+        if (Array.isArray(nodes) && nodes.length > 0) {
+          for (const node of nodes) {
+            try {
+              const form = configMap[node.serverip] || null;
+              const roleIps = extractRoleIps(form);
+              // 1) Mark node deployment log completed (primary)
+              await fetch(`https://${hostIP}:5000/api/node-deployment-activity-log/${encodeURIComponent(node.serverid)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'completed' })
+              }).catch(() => {});
+              // 2) Finalize node deployment (upsert into deployed_server and activate license)
+              const roleStr = Array.isArray(form?.selectedRoles) && form.selectedRoles.length > 0
+                ? form.selectedRoles.join(',')
+                : 'child';
+              await fetch(`https://${hostIP}:5000/api/finalize-node-deployment/${encodeURIComponent(node.serverid)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  role: roleStr,
+                  ...roleIps,
+                })
+              }).catch(() => {});
+            } catch (e) {
+              // Swallow per-node errors to avoid blocking others
+            }
+          }
+        }
 
         if (typeof onDeploymentComplete === 'function') {
           onDeploymentComplete();
         }
-      } catch (_) {}
+      };
+      runFinalize().catch(() => {});
     }
   }, [deploymentInProgress, onDeploymentComplete]);
 

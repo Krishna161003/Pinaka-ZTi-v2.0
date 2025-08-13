@@ -826,6 +826,30 @@ def is_interface_up(interface):
         return False
 
 
+@app.route('/is-vip-available', methods=['GET'])
+def is_vip_available_api():
+    vip = request.args.get('vip')
+    if not vip:
+        return jsonify({'success': False, 'error': 'VIP is required'}), 400
+
+    try:
+        ipaddress.ip_address(vip)
+    except ValueError:
+        return jsonify({"success": False, "message": "Invalid VIP format"}), 400
+
+    if not is_network_available(vip):
+        return jsonify(
+            {"success": False, "message": "VIP network is not available or used by another device"}
+        ), 400
+
+    if is_ip_reachable(vip) or is_ip_assigned(vip):
+        return jsonify({"success": False, "message": "VIP is already in use"}), 400
+
+    # If all checks pass
+    return jsonify({"success": True, "message": "VIP is available"}), 200
+
+
+
 def is_network_available(ip):
     try:
         subnet = ".".join(ip.split(".")[:3])
