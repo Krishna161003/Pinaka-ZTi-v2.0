@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Layout1 from '../Components/layout';
-import { Layout, Row, Col, Table, theme, Button, Badge, message, Popconfirm, Input } from 'antd';
+import { Layout, Row, Col, Table, theme, Button, Badge, message, Popconfirm, Input, Space } from 'antd';
+import { SyncOutlined } from '@ant-design/icons';
 
 import upImage from '../Images/up_15362984.png';
 import downImage from '../Images/down_15362973.png';
@@ -273,7 +274,16 @@ const Inventory = () => {
             >
               <div style={{ width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
-                  <h3 style={{ margin: 0, fontWeight: 600 }}>Squadron</h3>
+                  <Space>
+                    <h3 style={{ margin: 0, fontWeight: 600 }}>Squadron</h3>
+                    <Button 
+                      icon={<SyncOutlined spin={loading} />} 
+                      size="small" 
+                      onClick={fetchServerData}
+                      disabled={loading}
+                      style={{ marginLeft: 8 }}
+                    />
+                  </Space>
                   <Input.Search
                     placeholder="Search by Server ID / IP / Cloud / Status"
                     allowClear
