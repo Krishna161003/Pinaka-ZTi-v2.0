@@ -452,6 +452,12 @@ const SquadronNodesTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalRecord, setModalRecord] = useState(null);
+  // Controlled pagination state for Squadron table
+  const [squadronPageSize, setSquadronPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('squadron_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 10;
+  });
+  const [squadronCurrentPage, setSquadronCurrentPage] = useState(1);
 
   useEffect(() => {
     setLoading(true);
@@ -586,10 +592,30 @@ const SquadronNodesTable = () => {
           dataSource={data}
           rowKey={row => row.sno + '-' + row.serverid}
           pagination={{
-            pageSize: 10,
+            current: squadronCurrentPage,
+            pageSize: squadronPageSize,
             showSizeChanger: true,
+            pageSizeOptions: [5, 10, 20, 50],
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} nodes`,
+            onChange: (page, size) => {
+              setSquadronCurrentPage(page);
+              if (size && size !== squadronPageSize) {
+                setSquadronPageSize(size);
+                sessionStorage.setItem('squadron_page_size', String(size));
+              }
+            },
+            onShowSizeChange: (_current, size) => {
+              setSquadronCurrentPage(1);
+              setSquadronPageSize(size);
+              sessionStorage.setItem('squadron_page_size', String(size));
+            },
+          }}
+          onChange={(pagination, filters, sorter, extra) => {
+            // Reset to first page when filters are applied
+            if (extra && extra.action === 'filter') {
+              setSquadronCurrentPage(1);
+            }
           }}
           bordered
           size="middle"
@@ -687,6 +713,13 @@ const CloudDeploymentsTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalCredentials, setModalCredentials] = useState({});
+  // Controlled pagination state for Cloud table
+  const [cloudPageSize, setCloudPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('cloud_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 10;
+    
+  });
+  const [cloudCurrentPage, setCloudCurrentPage] = useState(1);
 
   useEffect(() => {
     setLoading(true);
@@ -757,10 +790,29 @@ const CloudDeploymentsTable = () => {
           dataSource={data}
           rowKey={row => row.sno + '-' + row.cloudname}
           pagination={{
-            pageSize: 10,
+            current: cloudCurrentPage,
+            pageSize: cloudPageSize,
             showSizeChanger: true,
+            pageSizeOptions: [5, 10, 20, 50],
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} cloud`,
+            onChange: (page, size) => {
+              setCloudCurrentPage(page);
+              if (size && size !== cloudPageSize) {
+                setCloudPageSize(size);
+                sessionStorage.setItem('cloud_page_size', String(size));
+              }
+            },
+            onShowSizeChange: (_current, size) => {
+              setCloudCurrentPage(1);
+              setCloudPageSize(size);
+              sessionStorage.setItem('cloud_page_size', String(size));
+            },
+          }}
+          onChange={(pagination, filters, sorter, extra) => {
+            if (extra && extra.action === 'filter') {
+              setCloudCurrentPage(1);
+            }
           }}
           bordered
           size="middle"

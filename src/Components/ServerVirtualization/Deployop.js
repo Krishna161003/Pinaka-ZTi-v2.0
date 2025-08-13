@@ -10,6 +10,7 @@ const DeploymentOptions = ({ onStart }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [cloudName, setCloudName] = useState('');
   const [isDeployed, setIsDeployed] = useState(false); // NEW: track deployed state
+  const [isChecking, setIsChecking] = useState(true); // NEW: disable Start until check completes
 
   const inputRef = useRef(null); // Create a reference for the input
 
@@ -26,9 +27,11 @@ const DeploymentOptions = ({ onStart }) => {
     // Check on mount only (not on cloudName change)
   useEffect(() => {
     const checkHostDeployed = async () => {
+      setIsChecking(true);
       const userId = getUserId();
       if (!userId) {
         setIsDeployed(false);
+        setIsChecking(false);
         return;
       }
       try {
@@ -38,6 +41,8 @@ const DeploymentOptions = ({ onStart }) => {
         setIsDeployed(res.data.exists === true);
       } catch (err) {
         setIsDeployed(false);
+      } finally {
+        setIsChecking(false);
       }
     };
     checkHostDeployed();
@@ -154,12 +159,12 @@ const DeploymentOptions = ({ onStart }) => {
                 <Button
                   className="custom-button"
                   type="primary"
-                  disabled={isDeployed}
+                  disabled={isDeployed || isChecking}
                   onClick={() => {
-                    if (!isDeployed) setIsModalVisible(true);
+                    if (!isDeployed && !isChecking) setIsModalVisible(true);
                   }}
                 >
-                  {isDeployed ? 'Deployed' : 'Start'}
+                  {isChecking ? 'Checking...' : (isDeployed ? 'Deployed' : 'Start')}
                 </Button>
               </div>
             </div>

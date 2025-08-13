@@ -187,7 +187,7 @@ const Dashboard = () => {
   const BandwidthLine = ({ bandwidthHistory }) => {
     const config = {
       data: bandwidthHistory,
-      width: 280,
+      // width: 280,
       height: 110,
       smooth: true,
       xField: 'date',
@@ -391,6 +391,12 @@ const Dashboard = () => {
   // Docker containers state (live from backend)
   const [dockerContainers, setDockerContainers] = useState([]);
   const [filteredContainers, setFilteredContainers] = useState([]);
+  // Controlled pagination for Docker table
+  const [dockerPageSize, setDockerPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('docker_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 5;
+  });
+  const [dockerCurrentPage, setDockerCurrentPage] = useState(1);
   const [dockerUp, setDockerUp] = useState(0);
   const [dockerDown, setDockerDown] = useState(0);
   const [dockerTotal, setDockerTotal] = useState(0);
@@ -892,6 +898,8 @@ const Dashboard = () => {
                     (container.status || "").toLowerCase().includes(value)
                   );
                   setFilteredContainers(filtered);
+                  // Reset to first page on new filter
+                  setDockerCurrentPage(1);
                 }}
               />
 
@@ -900,10 +908,24 @@ const Dashboard = () => {
                 dataSource={filteredContainers}
                 columns={dockerColumns}
                 pagination={{
-                  pageSize: 5,
+                  current: dockerCurrentPage,
+                  pageSize: dockerPageSize,
                   showSizeChanger: true,
+                  pageSizeOptions: [5, 10, 20, 50],
                   showQuickJumper: true,
                   showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} containers`,
+                  onChange: (page, size) => {
+                    setDockerCurrentPage(page);
+                    if (size && size !== dockerPageSize) {
+                      setDockerPageSize(size);
+                      sessionStorage.setItem('docker_page_size', String(size));
+                    }
+                  },
+                  onShowSizeChange: (_, size) => {
+                    setDockerCurrentPage(1);
+                    setDockerPageSize(size);
+                    sessionStorage.setItem('docker_page_size', String(size));
+                  },
                 }}
                 rowKey="dockerId"
                 size="middle"

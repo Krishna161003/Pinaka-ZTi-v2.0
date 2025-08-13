@@ -33,6 +33,12 @@ const Inventory = () => {
   const [serverCounts, setServerCounts] = useState({ total: 0, online: 0, offline: 0 });
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  // Controlled pagination state for Inventory Squadron table
+  const [invPageSize, setInvPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('inventory_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 10;
+  });
+  const [invCurrentPage, setInvCurrentPage] = useState(1);
 
   // Function to control server (shutdown, reboot)
   const controlServer = async (serverIp, action) => {
@@ -137,6 +143,11 @@ const Inventory = () => {
   }, []);
 
   // Removed tab URL sync logic
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setInvCurrentPage(1);
+  }, [searchText]);
 
   // On mount, save last visited menu path
   useEffect(() => {
@@ -287,8 +298,8 @@ const Inventory = () => {
                   <Input.Search
                     placeholder="Search by Server ID / IP / Cloud / Status"
                     allowClear
-                    onSearch={(val) => setSearchText(val)}
-                    onChange={(e) => setSearchText(e.target.value)}
+                    onSearch={(val) => { setSearchText(val); setInvCurrentPage(1); }}
+                    onChange={(e) => { setSearchText(e.target.value); setInvCurrentPage(1); }}
                     style={{ maxWidth: 360 }}
                     enterButton
                     size="middle"
@@ -371,10 +382,29 @@ const Inventory = () => {
                     );
                   })}
                   pagination={{
-                    pageSize: 10,
+                    current: invCurrentPage,
+                    pageSize: invPageSize,
                     showSizeChanger: true,
+                    pageSizeOptions: [5, 10, 20, 50],
                     showQuickJumper: true,
                     showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} servers`,
+                    onChange: (page, size) => {
+                      setInvCurrentPage(page);
+                      if (size && size !== invPageSize) {
+                        setInvPageSize(size);
+                        sessionStorage.setItem('inventory_page_size', String(size));
+                      }
+                    },
+                    onShowSizeChange: (_current, size) => {
+                      setInvCurrentPage(1);
+                      setInvPageSize(size);
+                      sessionStorage.setItem('inventory_page_size', String(size));
+                    },
+                  }}
+                  onChange={(pagination, filters, sorter, extra) => {
+                    if (extra && extra.action === 'filter') {
+                      setInvCurrentPage(1);
+                    }
                   }}
                 />
               </div>
