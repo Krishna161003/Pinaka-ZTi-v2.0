@@ -942,9 +942,11 @@ const Iaas = () => {
                   text-align: center;
                   margin: 0 !important;
                 }
-                /* Fix: Make the highlight/ink bar always full width */
+                /* Enable and style the ink bar (active tab highlight) */
                 .ant-tabs-ink-bar {
-                  display: none !important;
+                  display: block !important;
+                  height: 2px;
+                  background: #1677ff;
                 }
               `}</style>
             </div>
