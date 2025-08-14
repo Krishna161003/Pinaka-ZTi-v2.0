@@ -21,6 +21,20 @@ const Deployment = ({ onGoToReport } = {}) => {
   const ipRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/;
   const subnetRegex = /^(255|254|252|248|240|224|192|128|0+)\.((255|254|252|248|240|224|192|128|0+)\.){2}(255|254|252|248|240|224|192|128|0+)$/;
 
+  // Allowed role combinations for validation
+  const ALLOWED_ROLE_COMBOS = [
+    ['Control', 'Storage'],
+    ['Control', 'Storage', 'Compute'],
+    ['Control', 'Storage', 'Monitoring'],
+    ['Control', 'Storage', 'Monitoring', 'Compute'],
+  ];
+
+  const normalizeRoles = (roles) => Array.from(new Set((roles || []).map(r => String(r).trim()))).sort();
+  const isAllowedCombo = (roles) => {
+    const norm = normalizeRoles(roles);
+    return ALLOWED_ROLE_COMBOS.some(combo => JSON.stringify(norm) === JSON.stringify([...combo].sort()));
+  };
+
   // Get the nodes from sessionStorage (as in Addnode.jsx)
   function getLicenseNodes() {
     const saved = sessionStorage.getItem('sv_licenseNodes');
@@ -193,6 +207,8 @@ const Deployment = ({ onGoToReport } = {}) => {
   const [forms, setForms] = useState(getInitialForms);
   // Loading state for Deploy button
   const [deployLoading, setDeployLoading] = useState(false);
+  // When validation fails, force-enable Roles selector on specific nodes (keyed by node ip)
+  const [forceEnableRoles, setForceEnableRoles] = useState({});
 
   // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
   useEffect(() => {
@@ -283,7 +299,21 @@ const Deployment = ({ onGoToReport } = {}) => {
     setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
   }
   function handleRoleChange(idx, value) {
-    setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedRoles: value, roleError: '' } : f));
+    setForms(prev => {
+      const next = prev.map((f, i) => i === idx ? { ...f, selectedRoles: value, roleError: '' } : f);
+      const updatedForm = next[idx];
+      // Persist immediately so DB (5000) and Python (2020) flows read updated roles from session
+      if (updatedForm?.ip) {
+        storeFormData(updatedForm.ip, updatedForm);
+      }
+      // Toggle force-enable state depending on validity
+      const valid = isAllowedCombo(value);
+      setForceEnableRoles(prevForce => ({
+        ...prevForce,
+        [updatedForm.ip]: valid ? false : true,
+      }));
+      return next;
+    });
   }
 
   function generateRows(configType, useBond) {
@@ -854,6 +884,23 @@ const Deployment = ({ onGoToReport } = {}) => {
       return;
     }
 
+    // Validate role combinations across nodes: require at least one node to match an allowed combo
+    const hasAnyValidRoleNode = forms.some(f => isAllowedCombo(f.selectedRoles));
+    if (!hasAnyValidRoleNode) {
+      const invalidIps = new Set(forms.filter(f => !isAllowedCombo(f.selectedRoles)).map(f => f.ip));
+      setForms(prev => prev.map(f => invalidIps.has(f.ip)
+        ? { ...f, roleError: 'Choose a valid role model: Control+Storage (+Monitoring) (+Compute)' }
+        : f
+      ));
+      setForceEnableRoles(prev => {
+        const next = { ...prev };
+        invalidIps.forEach(ip => { next[ip] = true; });
+        return next;
+      });
+      message.error('Invalid role combination. Select one: Control+Storage, Control+Storage+Compute, Control+Storage+Monitoring, or Control+Storage+Monitoring+Compute.');
+      return;
+    }
+
     // Validate VIP availability with backend before proceeding
     try {
       setDeployLoading(true);
@@ -887,7 +934,7 @@ const Deployment = ({ onGoToReport } = {}) => {
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {
       const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
-      transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip };
+      transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip, selected_roles: form?.selectedRoles || [] };
     });
 
     // Send to backend for storage as JSON
@@ -1132,12 +1179,13 @@ const Deployment = ({ onGoToReport } = {}) => {
                     placeholder="Select role(s)"
                     value={form.selectedRoles || []}
                     style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
                     onChange={value => handleRoleChange(idx, value)}
                   >
                     <Option value="Control">Control</Option>
                     <Option value="Compute">Compute</Option>
                     <Option value="Storage">Storage</Option>
+                    <Option value="Monitoring">Monitoring</Option>
                   </Select>
                 </Form.Item>
               </div>
