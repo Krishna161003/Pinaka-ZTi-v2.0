@@ -1,6 +1,6 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, Tabs, Table, Badge } from 'antd';
+import { theme, Layout, Tabs, Table, Badge, Select } from 'antd';
 
 const { Content } = Layout;
 
@@ -49,6 +49,35 @@ const ServiceStatus = () => {
     { key: '1', name: 'cinder-scheduler', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
   ];
 
+  // Tag-like search box state and options (UI only for now)
+  const [filterTags, setFilterTags] = React.useState([]);
+  const filterOptions = [
+    {
+      label: 'Fields',
+      options: [
+        { label: 'Name', value: 'Name' },
+        { label: 'Host', value: 'Host' },
+        { label: 'Availability Zone', value: 'Availability Zone' },
+        { label: 'Service Status', value: 'Service Status' },
+        { label: 'Service State', value: 'Service State' },
+      ],
+    },
+    {
+      label: 'Service Status',
+      options: [
+        { label: 'Enabled', value: 'Enabled' },
+        { label: 'Disabled', value: 'Disabled' },
+      ],
+    },
+    {
+      label: 'Service State',
+      options: [
+        { label: 'Up', value: 'Up' },
+        { label: 'Down', value: 'Down' },
+      ],
+    },
+  ];
+
   return (
     <Layout1>
       <Layout>
@@ -59,7 +88,23 @@ const ServiceStatus = () => {
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
           }}>
-            {/* Removed header and action icons as requested */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+              <Select
+                mode="tags"
+                value={filterTags}
+                onChange={setFilterTags}
+                options={filterOptions}
+                style={{ width: 420 }}
+                placeholder="Multiple filter tags are separated by enter"
+                allowClear
+                showSearch
+                maxTagCount="responsive"
+                tokenSeparators={[',']}
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </div>
 
             <Tabs
               defaultActiveKey="compute"
