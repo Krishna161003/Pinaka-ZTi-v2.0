@@ -13,8 +13,8 @@ const ServiceStatus = () => {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  // Columns shared across tabs
-  const columns = [
+  // Columns: Compute/Storage
+  const columnsCompute = [
     { title: 'Name', dataIndex: 'name', key: 'name' },
     { title: 'Host', dataIndex: 'host', key: 'host' },
     { title: 'Availability Zone', dataIndex: 'az', key: 'az' },
@@ -22,7 +22,7 @@ const ServiceStatus = () => {
       title: 'Service Status',
       dataIndex: 'serviceStatus',
       key: 'serviceStatus',
-      render: (val) => <Badge status={val === 'Enabled' ? 'success' : 'default'} text={val} />,
+      render: (val) => <Badge status={val === 'Enabled' ? 'success' : 'error'} text={val} />,
     },
     {
       title: 'Service State',
@@ -31,6 +31,26 @@ const ServiceStatus = () => {
       render: (val) => <Badge status={val === 'Up' ? 'success' : 'error'} text={val} />,
     },
     { title: 'Last Updated', dataIndex: 'lastUpdated', key: 'lastUpdated' },
+  ];
+
+  // Columns: Network (no Last Updated; include Agent Type)
+  const columnsNetwork = [
+    { title: 'Name', dataIndex: 'name', key: 'name' },
+    { title: 'Agent Type', dataIndex: 'agentType', key: 'agentType' },
+    { title: 'Host', dataIndex: 'host', key: 'host' },
+    { title: 'Availability Zone', dataIndex: 'az', key: 'az' },
+    {
+      title: 'Service Status',
+      dataIndex: 'serviceStatus',
+      key: 'serviceStatus',
+      render: (val) => <Badge status={val === 'Enabled' ? 'success' : 'error'} text={val} />,
+    },
+    {
+      title: 'Service State',
+      dataIndex: 'serviceState',
+      key: 'serviceState',
+      render: (val) => <Badge status={val === 'Up' ? 'success' : 'error'} text={val} />,
+    },
   ];
 
   // Data from backend
@@ -51,6 +71,9 @@ const ServiceStatus = () => {
     return s === 'up' ? 'Up' : s === 'down' ? 'Down' : toTitle(v);
   };
 
+  // Convert boolean states from Neutron to Up/Down when backend returns true/false
+  const boolToUpDown = (v) => (v === true ? 'Up' : v === false ? 'Down' : undefined);
+
   const mapCompute = (rows) => (rows || []).map((r, idx) => ({
     key: r.ID || r.Id || String(idx),
     name: r['Binary'] || r['binary'] || r['Name'] || r['name'] || '',
@@ -61,15 +84,22 @@ const ServiceStatus = () => {
     lastUpdated: r['Updated At'] || r['updated_at'] || r['updated'] || '',
   }));
 
-  const mapNeutron = (rows) => (rows || []).map((r, idx) => ({
-    key: r['ID'] || r['Id'] || String(idx),
-    name: r['Binary'] || r['binary'] || r['Agent Type'] || r['agent_type'] || '',
-    host: r['Host'] || r['host'] || '',
-    az: r['Availability Zone'] || r['availability_zone'] || r['Zone'] || 'N/A',
-    serviceStatus: normStatus(r['Status'] || (r['Alive'] === true ? 'Enabled' : r['Alive'] === false ? 'Disabled' : '')),
-    serviceState: normState(r['State'] || (r['Alive'] === true ? 'Up' : r['Alive'] === false ? 'Down' : '')),
-    lastUpdated: r['Updated At'] || r['updated_at'] || '',
-  }));
+  const mapNeutron = (rows) => (rows || []).map((r, idx) => {
+    const derivedState = boolToUpDown(r['State']) || boolToUpDown(r['Alive']);
+    const derivedStatus = r['Status'] != null
+      ? normStatus(r['Status'])
+      : (r['Alive'] === true ? 'Enabled' : r['Alive'] === false ? 'Disabled' : '');
+    return {
+      key: r['ID'] || r['Id'] || String(idx),
+      name: r['Binary'] || r['binary'] || r['Agent Type'] || r['agent_type'] || '',
+      agentType: r['Agent Type'] || r['agent_type'] || '',
+      host: r['Host'] || r['host'] || '',
+      az: r['Availability Zone'] || r['availability_zone'] || r['Zone'] || 'N/A',
+      serviceStatus: derivedStatus,
+      serviceState: derivedState || normState(r['State'] || r['state']),
+      lastUpdated: r['Updated At'] || r['updated_at'] || '',
+    };
+  });
 
   const mapBlock = (rows) => mapCompute(rows);
 
@@ -161,7 +191,7 @@ const ServiceStatus = () => {
                   children: (
                     <Table
                       rowKey="key"
-                      columns={columns}
+                      columns={columnsCompute}
                       dataSource={computeData.filter(row => {
                         if (!searchText) return true;
                         const q = searchText.toLowerCase();
@@ -179,11 +209,11 @@ const ServiceStatus = () => {
                   children: (
                     <Table
                       rowKey="key"
-                      columns={columns}
+                      columns={columnsNetwork}
                       dataSource={neutronData.filter(row => {
                         if (!searchText) return true;
                         const q = searchText.toLowerCase();
-                        return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
+                        return [row.name, row.agentType, row.host, row.az, row.serviceStatus, row.serviceState]
                           .some(v => (v || '').toLowerCase().includes(q));
                       })}
                       loading={tableLoading}
@@ -197,7 +227,7 @@ const ServiceStatus = () => {
                   children: (
                     <Table
                       rowKey="key"
-                      columns={columns}
+                      columns={columnsCompute}
                       dataSource={blockData.filter(row => {
                         if (!searchText) return true;
                         const q = searchText.toLowerCase();
