@@ -1,6 +1,7 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, Tabs, Table, Badge, Select } from 'antd';
+import { theme, Layout, Tabs, Table, Space, Button, Input, Badge, Typography } from 'antd';
+import { EyeOutlined, CloudDownloadOutlined, PauseCircleOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 
@@ -49,35 +50,6 @@ const ServiceStatus = () => {
     { key: '1', name: 'cinder-scheduler', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
   ];
 
-  // Tag-like search box state and options (UI only for now)
-  const [filterTags, setFilterTags] = React.useState([]);
-  const filterOptions = [
-    {
-      label: 'Fields',
-      options: [
-        { label: 'Name', value: 'Name' },
-        { label: 'Host', value: 'Host' },
-        { label: 'Availability Zone', value: 'Availability Zone' },
-        { label: 'Service Status', value: 'Service Status' },
-        { label: 'Service State', value: 'Service State' },
-      ],
-    },
-    {
-      label: 'Service Status',
-      options: [
-        { label: 'Enabled', value: 'Enabled' },
-        { label: 'Disabled', value: 'Disabled' },
-      ],
-    },
-    {
-      label: 'Service State',
-      options: [
-        { label: 'Up', value: 'Up' },
-        { label: 'Down', value: 'Down' },
-      ],
-    },
-  ];
-
   return (
     <Layout1>
       <Layout>
@@ -88,22 +60,17 @@ const ServiceStatus = () => {
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
           }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-              <Select
-                mode="tags"
-                value={filterTags}
-                onChange={setFilterTags}
-                options={filterOptions}
-                style={{ width: 420 }}
-                placeholder="Multiple filter tags are separated by enter"
-                allowClear
-                showSearch
-                maxTagCount="responsive"
-                tokenSeparators={[',']}
-                filterOption={(input, option) =>
-                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                }
-              />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Typography.Title level={5} style={{ margin: 0 }}>System Info / Services</Typography.Title>
+              <Input.Search style={{ width: 320 }} placeholder="Multiple filter tags are separated by enter" enterButton />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Space>
+                <Button icon={<EyeOutlined />} />
+                <Button icon={<CloudDownloadOutlined />} />
+                <Button icon={<PauseCircleOutlined />} />
+              </Space>
             </div>
 
             <Tabs
