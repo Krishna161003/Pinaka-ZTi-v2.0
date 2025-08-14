@@ -28,13 +28,6 @@ const ServiceStatus = () => {
       render: (val) => <Badge status={val === 'Up' ? 'success' : 'error'} text={val} />,
     },
     { title: 'Last Updated', dataIndex: 'lastUpdated', key: 'lastUpdated' },
-    {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => (
-        record.action ? <a style={{ color: '#ff4d4f' }} onClick={() => { /* noop */ }}>{record.action}</a> : null
-      ),
-    },
   ];
 
   // Sample data (placeholder). Replace with backend data when available.
