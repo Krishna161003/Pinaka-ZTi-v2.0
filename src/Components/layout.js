@@ -62,6 +62,7 @@ const AppLayout = ({ children }) => {
     // "/distributedstorage": "2",
     "/iaas": "3",
     "/inventory": "4",
+    "/servicestatus": "5",
     // "/hpc": "5",
     // "/aiworkbench": "6",
     // "/vdi": "7",

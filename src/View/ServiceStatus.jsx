@@ -4,7 +4,7 @@ import { theme, Layout, Result } from 'antd';
 
 const { Content } = Layout;
 
-const Hpc = () => {
+const ServiceStatus = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -31,4 +31,4 @@ const Hpc = () => {
   );
 };
 
-export default Hpc;
+export default ServiceStatus;
