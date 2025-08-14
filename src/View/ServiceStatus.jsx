@@ -1,7 +1,6 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, Tabs, Table, Space, Button, Input, Badge, Typography } from 'antd';
-import { EyeOutlined, CloudDownloadOutlined, PauseCircleOutlined } from '@ant-design/icons';
+import { theme, Layout, Tabs, Table, Badge } from 'antd';
 
 const { Content } = Layout;
 
@@ -60,18 +59,7 @@ const ServiceStatus = () => {
             background: colorBgContainer,
             borderRadius: borderRadiusLG,
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Typography.Title level={5} style={{ margin: 0 }}>System Info / Services</Typography.Title>
-              <Input.Search style={{ width: 320 }} placeholder="Multiple filter tags are separated by enter" enterButton />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <Space>
-                <Button icon={<EyeOutlined />} />
-                <Button icon={<CloudDownloadOutlined />} />
-                <Button icon={<PauseCircleOutlined />} />
-              </Space>
-            </div>
+            {/* Removed header and action icons as requested */}
 
             <Tabs
               defaultActiveKey="compute"
