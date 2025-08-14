@@ -191,6 +191,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     return licenseNodes.map(() => ({ loading: false, applied: false }));
   };
   const [cardStatus, setCardStatus] = useState(getInitialCardStatus);
+  // Per-card button loading for backend validation phase (before SSH polling)
+  const [btnLoading, setBtnLoading] = useState(() => (Array.isArray(licenseNodes) ? licenseNodes.map(() => false) : []));
   // For loader recovery timers
   const timerRefs = React.useRef([]);
   // Restore forms from sessionStorage if available and merge with license details
@@ -254,6 +256,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
 
       setForms(updatedForms);
       setCardStatus(JSON.parse(savedStatus));
+      // Reset per-card button loaders to idle for current forms length
+      setBtnLoading(updatedForms.map(() => false));
     } else {
       setForms(
         licenseNodes.map(node => ({
@@ -273,6 +277,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
         }))
       );
       setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
+      setBtnLoading(licenseNodes.map(() => false));
     }
   }, [licenseNodes]);
 
@@ -724,6 +729,12 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
     }
     // Submit logic here (API call or sessionStorage)
+    // Show button loader for backend validation phase
+    setBtnLoading(prev => {
+      const next = [...prev];
+      next[nodeIdx] = true;
+      return next;
+    });
     // Determine how many servers are already deployed to compute hostname starting index
     let deployedCount = 0;
     try {
@@ -762,6 +773,12 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       .then(res => res.json())
       .then(result => {
         if (result.success) {
+          // Stop button loader and switch to card spinner/polling
+          setBtnLoading(prev => {
+            const next = [...prev];
+            next[nodeIdx] = false;
+            return next;
+          });
           setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
           // Persist loader state immediately by IP to survive navigation
           setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
@@ -871,10 +888,22 @@ const NetworkApply = ({ onGoToReport } = {}) => {
             // message.success(`Network config for node ${form.ip} applied! Node restarting...`);
           }, RESTART_DURATION);
         } else {
+          // Validation failed on backend, stop button loader for user to correct
+          setBtnLoading(prev => {
+            const next = [...prev];
+            next[nodeIdx] = false;
+            return next;
+          });
           message.error(result.message || 'Failed to apply network configuration.');
         }
       })
       .catch(err => {
+        // Network error during validation, stop button loader
+        setBtnLoading(prev => {
+          const next = [...prev];
+          next[nodeIdx] = false;
+          return next;
+        });
         message.error('Network error: ' + err.message);
       });
     return;
@@ -1221,10 +1250,10 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
-                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
                   Reset Value
                 </Button>
-                <Button type="primary" onClick={() => handleSubmit(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
                   Apply Change
                 </Button>
               </div>

@@ -83,7 +83,7 @@ const Dashboard = () => {
     async function fetchServerIps() {
       try {
         const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
-        const res = await fetch(`https://${hostIP}:5000/api/deployed-server-ips${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
+        const res = await fetch(`https://${hostIP}:5000/api/deployed-server-ips-dropdown${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
         const json = await res.json();
         // Support both shapes: ["ip1", ...] or { ips: ["ip1", ...] }
         const arr = Array.isArray(json) ? json : (Array.isArray(json?.ips) ? json.ips : []);

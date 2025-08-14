@@ -1075,7 +1075,7 @@ app.get('/api/first-cloudname', (req, res) => {
 });
 
 // API: Get distinct server IPs from deployed_server for dropdowns
-app.get('/api/deployed-server-ips', (req, res) => {
+app.get('/api/deployed-server-ips-dropdown', (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json([req.hostname]);
   const sql = `SELECT DISTINCT serverip FROM deployed_server WHERE user_id = ? AND serverip IS NOT NULL AND serverip <> '' ORDER BY serverip`;
