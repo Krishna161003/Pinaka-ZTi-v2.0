@@ -9,15 +9,17 @@ const getCloudNameFromMetadata = () => {
 };
 
 const hostIP = window.location.hostname;
+// Stable asset imports to avoid re-decoding/restarting animations on re-renders
+const planeGif = require('../../Images/plane.gif');
+const completedImage = require('../../Images/completed.png');
 
 const Report = ({ onDeploymentComplete }) => {
   const navigate = useNavigate();
   const cloudName = getCloudNameFromMetadata();
   const [deploymentInProgress, setDeploymentInProgress] = useState(true);
   const finalizedRef = useRef(false);
-
-  // Placeholder images
-  const completedImage = require('../../Images/completed.png');
+  // Keep a stable reference to the GIF across re-renders
+  const planeGifRef = useRef(planeGif);
 
   // Poll backend for node deployment progress
   useEffect(() => {
@@ -219,9 +221,11 @@ const Report = ({ onDeploymentComplete }) => {
               {deploymentInProgress ? (
                 <>
                   <img
-                    src={require('./../../Images/plane.gif')}
+                    src={planeGifRef.current}
                     alt="Deployment Progress"
-                    style={{ width: 280, height: 280, objectFit: 'contain' }}
+                    loading="eager"
+                    decoding="sync"
+                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block' }}
                   />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
@@ -230,7 +234,9 @@ const Report = ({ onDeploymentComplete }) => {
                   <img
                     src={completedImage}
                     alt="Deployment Completed"
-                    style={{ width: 280, height: 280, objectFit: 'contain' }}
+                    loading="eager"
+                    decoding="sync"
+                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block' }}
                   />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
                 </>
