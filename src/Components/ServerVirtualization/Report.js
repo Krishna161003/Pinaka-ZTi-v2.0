@@ -20,6 +20,31 @@ const Report = ({ onDeploymentComplete }) => {
   const finalizedRef = useRef(false);
   // Keep a stable reference to the GIF across re-renders
   const planeGifRef = useRef(planeGif);
+  // Blob URL for gif to avoid decode restarts/pauses
+  const [gifUrl, setGifUrl] = useState(null);
+
+  // Preload GIF as Blob and use its object URL for more stable playback
+  useEffect(() => {
+    let revokedUrl = null;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(planeGifRef.current, { cache: 'force-cache' });
+        const blob = await res.blob();
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        planeGifRef.current = url;
+        setGifUrl(url); // trigger render using blob URL
+        revokedUrl = url;
+      } catch (_) {
+        // fallback: keep original asset url
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (revokedUrl) URL.revokeObjectURL(revokedUrl);
+    };
+  }, []);
 
   // Poll backend for node deployment progress
   useEffect(() => {
@@ -221,11 +246,12 @@ const Report = ({ onDeploymentComplete }) => {
               {deploymentInProgress ? (
                 <>
                   <img
-                    src={planeGifRef.current}
+                    src={gifUrl || planeGifRef.current}
                     alt="Deployment Progress"
                     loading="eager"
-                    decoding="sync"
-                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block' }}
+                    decoding="async"
+                    draggable={false}
+                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
                   />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
