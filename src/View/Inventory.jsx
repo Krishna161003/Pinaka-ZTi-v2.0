@@ -287,12 +287,18 @@ const Inventory = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
                   <Space>
                     <h3 style={{ margin: 0, fontWeight: 600 }}>Squadron</h3>
-                    <Button 
-                      icon={<SyncOutlined spin={loading} />} 
-                      size="small" 
+                    <Button
+                      aria-label="Refresh"
+                      icon={<SyncOutlined spin={loading} />}
                       onClick={fetchServerData}
                       disabled={loading}
-                      style={{ marginLeft: 8, marginTop: 5 }}
+                      style={{
+                        marginLeft: 8,
+                        marginTop: 5,
+                        borderColor: '#1677ff',
+                        color: '#1677ff',
+                        borderRadius: 8,
+                      }}
                     />
                   </Space>
                   <Input.Search
