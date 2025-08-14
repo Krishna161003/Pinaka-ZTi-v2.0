@@ -64,10 +64,11 @@ const ServiceStatus = () => {
             <h2 style={{ marginTop: '0px' }}>Services Status </h2>
           </div>
           <div style={{
+            marginTop: 10,
             padding: 30,
             minHeight: "auto",
             background: colorBgContainer,
-            borderRadius: borderRadiusLG,
+            // borderRadius: borderRadiusLG,
           }}>
             {/* Removed header and action icons as requested */}
 
