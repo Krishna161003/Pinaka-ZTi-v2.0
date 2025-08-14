@@ -1,6 +1,7 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, Tabs, Table, Badge } from 'antd';
+import { theme, Layout, Tabs, Table, Badge, Button, Input } from 'antd';
+import { SyncOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 
@@ -49,6 +50,14 @@ const ServiceStatus = () => {
     { key: '1', name: 'cinder-scheduler', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
   ];
 
+  // Refresh handling (UI-only)
+  const [tableLoading, setTableLoading] = React.useState(false);
+  const handleRefresh = () => {
+    setTableLoading(true);
+    // Simulate fetch latency
+    setTimeout(() => setTableLoading(false), 600);
+  };
+
   return (
     <Layout1>
       <Layout>
@@ -74,6 +83,28 @@ const ServiceStatus = () => {
 
             <Tabs
               defaultActiveKey="compute"
+              tabBarExtraContent={{
+                right: (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      aria-label="Refresh"
+                      onClick={handleRefresh}
+                      icon={<SyncOutlined spin={tableLoading} />}
+                      style={{
+                        borderColor: '#1677ff',
+                        color: '#1677ff',
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Input.Search
+                      allowClear
+                      placeholder="Search..."
+                      style={{ width: 280 }}
+                      onSearch={() => { /* TODO: hook into filtering */ }}
+                    />
+                  </div>
+                )
+              }}
               items={[
                 {
                   key: 'compute',
@@ -83,30 +114,33 @@ const ServiceStatus = () => {
                       rowKey="key"
                       columns={columns}
                       dataSource={computeData}
+                      loading={tableLoading}
                       pagination={{ pageSize: 10 }}
                     />
                   ),
                 },
                 {
                   key: 'neutron',
-                  label: 'Network / Neutron',
+                  label: 'Network',
                   children: (
                     <Table
                       rowKey="key"
                       columns={columns}
                       dataSource={neutronData}
+                      loading={tableLoading}
                       pagination={{ pageSize: 10 }}
                     />
                   ),
                 },
                 {
                   key: 'block',
-                  label: 'Storage / Block',
+                  label: 'Storage',
                   children: (
                     <Table
                       rowKey="key"
                       columns={columns}
                       dataSource={blockData}
+                      loading={tableLoading}
                       pagination={{ pageSize: 10 }}
                     />
                   ),

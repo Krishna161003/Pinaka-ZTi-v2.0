@@ -23,6 +23,28 @@ const NetworkApply = ({ onGoToReport } = {}) => {
   const BOOT_DURATION = 5000; // ms after restart
   const RESTART_ENDTIME_KEY = 'cloud_networkApplyRestartEndTimes';
   const BOOT_ENDTIME_KEY = 'cloud_networkApplyBootEndTimes';
+  // Persisted hostname map for Cloud: ip -> hostname (SQDN-XX)
+  const CLOUD_HOSTNAME_MAP_KEY = 'cloud_hostnameMap';
+
+  const getCloudHostnameMap = () => {
+    try {
+      const raw = sessionStorage.getItem(CLOUD_HOSTNAME_MAP_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
+  const saveCloudHostnameMap = (map) => {
+    try { sessionStorage.setItem(CLOUD_HOSTNAME_MAP_KEY, JSON.stringify(map)); } catch (_) {}
+  };
+
+  const nextAvailableHostname = (usedSet, preferredNumber = 1) => {
+    const make = (n) => `SQDN-${String(n).padStart(2, '0')}`;
+    let n = Math.max(1, preferredNumber);
+    while (usedSet.has(make(n))) n++;
+    return make(n);
+  };
 
   // Helper function to get network apply result from sessionStorage
   const getNetworkApplyResult = () => {
@@ -646,7 +668,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     ];
   };
 
-  const handleSubmit = (nodeIdx) => {
+  const handleSubmit = async (nodeIdx) => {
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
@@ -702,7 +724,30 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
     }
     // Submit logic here (API call or sessionStorage)
-    const payloadBase = buildNetworkConfigPayload(form);
+    // Determine how many servers are already deployed to compute hostname starting index
+    let deployedCount = 0;
+    try {
+      const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
+      const user_id_param = loginDetails?.data?.id || '';
+      const cloudnameParam = firstCloudName || sessionStorage.getItem('cloud_first_cloudname') || '';
+      const qs = new URLSearchParams({ cloudname: cloudnameParam, ...(user_id_param ? { user_id: user_id_param } : {}) }).toString();
+      const ipsRes = await fetch(`https://${hostIP}:5000/api/deployed-server-ips?${qs}`);
+      const ipsData = await ipsRes.json().catch(() => ({}));
+      if (ipsRes.ok && Array.isArray(ipsData.ips)) {
+        deployedCount = ipsData.ips.length;
+      }
+    } catch (_) {}
+
+    const existingMap = getCloudHostnameMap();
+    const used = new Set(Object.values(existingMap || {}));
+    const preferred = deployedCount + nodeIdx + 1;
+    const assigned = existingMap[form.ip] || nextAvailableHostname(used, preferred);
+    if (!existingMap[form.ip]) {
+      existingMap[form.ip] = assigned;
+      saveCloudHostnameMap(existingMap);
+    }
+
+    const payloadBase = buildNetworkConfigPayload({ ...form, hostname: assigned });
     const payload = {
       ...payloadBase,
       license_code: form.licenseCode || null,
@@ -908,13 +953,23 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     }
 
     // Transform configs for backend storage, now that we know deployedCount
-    // Assign sequential hostnames SQDN-(deployedCount+1), SQDN-(deployedCount+2), ... based on card order
-    const hostnameMap = {};
-    forms.forEach((f, idx) => {
-      const seq = deployedCount + idx + 1;
-      const hn = `SQDN-${String(seq).padStart(2, '0')}`;
-      if (f?.ip) hostnameMap[f.ip] = hn;
-    });
+  // Reuse hostnames assigned during Network Apply; allocate unique for any missing starting from deployedCount+1
+  const savedHostnameMap = getCloudHostnameMap();
+  const usedHostnames = new Set(Object.values(savedHostnameMap || {}));
+  const hostnameMap = {};
+  forms.forEach((f, idx) => {
+    if (!f?.ip) return;
+    const preferred = deployedCount + idx + 1;
+    let hn = savedHostnameMap[f.ip];
+    if (!hn) {
+      hn = nextAvailableHostname(usedHostnames, preferred);
+      usedHostnames.add(hn);
+      savedHostnameMap[f.ip] = hn;
+    }
+    hostnameMap[f.ip] = hn;
+  });
+  // Persist any newly allocated hostnames
+  saveCloudHostnameMap(savedHostnameMap);
 
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {

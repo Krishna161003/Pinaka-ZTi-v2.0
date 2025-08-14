@@ -45,6 +45,34 @@ const Deployment = ({ onGoToReport } = {}) => {
   const BOOT_DURATION = 5000; // ms after restart
   const RESTART_ENDTIME_KEY = 'sv_networkApplyRestartEndTimes';
   const BOOT_ENDTIME_KEY = 'sv_networkApplyBootEndTimes';
+  // Persisted hostname map: ip -> hostname (SQDN-XX)
+  const HOSTNAME_MAP_KEY = 'sv_hostnameMap';
+
+  const getHostnameMap = () => {
+    try {
+      const raw = sessionStorage.getItem(HOSTNAME_MAP_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
+  const saveHostnameMap = (map) => {
+    try { sessionStorage.setItem(HOSTNAME_MAP_KEY, JSON.stringify(map)); } catch (_) {}
+  };
+
+  const setHostnameForIp = (ip, hostname) => {
+    const map = getHostnameMap();
+    map[ip] = hostname;
+    saveHostnameMap(map);
+  };
+
+  const nextAvailableHostname = (usedSet, preferredNumber = 1) => {
+    const make = (n) => `SQDN-${String(n).padStart(2, '0')}`;
+    let n = Math.max(1, preferredNumber);
+    while (usedSet.has(make(n))) n++;
+    return make(n);
+  };
 
   // Global VIP for this cloud deployment
   const [vip, setVip] = useState(() => sessionStorage.getItem('sv_vip') || '');
@@ -715,7 +743,17 @@ const Deployment = ({ onGoToReport } = {}) => {
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
     }
     // Submit logic here (API call or sessionStorage)
-    const payloadBase = buildNetworkConfigPayload(form);
+    // Allocate a unique hostname for this node and persist it
+    const ip = form.ip;
+    const existingMap = getHostnameMap();
+    const used = new Set(Object.values(existingMap || {}));
+    const assigned = existingMap[ip] || nextAvailableHostname(used, nodeIdx + 1);
+    if (!existingMap[ip]) {
+      // Reserve it to avoid duplicates in subsequent applies
+      existingMap[ip] = assigned;
+      saveHostnameMap(existingMap);
+    }
+    const payloadBase = buildNetworkConfigPayload({ ...form, hostname: assigned });
     const payload = {
       ...payloadBase,
       license_code: form.licenseCode || null,
@@ -924,17 +962,27 @@ const Deployment = ({ onGoToReport } = {}) => {
     }
 
     // Transform configs for backend storage
-    // Assign sequential hostnames SQDN-01, SQDN-02, ... based on card order
+    // Use the same hostnames assigned during Network Apply; allocate unique for any missing
+    const savedHostnameMap = getHostnameMap();
+    const usedHostnames = new Set(Object.values(savedHostnameMap || {}));
     const hostnameMap = {};
     forms.forEach((f, idx) => {
-      const hn = `SQDN-${String(idx + 1).padStart(2, '0')}`;
-      if (f?.ip) hostnameMap[f.ip] = hn;
+      if (!f?.ip) return;
+      let hn = savedHostnameMap[f.ip];
+      if (!hn) {
+        hn = nextAvailableHostname(usedHostnames, idx + 1);
+        usedHostnames.add(hn);
+        savedHostnameMap[f.ip] = hn;
+      }
+      hostnameMap[f.ip] = hn;
     });
+    // Persist any newly allocated hostnames
+    saveHostnameMap(savedHostnameMap);
 
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {
       const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
-      transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip, selected_roles: form?.selectedRoles || [] };
+      transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip };
     });
 
     // Send to backend for storage as JSON
