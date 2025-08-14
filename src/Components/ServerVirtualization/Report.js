@@ -148,13 +148,39 @@ const Report = ({ onDeploymentComplete }) => {
             if (!storedUserId) {
               storedUserId = sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || '';
             }
-            const params = { status: 'progress', type: 'primary', cloudname: cloudName };
-            if (storedUserId) params.user_id = storedUserId;
-            const qs = new URLSearchParams(params).toString();
-            const res = await fetch(`https://${hostIP}:5000/api/pending-node-deployments?${qs}`);
-            const data = await res.json().catch(() => ({}));
-            if (res.ok && Array.isArray(data?.rows)) {
-              nodes = data.rows.map(r => ({ serverid: r.serverid, serverip: r.serverip }));
+            // Build a resilient fetch that tolerates cleared session values
+            const fetchCandidates = async (params) => {
+              const qs = new URLSearchParams(params).toString();
+              const res = await fetch(`https://${hostIP}:5000/api/pending-node-deployments?${qs}`);
+              const data = await res.json().catch(() => ({}));
+              return res.ok && Array.isArray(data?.rows) ? data.rows : [];
+            };
+
+            // Attempt 1: with cloudname (only if valid) + user_id
+            const validCloud = cloudName && cloudName !== 'Cloud';
+            let base = { status: 'progress', type: 'primary' };
+            if (validCloud) base.cloudname = cloudName;
+            if (storedUserId) base.user_id = storedUserId;
+            let rows = await fetchCandidates(base);
+
+            // Attempt 2: drop cloudname filter
+            if ((!rows || rows.length === 0) && validCloud) {
+              const { cloudname, ...rest } = base;
+              rows = await fetchCandidates(rest);
+            }
+
+            // Attempt 3: drop user filter as well
+            if (!rows || rows.length === 0) {
+              rows = await fetchCandidates({ status: 'progress', type: 'primary' });
+            }
+
+            // Attempt 4: sometimes status might already be 'completed' by the time we reach here
+            if (!rows || rows.length === 0) {
+              rows = await fetchCandidates({ status: 'completed', type: 'primary' });
+            }
+
+            if (Array.isArray(rows) && rows.length > 0) {
+              nodes = rows.map(r => ({ serverid: r.serverid, serverip: r.serverip }));
             }
           } catch (_) {}
         }
