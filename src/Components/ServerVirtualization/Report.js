@@ -2,6 +2,29 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Divider, Card, Row, Col, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
+// Memoized GIF component at module scope to avoid remounts across parent re-renders
+const GifImage = React.memo(
+  ({ src, label }) => (
+    <div
+      aria-label={label || 'Deployment Progress'}
+      style={{
+        width: 280,
+        height: 280,
+        backgroundImage: `url(${src})`,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'center',
+        backgroundSize: 'contain',
+        imageRendering: 'auto',
+        display: 'block',
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+        pointerEvents: 'none',
+      }}
+    />
+  ),
+  (prev, next) => prev.src === next.src
+);
+
 const getCloudNameFromMetadata = () => {
   let cloudNameMeta = document.querySelector('meta[name="cloud-name"]');
   const fromSession = sessionStorage.getItem('cloudName');
@@ -22,6 +45,11 @@ const Report = ({ onDeploymentComplete }) => {
   const planeGifRef = useRef(planeGif);
   // Blob URL for gif to avoid decode restarts/pauses
   const [gifUrl, setGifUrl] = useState(null);
+  // UI progress flag to keep GIF visible for a minimum duration even if backend finishes
+  const [uiInProgress, setUiInProgress] = useState(true);
+  const gifStartRef = useRef(Date.now());
+  const completeHoldTimeoutRef = useRef(null);
+  const GIF_MIN_DURATION_MS = 6000; // Hold UI so GIF can complete
 
   // Preload GIF as Blob and use its object URL for more stable playback
   useEffect(() => {
@@ -45,6 +73,37 @@ const Report = ({ onDeploymentComplete }) => {
       if (revokedUrl) URL.revokeObjectURL(revokedUrl);
     };
   }, []);
+
+  // Ensure the GIF plays for at least GIF_MIN_DURATION_MS before showing completion UI
+  useEffect(() => {
+    if (deploymentInProgress) {
+      // Reset start and cancel any pending completion hold
+      gifStartRef.current = Date.now();
+      if (completeHoldTimeoutRef.current) {
+        clearTimeout(completeHoldTimeoutRef.current);
+        completeHoldTimeoutRef.current = null;
+      }
+      setUiInProgress(true);
+    } else {
+      const elapsed = Date.now() - gifStartRef.current;
+      const waitMs = Math.max(0, GIF_MIN_DURATION_MS - elapsed);
+      if (completeHoldTimeoutRef.current) clearTimeout(completeHoldTimeoutRef.current);
+      completeHoldTimeoutRef.current = setTimeout(() => {
+        setUiInProgress(false);
+        completeHoldTimeoutRef.current = null;
+      }, waitMs);
+    }
+    return () => {};
+  }, [deploymentInProgress]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (completeHoldTimeoutRef.current) clearTimeout(completeHoldTimeoutRef.current);
+    };
+  }, []);
+
+  
 
   // Poll backend for node deployment progress
   useEffect(() => {
@@ -243,16 +302,9 @@ const Report = ({ onDeploymentComplete }) => {
         <Row gutter={24}>
           <Col span={24}>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 250 }}>
-              {deploymentInProgress ? (
+              {uiInProgress ? (
                 <>
-                  <img
-                    src={gifUrl || planeGifRef.current}
-                    alt="Deployment Progress"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
-                  />
+                  <GifImage src={gifUrl || planeGifRef.current} label="Deployment Progress" />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
               ) : (

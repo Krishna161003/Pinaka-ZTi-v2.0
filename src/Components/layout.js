@@ -149,15 +149,15 @@ const AppLayout = ({ children }) => {
         </Link>
       ),
     },
-    // {
-    //   key: "5",
-    //   icon: <FileDoneOutlined />,
-    //   label: (
-    //     <Link to="/hpc" style={{ textDecoration: "none" }}>
-    //       HPC
-    //     </Link>
-    //   ),
-    // },
+    {
+      key: "5",
+      icon: <FileDoneOutlined />,
+      label: (
+        <Link to="/servicestatus" style={{ textDecoration: "none" }}>
+          Service Status
+        </Link>
+      ),
+    },
     // {
     //   key: "6",
     //   icon: <InteractionOutlined />,
