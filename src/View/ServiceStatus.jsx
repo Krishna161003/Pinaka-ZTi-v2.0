@@ -2,8 +2,10 @@ import React from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, Tabs, Table, Badge, Button, Input } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
+import axios from 'axios';
 
 const { Content } = Layout;
+const hostIP = window.location.hostname;
 
 const ServiceStatus = () => {
   const {
@@ -30,27 +32,77 @@ const ServiceStatus = () => {
     { title: 'Last Updated', dataIndex: 'lastUpdated', key: 'lastUpdated' },
   ];
 
-  // Sample data (placeholder). Replace with backend data when available.
-  const computeData = [
-    { key: '1', name: 'nova-scheduler', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
-    { key: '2', name: 'nova-conductor', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
-    { key: '3', name: 'nova-compute', host: 'FD-001', az: 'nova', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago', action: 'Disable' },
-  ];
-  const neutronData = [
-    { key: '1', name: 'neutron-server', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
-  ];
-  const blockData = [
-    { key: '1', name: 'cinder-scheduler', host: 'FD-001', az: 'internal', serviceStatus: 'Enabled', serviceState: 'Up', lastUpdated: 'a few seconds ago' },
-  ];
+  // Data from backend
+  const [computeData, setComputeData] = React.useState([]);
+  const [neutronData, setNeutronData] = React.useState([]);
+  const [blockData, setBlockData] = React.useState([]);
+
+  // Normalizers
+  const toTitle = (v) => (typeof v === 'string' ? v : (v == null ? '' : String(v)));
+  const normStatus = (v) => {
+    const s = toTitle(v).toLowerCase();
+    if (!s) return '';
+    return s === 'enabled' ? 'Enabled' : s === 'disabled' ? 'Disabled' : toTitle(v);
+  };
+  const normState = (v) => {
+    const s = toTitle(v).toLowerCase();
+    if (!s) return '';
+    return s === 'up' ? 'Up' : s === 'down' ? 'Down' : toTitle(v);
+  };
+
+  const mapCompute = (rows) => (rows || []).map((r, idx) => ({
+    key: r.ID || r.Id || String(idx),
+    name: r['Binary'] || r['binary'] || r['Name'] || r['name'] || '',
+    host: r['Host'] || r['host'] || '',
+    az: r['Zone'] || r['Availability Zone'] || r['zone'] || r['availability_zone'] || '',
+    serviceStatus: normStatus(r['Status'] || r['status']),
+    serviceState: normState(r['State'] || r['state']),
+    lastUpdated: r['Updated At'] || r['updated_at'] || r['updated'] || '',
+  }));
+
+  const mapNeutron = (rows) => (rows || []).map((r, idx) => ({
+    key: r['ID'] || r['Id'] || String(idx),
+    name: r['Binary'] || r['binary'] || r['Agent Type'] || r['agent_type'] || '',
+    host: r['Host'] || r['host'] || '',
+    az: r['Availability Zone'] || r['availability_zone'] || r['Zone'] || 'N/A',
+    serviceStatus: normStatus(r['Status'] || (r['Alive'] === true ? 'Enabled' : r['Alive'] === false ? 'Disabled' : '')),
+    serviceState: normState(r['State'] || (r['Alive'] === true ? 'Up' : r['Alive'] === false ? 'Down' : '')),
+    lastUpdated: r['Updated At'] || r['updated_at'] || '',
+  }));
+
+  const mapBlock = (rows) => mapCompute(rows);
+
+  const fetchOpenstackData = async () => {
+    try {
+      setTableLoading(true);
+      const res = await axios.get(`https://${hostIP}:2020/api/openstack_data`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = res.data || {};
+      setComputeData(mapCompute(data.compute_services));
+      setNeutronData(mapNeutron(data.network_agents));
+      setBlockData(mapBlock(data.volume_services));
+    } catch (e) {
+      // Keep tables empty on error
+      setComputeData([]);
+      setNeutronData([]);
+      setBlockData([]);
+    } finally {
+      setTableLoading(false);
+    }
+  };
 
   // Refresh handling (UI-only)
   const [tableLoading, setTableLoading] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
   const handleRefresh = () => {
-    setTableLoading(true);
-    // Simulate fetch latency
-    setTimeout(() => setTableLoading(false), 600);
+    fetchOpenstackData();
   };
+
+  React.useEffect(() => {
+    fetchOpenstackData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Layout1>
