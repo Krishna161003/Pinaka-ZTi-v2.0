@@ -14,7 +14,7 @@ import {
   TruckOutlined,
   CloudServerOutlined,
   // SettingOutlined,
-  // FileDoneOutlined,
+  FileDoneOutlined,
   // DatabaseOutlined,
   // WifiOutlined,
   // FileSearchOutlined,
