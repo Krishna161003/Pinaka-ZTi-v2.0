@@ -45,6 +45,7 @@ const ServiceStatus = () => {
 
   // Refresh handling (UI-only)
   const [tableLoading, setTableLoading] = React.useState(false);
+  const [searchText, setSearchText] = React.useState('');
   const handleRefresh = () => {
     setTableLoading(true);
     // Simulate fetch latency
@@ -93,7 +94,9 @@ const ServiceStatus = () => {
                       allowClear
                       placeholder="Search..."
                       style={{ width: 280 }}
-                      onSearch={() => { /* TODO: hook into filtering */ }}
+                      value={searchText}
+                      onSearch={(val) => setSearchText(val)}
+                      onChange={(e) => setSearchText(e.target.value)}
                     />
                   </div>
                 )
@@ -106,7 +109,12 @@ const ServiceStatus = () => {
                     <Table
                       rowKey="key"
                       columns={columns}
-                      dataSource={computeData}
+                      dataSource={computeData.filter(row => {
+                        if (!searchText) return true;
+                        const q = searchText.toLowerCase();
+                        return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
+                          .some(v => (v || '').toLowerCase().includes(q));
+                      })}
                       loading={tableLoading}
                       pagination={{ pageSize: 10 }}
                     />
@@ -119,7 +127,12 @@ const ServiceStatus = () => {
                     <Table
                       rowKey="key"
                       columns={columns}
-                      dataSource={neutronData}
+                      dataSource={neutronData.filter(row => {
+                        if (!searchText) return true;
+                        const q = searchText.toLowerCase();
+                        return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
+                          .some(v => (v || '').toLowerCase().includes(q));
+                      })}
                       loading={tableLoading}
                       pagination={{ pageSize: 10 }}
                     />
@@ -132,7 +145,12 @@ const ServiceStatus = () => {
                     <Table
                       rowKey="key"
                       columns={columns}
-                      dataSource={blockData}
+                      dataSource={blockData.filter(row => {
+                        if (!searchText) return true;
+                        const q = searchText.toLowerCase();
+                        return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
+                          .some(v => (v || '').toLowerCase().includes(q));
+                      })}
                       loading={tableLoading}
                       pagination={{ pageSize: 10 }}
                     />
