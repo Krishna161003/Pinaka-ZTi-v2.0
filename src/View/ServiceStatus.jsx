@@ -5,7 +5,8 @@ import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Content } = Layout;
-const hostIP = window.location.hostname;
+// const hostIP = window.location.hostname;
+const hostIP = "192.168.20.4"
 
 const ServiceStatus = () => {
   const {
