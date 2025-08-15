@@ -276,7 +276,7 @@ const Report = ({ onDeploymentComplete }) => {
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px' }}>
               {deploymentInProgress ? (
                 <>
-                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: '16px' }}>
                     <img
                       src={planeGif}
                       alt="Deployment Progress"
@@ -290,7 +290,7 @@ const Report = ({ onDeploymentComplete }) => {
                 </>
               ) : (
                 <>
-                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: '16px' }}>
                     <img
                       src={completedImage}
                       alt="Deployment Completed"
