@@ -76,7 +76,7 @@ const Dashboard = () => {
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
-  const [selectedHostIP, setSelectedHostIP] = useState(window.location.hostname);
+  const [selectedHostIP, setSelectedHostIP] = useState(() => sessionStorage.getItem('dashboard_selectedHostIP') || window.location.hostname);
   
   // Server details state
   const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', role: '' });
@@ -179,7 +179,6 @@ const Dashboard = () => {
         setMemoryHistory([]);
         if (lastErrorIpRef.current !== selectedHostIP) {
           message.error(`Failed to fetch system utilization history from ${selectedHostIP}`);
-          lastErrorIpRef.current = selectedHostIP;
         }
       }
     }
@@ -188,6 +187,62 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
+  // Keep filtered containers in sync with search text and containers; persist page
+  useEffect(() => {
+    const value = (dockerSearchText || '').toLowerCase();
+    const filtered = dockerContainers.filter(container =>
+      (container.dockerId || "").toLowerCase().includes(value) ||
+      (container.containerName || "").toLowerCase().includes(value) ||
+      (container.status || "").toLowerCase().includes(value)
+    );
+    setFilteredContainers(filtered);
+    setDockerCurrentPage(1);
+    sessionStorage.setItem('docker_current_page', '1');
+  }, [dockerSearchText, dockerContainers]);
+
+  useEffect(() => {
+    const storedSelectedHostIP = sessionStorage.getItem('dashboard_selectedHostIP');
+    if (storedSelectedHostIP) {
+      setSelectedHostIP(storedSelectedHostIP);
+    }
+  }, []);
+
+  useEffect(() => {
+    const storedSelectedInterface = sessionStorage.getItem('dashboard_selectedInterface');
+    if (storedSelectedInterface) {
+      setSelectedInterface(storedSelectedInterface);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_selectedHostIP', selectedHostIP);
+  }, [selectedHostIP]);
+
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_selectedInterface', selectedInterface);
+  }, [selectedInterface]);
+
+  useEffect(() => {
+    const storedDockerCurrentPage = sessionStorage.getItem('docker_current_page');
+    if (storedDockerCurrentPage) {
+      setDockerCurrentPage(parseInt(storedDockerCurrentPage));
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('docker_current_page', dockerCurrentPage.toString());
+  }, [dockerCurrentPage]);
+
+  useEffect(() => {
+    const storedDockerSearchText = sessionStorage.getItem('docker_search_text');
+    if (storedDockerSearchText) {
+      setDockerSearchText(storedDockerSearchText);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('docker_search_text', dockerSearchText);
+  }, [dockerSearchText]);
 
   const memoryconfig = {
     data: memoryHistory,
@@ -297,7 +352,11 @@ const Dashboard = () => {
       .then(data => {
         setInterfaces(data);
         if (data && data.length > 0) {
-          setSelectedInterface(data[0].value);
+          const saved = sessionStorage.getItem('dashboard_selectedInterface');
+          const valid = saved && data.some(d => d.value === saved);
+          const next = valid ? saved : data[0].value;
+          setSelectedInterface(next);
+          sessionStorage.setItem('dashboard_selectedInterface', next);
         }
       })
       .catch(() => {
@@ -436,11 +495,17 @@ const Dashboard = () => {
     const saved = Number(sessionStorage.getItem('docker_page_size'));
     return Number.isFinite(saved) && saved > 0 ? saved : 5;
   });
-  const [dockerCurrentPage, setDockerCurrentPage] = useState(1);
+  const [dockerCurrentPage, setDockerCurrentPage] = useState(() => {
+    const saved = Number(sessionStorage.getItem('docker_current_page'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 1;
+  });
   const [dockerUp, setDockerUp] = useState(0);
   const [dockerDown, setDockerDown] = useState(0);
   const [dockerTotal, setDockerTotal] = useState(0);
   const [dockerError, setDockerError] = useState("");
+  // Persisted docker search text
+  const [dockerSearchText, setDockerSearchText] = useState(() => sessionStorage.getItem('docker_search_text') || '');
+
 
   useEffect(() => {
     async function fetchDockerInfo() {
@@ -955,7 +1020,9 @@ const Dashboard = () => {
               <Input.Search
                 placeholder="Search containers..."
                 style={{ marginBottom: 16, width: 300 }}
+                value={dockerSearchText}
                 onChange={(e) => {
+                  setDockerSearchText(e.target.value);
                   const value = e.target.value.toLowerCase();
                   const filtered = dockerContainers.filter(container =>
                     (container.dockerId || "").toLowerCase().includes(value) ||
