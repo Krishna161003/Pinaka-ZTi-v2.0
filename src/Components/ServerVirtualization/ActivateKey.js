@@ -67,7 +67,9 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
       if (result.success) {
         const details = {
           type: result.key_type || 'N/A',
-          period: result.license_period ? `${result.license_period}` : 'N/A',
+          period: (String(row.license || '').trim().toLowerCase() === 'perpetual')
+            ? null
+            : (result.license_period ? `${result.license_period}` : 'N/A'),
           mac_address: result.mac_address,
           socket_count: result.socket_count,
           licenseCode: row.license || '-',

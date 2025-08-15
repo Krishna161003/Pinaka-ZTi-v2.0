@@ -50,7 +50,9 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
                                 result: 'Success',
                                 details: {
                                     type: result.key_type || 'N/A',
-                                    period: result.license_period ? `${result.license_period}` : 'N/A',
+                                    period: (String(row.license || '').trim().toLowerCase() === 'perpetual')
+                                        ? null
+                                        : (result.license_period ? `${result.license_period}` : 'N/A'),
                                     mac_address: result.mac_address,
                                     socket_count: result.socket_count,
                                     licenseCode: row.license || '-' // Store the license code
