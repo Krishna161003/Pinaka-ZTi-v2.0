@@ -300,7 +300,7 @@ const Report = ({ onDeploymentComplete }) => {
                       loading="eager"
                       decoding="async"
                       draggable={false}
-                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
                     />
                   </div>
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
@@ -313,7 +313,7 @@ const Report = ({ onDeploymentComplete }) => {
                       alt="Deployment Completed"
                       loading="eager"
                       decoding="sync"
-                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block' }}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
                     />
                   </div>
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
