@@ -268,7 +268,7 @@ const Report = ({ onDeploymentComplete }) => {
       <Card title={`Server Virtualization Deployment Progress for ${cloudName} (${sessionStorage.getItem('server_ip') || 'N/A'})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '580px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px' }}>
               {deploymentInProgress ? (
                 <>
                   <img
