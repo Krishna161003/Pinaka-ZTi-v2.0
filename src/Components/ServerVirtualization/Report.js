@@ -277,7 +277,7 @@ const Report = ({ onDeploymentComplete }) => {
                     loading="eager"
                     decoding="async"
                     draggable={false}
-                    style={{ width: 380, height: 180, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+                    style={{ width: 580, height: 180, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
                   />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
