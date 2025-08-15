@@ -77,6 +77,39 @@ const Dashboard = () => {
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
   const [selectedHostIP, setSelectedHostIP] = useState(window.location.hostname);
+  
+  // Server details state
+  const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', role: '' });
+
+  // Fetch server details by IP
+  const fetchServerDetailsByIP = async (ip) => {
+    try {
+      const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
+      const res = await fetch(`https://${hostIP}:5000/api/server-details-by-ip?ip=${encodeURIComponent(ip)}${userId ? `&userId=${encodeURIComponent(userId)}` : ''}`);
+      const data = await res.json();
+      if (data && data.serverid) {
+        setServerDetails({
+          serverid: data.serverid || '',
+          serverip: data.serverip || ip,
+          role: data.role || ''
+        });
+      } else {
+        // If no server found, show Flight Deck details
+        setServerDetails({
+          serverid: 'FD-MAIN',
+          serverip: ip,
+          role: 'Flight Deck'
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching server details:', e);
+      setServerDetails({
+        serverid: 'FD-MAIN',
+        serverip: ip,
+        role: 'Flight Deck'
+      });
+    }
+  };
 
   // Fetch unique server IPs from deployed_server table (backend aggregates)
   useEffect(() => {
@@ -100,6 +133,13 @@ const Dashboard = () => {
     }
     fetchServerIps();
   }, []);
+
+  // Fetch server details when selectedHostIP changes
+  useEffect(() => {
+    if (selectedHostIP) {
+      fetchServerDetailsByIP(selectedHostIP);
+    }
+  }, [selectedHostIP]);
 
   // Fetch CPU and Memory time series for Area charts
   const [memoryHistory, setMemoryHistory] = useState([]);
@@ -610,22 +650,36 @@ const Dashboard = () => {
                 marginRight: "17px",
               }}
             >
-            {/* Host IP Dropdown */}
-            <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', margin: '19px 0 15px 18px', marginTop: "10px" }}>
-              {/* <span style={{ marginRight: 8, fontWeight: 500, userSelect: "none" }}>Host:</span> */}
-              <Select
-                style={{ width: 220 }}
-                value={selectedHostIP}
-                onChange={setSelectedHostIP}
-                options={[
-                  { label: 'Flight Deck', value: window.location.hostname },
-                  ...((hostIpOptions || []).map(ip => ({ label: ip, value: ip })))
-                ]}
-                showSearch
-                optionFilterProp="children"
-                filterOption={(input, option) => (option?.label || '').toLowerCase().includes((input || '').toLowerCase())}
-              />
-            </div>
+              {/* Host IP Dropdown and Server Details */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '19px 0 15px 18px', marginTop: "10px" }}>
+                {/* Left side - Dropdown */}
+                <div>
+                  <Select
+                    style={{ width: 220 }}
+                    value={selectedHostIP}
+                    onChange={setSelectedHostIP}
+                    options={[
+                      { label: 'Flight Deck', value: window.location.hostname },
+                      ...((hostIpOptions || []).map(ip => ({ label: ip, value: ip })))
+                    ]}
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) => (option?.label || '').toLowerCase().includes((input || '').toLowerCase())}
+                  />
+                </div>
+                
+                {/* Right side - Server Details */}
+                <div style={{ display: 'flex', gap: '30px', alignItems: 'center', marginRight: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Server ID:</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#1890ff' }}>{serverDetails.serverid || 'Loading...'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Role:</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>{serverDetails.role || 'Loading...'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             {/* Performance Section Header */}
             <div

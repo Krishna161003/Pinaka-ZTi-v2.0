@@ -76,7 +76,7 @@ const DataTable = ({ next }) => {
         }}
       >
         <h4 style={{ marginBottom: '-16px', marginTop: '3px' }}>
-          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+          Cloud Name: <span style={{ color: '#1890ff' }}>{cloudName}</span>
         </h4>
         <Button
           size="middle"

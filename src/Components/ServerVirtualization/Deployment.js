@@ -1406,7 +1406,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       {/* Cloud Name header with Deploy button on the right */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h4 style={{ marginBottom: 0 }}>
-          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+          Cloud Name: <span style={{ color: '#1890ff' }}>{cloudName}</span>
         </h4>
         <Button
           type="primary"

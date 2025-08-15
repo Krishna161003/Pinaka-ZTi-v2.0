@@ -202,7 +202,7 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
     <div style={{ padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h4 style={{ marginBottom: '-16px', marginTop: '3px' }}>
-          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+          Cloud Name: <span style={{ color: '#1890ff' }}>{cloudName}</span>
         </h4>
         <Button
           size="middle"

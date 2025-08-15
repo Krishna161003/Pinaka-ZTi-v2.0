@@ -1056,6 +1056,39 @@ app.get('/api/deployed-servers', (req, res) => {
   });
 });
 
+// API: Get server details by IP from deployed_server table
+app.get('/api/server-details-by-ip', (req, res) => {
+  const { ip, userId } = req.query;
+  
+  if (!ip) {
+    return res.status(400).json({ error: 'IP parameter is required' });
+  }
+
+  let sql = "SELECT serverid, serverip, role FROM deployed_server WHERE serverip = ?";
+  const params = [ip];
+  
+  if (userId) {
+    sql += ' AND user_id = ?';
+    params.push(userId);
+  }
+  
+  sql += ' ORDER BY datetime DESC LIMIT 1';
+  
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error('Error fetching server details by IP:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    if (results && results.length > 0) {
+      res.json(results[0]);
+    } else {
+      // Return null if no server found for this IP
+      res.json({ serverid: null, serverip: ip, role: null });
+    }
+  });
+});
+
 // API: Get first cloudname from deployed_server globally (earliest row)
 app.get('/api/first-cloudname', (req, res) => {
   const sql = `
