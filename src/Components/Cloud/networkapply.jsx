@@ -1007,7 +1007,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       content: `Are you sure you want to remove node ${ip}? You can undo this action.`,
       okText: 'Remove',
       okType: 'danger',
+      okButtonProps: { danger: true, size: 'small', style: { width: 90 } },
       cancelText: 'Cancel',
+      cancelButtonProps: { size: 'small', style: { width: 90 } },
       onOk: () => {
         // Backup data for Undo
         const licenseNode = (licenseNodes || []).find(n => n.ip === ip) || { ip };

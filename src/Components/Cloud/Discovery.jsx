@@ -127,6 +127,7 @@ const Cloud = ({ onNext, results, setResults }) => {
       Modal.error({
         title: 'Selected IP(s) already used in deployed servers',
         width: 700,
+        okButtonProps: { style: { width: 80 }, size: 'small' },
         content: (
           <div>
             <p>The following selected IPs are already present in existing deployments. Please deselect or choose different nodes:</p>

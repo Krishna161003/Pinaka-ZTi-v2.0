@@ -386,7 +386,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       title: `Remove ${ip}?`,
       content: 'This will remove the node from Deployment and previous steps. You can undo within 5 seconds.',
       okText: 'Remove',
-      okButtonProps: { danger: true },
+      okButtonProps: { danger: true, size: 'small', style: { width: 90 } },
+      cancelText: 'Cancel',
+      cancelButtonProps: { size: 'small', style: { width: 90 } },
       onOk: () => {
         const snapshot = {
           idx,

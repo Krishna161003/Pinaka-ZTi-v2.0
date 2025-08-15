@@ -109,8 +109,31 @@ const App = () => {
     }
   }, []);
 
-  const [selectedNodes, setSelectedNodes] = useState([]);
-  const [validatedNodes, setValidatedNodes] = useState([]);
+  const [selectedNodes, setSelectedNodes] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("selectedNodes");
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) { return []; }
+  });
+  const [validatedNodes, setValidatedNodes] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("validatedNodes");
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) { return []; }
+  });
+  // Persisted per-tab table rows
+  const [validationResults, setValidationResults] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('sv_validationTable');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) { return []; }
+  });
+  const [activateKeyResults, setActivateKeyResults] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('sv_activateKeyTable');
+      return saved ? JSON.parse(saved) : [];
+    } catch (_) { return []; }
+  });
   const [ibn, setIbn] = useState("");
 
   // --- RESET LOGIC: Only if flag is set and user is returning from another menu ---
@@ -146,9 +169,15 @@ const App = () => {
     if (parsedDisabledTabs) setDisabledTabs(parsedDisabledTabs);
 
     const savedNodes = sessionStorage.getItem("selectedNodes");
+    const savedValidated = sessionStorage.getItem("validatedNodes");
+    const savedValidationTable = sessionStorage.getItem('sv_validationTable');
+    const savedActivateTable = sessionStorage.getItem('sv_activateKeyTable');
     const savedIbn = sessionStorage.getItem("ibn");
 
     if (savedNodes) setSelectedNodes(JSON.parse(savedNodes));
+    if (savedValidated) setValidatedNodes(JSON.parse(savedValidated));
+    if (savedValidationTable) setValidationResults(JSON.parse(savedValidationTable));
+    if (savedActivateTable) setActivateKeyResults(JSON.parse(savedActivateTable));
     if (savedIbn) setIbn(savedIbn);
     // DO NOT setActiveTab here!
   }, [location.search, activeTab]);
@@ -156,6 +185,36 @@ const App = () => {
   useEffect(() => {
     sessionStorage.setItem("disabledTabs", JSON.stringify(disabledTabs));
   }, [disabledTabs]);
+
+  // Persist tables to sessionStorage when they change
+  useEffect(() => {
+    try { sessionStorage.setItem('sv_validationTable', JSON.stringify(validationResults)); } catch(_) {}
+  }, [validationResults]);
+  useEffect(() => {
+    try { sessionStorage.setItem('sv_activateKeyTable', JSON.stringify(activateKeyResults)); } catch(_) {}
+  }, [activateKeyResults]);
+
+  // Keep Validation table aligned with selectedNodes (append new nodes, drop removed)
+  useEffect(() => {
+    setValidationResults(prev => {
+      const byIp = new Map((Array.isArray(prev) ? prev : []).map(r => [r.ip, r]));
+      const ordered = (Array.isArray(selectedNodes) ? selectedNodes : []).map(n =>
+        byIp.get(n.ip) || { ...n, key: n.ip, result: null, details: '', validating: false }
+      );
+      return ordered;
+    });
+  }, [selectedNodes]);
+
+  // Keep Activate Key table aligned with validatedNodes
+  useEffect(() => {
+    setActivateKeyResults(prev => {
+      const byIp = new Map((Array.isArray(prev) ? prev : []).map(r => [r.ip, r]));
+      const ordered = (Array.isArray(validatedNodes) ? validatedNodes : []).map(n =>
+        byIp.get(n.ip) || { ...n, key: n.ip, license: '', result: null, details: null, checking: false }
+      );
+      return ordered;
+    });
+  }, [validatedNodes]);
 
   const handleTabChange = (key) => {
     // Prevent navigating away from Deployment Options if an environment is already deployed.
@@ -193,6 +252,8 @@ const App = () => {
         'sv_networkApplyResult',
         'sv_networkApplyRestartEndTimes',
         'sv_networkApplyBootEndTimes',
+        'sv_validationTable',
+        'sv_activateKeyTable',
       ];
       keysToClear.forEach(k => sessionStorage.removeItem(k));
     } catch (_) {}
@@ -225,7 +286,7 @@ const App = () => {
     <Zti>
       <h2 style={{ userSelect: "none" }}>Server Virtualization</h2>
       <Tabs
-        destroyInactiveTabPane={true}
+        destroyInactiveTabPane={false}
         activeKey={activeTab}
         onChange={handleTabChange}
       >
@@ -257,6 +318,8 @@ const App = () => {
         <Tabs.TabPane tab="Validation" key="3" disabled={disabledTabs["3"]}>
           <Validation
             nodes={selectedNodes}
+            results={validationResults}
+            setResults={setValidationResults}
             next={(passed /* array of nodes that passed */, allRows) => {
               const passedNodes = passed || [];
               if (passedNodes.length === 0) {
@@ -293,6 +356,8 @@ const App = () => {
         <Tabs.TabPane tab="Activate Key" key="4" disabled={disabledTabs["4"]}>
           <ActivateKey
             nodes={validatedNodes}
+            results={activateKeyResults}
+            setResults={setActivateKeyResults}
             next={(successfulNodes = []) => {
               if (!Array.isArray(successfulNodes) || successfulNodes.length === 0) {
                 message.warning('Please activate license for at least one node to proceed.');
@@ -352,6 +417,9 @@ const App = () => {
                 try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch(_) {}
                 return next;
               });
+              // Remove from persisted tables
+              setValidationResults(prev => (Array.isArray(prev) ? prev.filter(r => r.ip !== ip) : prev));
+              setActivateKeyResults(prev => (Array.isArray(prev) ? prev.filter(r => r.ip !== ip) : prev));
             }}
             onUndoRemoveNode={(ip, record, index) => {
               // Restore into validatedNodes at original index
@@ -372,6 +440,24 @@ const App = () => {
                   const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
                   arr.splice(idx, 0, { ip, ...(record || {}) });
                   try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+              // Restore into ActivateKey table if missing
+              setActivateKeyResults(prev => {
+                const arr = Array.isArray(prev) ? [...prev] : [];
+                if (!arr.some(r => r.ip === ip)) {
+                  const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                  arr.splice(idx, 0, record || { ip, key: ip, license: '', result: null, details: null, checking: false });
+                }
+                return arr;
+              });
+              // Ensure Validation table has an entry as well
+              setValidationResults(prev => {
+                const arr = Array.isArray(prev) ? [...prev] : [];
+                if (!arr.some(r => r.ip === ip)) {
+                  const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                  arr.splice(idx, 0, { ip, key: ip, result: null, details: '', validating: false });
                 }
                 return arr;
               });
@@ -400,6 +486,9 @@ const App = () => {
                 try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch(_) {}
                 return next;
               });
+              // Remove from persisted tables
+              setValidationResults(prev => (Array.isArray(prev) ? prev.filter(r => r.ip !== ip) : prev));
+              setActivateKeyResults(prev => (Array.isArray(prev) ? prev.filter(r => r.ip !== ip) : prev));
             }}
             onUndoRemoveNode={(ip, record, index) => {
               // Restore into validatedNodes at original index
@@ -420,6 +509,23 @@ const App = () => {
                   const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
                   arr.splice(idx, 0, { ip, ...(record || {}) });
                   try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+              // Restore into tables
+              setActivateKeyResults(prev => {
+                const arr = Array.isArray(prev) ? [...prev] : [];
+                if (!arr.some(r => r.ip === ip)) {
+                  const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                  arr.splice(idx, 0, record || { ip, key: ip, license: '', result: null, details: null, checking: false });
+                }
+                return arr;
+              });
+              setValidationResults(prev => {
+                const arr = Array.isArray(prev) ? [...prev] : [];
+                if (!arr.some(r => r.ip === ip)) {
+                  const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                  arr.splice(idx, 0, { ip, key: ip, result: null, details: '', validating: false });
                 }
                 return arr;
               });

@@ -88,7 +88,9 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
             title: `Remove ${ip}?`,
             content: 'This will remove the node and its license details from this step. You can undo within 5 seconds.',
             okText: 'Remove',
-            okButtonProps: { danger: true },
+            okButtonProps: { danger: true, size: 'small', style: { width: 90 } },
+            cancelText: 'Cancel',
+            cancelButtonProps: { size: 'small', style: { width: 90 } },
             onOk: () => {
                 let removedIndex = -1;
                 let removedRecord = null;
