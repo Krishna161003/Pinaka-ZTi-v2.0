@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Tag, message, Empty } from 'antd';
+import { Table, Button, Modal, Tag, message, Empty, notification } from 'antd';
 import axios from 'axios';
 
 const hostIP = window.location.hostname;
@@ -87,6 +87,50 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults }) => {
         }
     };
 
+    // Remove a node with confirmation and Undo support
+    const handleRemove = (ip) => {
+        Modal.confirm({
+            title: `Remove ${ip}?`,
+            content: 'This will remove the node from the list. You can undo within 5 seconds.',
+            okText: 'Remove',
+            okButtonProps: { danger: true },
+            onOk: () => {
+                let removedIndex = -1;
+                let removedRecord = null;
+                setData(prev => {
+                    removedIndex = prev.findIndex(r => r.ip === ip);
+                    removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+                    const newData = prev.filter(row => row.ip !== ip);
+                    setResults && setResults(newData);
+                    return newData;
+                });
+                const key = `remove-${ip}`;
+                notification.open({
+                    key,
+                    message: `Removed ${ip}`,
+                    description: 'The node was removed.',
+                    duration: 5,
+                    btn: (
+                        <Button type="link" onClick={() => {
+                            notification.destroy(key);
+                            if (removedRecord && removedIndex > -1) {
+                                setData(cur => {
+                                    const arr = [...cur];
+                                    const idx = Math.min(Math.max(removedIndex, 0), arr.length);
+                                    arr.splice(idx, 0, removedRecord);
+                                    setResults && setResults(arr);
+                                    return arr;
+                                });
+                            }
+                        }}>
+                            Undo
+                        </Button>
+                    ),
+                });
+            }
+        });
+    };
+
     const columns = [
         {
             title: 'IP Address',
@@ -143,6 +187,19 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults }) => {
                     style={{ width: "95px" }}
                 >
                     Info
+                </Button>
+            ),
+        },
+        {
+            title: 'Remove',
+            key: 'remove',
+            render: (_, record) => (
+                <Button
+                    danger
+                    onClick={() => handleRemove(record.ip)}
+                    style={{ width: "95px" }}
+                >
+                    Remove
                 </Button>
             ),
         },

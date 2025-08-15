@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Divider, Table, Button, Input, Tag, message } from 'antd';
+import { Divider, Table, Button, Input, Tag, message, Modal, notification } from 'antd';
 import axios from 'axios';
 
 const getCloudName = () => {
@@ -12,7 +12,7 @@ const getCloudName = () => {
 // Session key name differentiated for ServerVirtualization flow
 const SV_LICENSE_SESSION_KEY = 'sv_licenseStatus';
 
-const ActivateKey = ({ nodes = [], results, setResults, onNext, next }) => {
+const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNode, onUndoRemoveNode }) => {
   const cloudName = getCloudName();
   const [data, setData] = useState(results || []);
 
@@ -100,6 +100,134 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next }) => {
     }
   };
 
+  // Remove node with confirmation and session cleanup + Undo
+  const handleRemove = (ip) => {
+    Modal.confirm({
+      title: `Remove ${ip}?`,
+      content: 'This will remove the node and its license details from this step. You can undo within 5 seconds.',
+      okText: 'Remove',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        let removedIndex = -1;
+        let removedRecord = null;
+        const snapshot = {
+          statusEntry: null,
+          activationResultsIndex: -1,
+          activationResultsEntry: null,
+          licenseNodesIndex: -1,
+          licenseNodesEntry: null,
+        };
+
+        // Clean session entries (sv_licenseStatus map, sv_licenseActivationResults array, sv_licenseNodes array)
+        try {
+          const mapRaw = sessionStorage.getItem(SV_LICENSE_SESSION_KEY);
+          const map = mapRaw ? JSON.parse(mapRaw) : null;
+          if (map && Object.prototype.hasOwnProperty.call(map, ip)) {
+            snapshot.statusEntry = map[ip];
+            delete map[ip];
+            sessionStorage.setItem(SV_LICENSE_SESSION_KEY, JSON.stringify(map));
+          }
+        } catch (_) {}
+        try {
+          const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
+          const arr = arrRaw ? JSON.parse(arrRaw) : null;
+          if (Array.isArray(arr)) {
+            const idx = arr.findIndex(e => e && e.ip === ip);
+            if (idx > -1) {
+              snapshot.activationResultsIndex = idx;
+              snapshot.activationResultsEntry = arr[idx];
+              const next = arr.filter(e => e && e.ip !== ip);
+              sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(next));
+            }
+          }
+        } catch (_) {}
+        try {
+          const nodesRaw = sessionStorage.getItem('sv_licenseNodes');
+          const nodes = nodesRaw ? JSON.parse(nodesRaw) : null;
+          if (Array.isArray(nodes)) {
+            const idx = nodes.findIndex(e => e && e.ip === ip);
+            if (idx > -1) {
+              snapshot.licenseNodesIndex = idx;
+              snapshot.licenseNodesEntry = nodes[idx];
+              const next = nodes.filter(e => e && e.ip !== ip);
+              sessionStorage.setItem('sv_licenseNodes', JSON.stringify(next));
+            }
+          }
+        } catch (_) {}
+
+        setData(prev => {
+          removedIndex = prev.findIndex(r => r.ip === ip);
+          removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+          const newData = prev.filter(row => row.ip !== ip);
+          setResults && setResults(newData);
+          return newData;
+        });
+
+        // Inform parent to remove from Validation/selected nodes as well
+        try {
+          if (onRemoveNode) onRemoveNode(ip, removedRecord, removedIndex);
+        } catch (_) {}
+
+        const key = `sv-remove-${ip}`;
+        notification.open({
+          key,
+          message: `Removed ${ip}`,
+          description: 'The node and its license info were removed.',
+          duration: 5,
+          btn: (
+            <Button type="link" onClick={() => {
+              notification.destroy(key);
+              // Restore session entries
+              try {
+                if (snapshot.statusEntry) {
+                  const mapRaw = sessionStorage.getItem(SV_LICENSE_SESSION_KEY);
+                  const map = mapRaw ? JSON.parse(mapRaw) : {};
+                  map[ip] = snapshot.statusEntry;
+                  sessionStorage.setItem(SV_LICENSE_SESSION_KEY, JSON.stringify(map));
+                }
+              } catch (_) {}
+              try {
+                if (snapshot.activationResultsEntry && snapshot.activationResultsIndex > -1) {
+                  const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
+                  const arr = arrRaw ? JSON.parse(arrRaw) : [];
+                  const idx = Math.min(Math.max(snapshot.activationResultsIndex, 0), arr.length);
+                  arr.splice(idx, 0, snapshot.activationResultsEntry);
+                  sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
+                }
+              } catch (_) {}
+              try {
+                if (snapshot.licenseNodesEntry && snapshot.licenseNodesIndex > -1) {
+                  const nodesRaw = sessionStorage.getItem('sv_licenseNodes');
+                  const nodes = nodesRaw ? JSON.parse(nodesRaw) : [];
+                  const idx = Math.min(Math.max(snapshot.licenseNodesIndex, 0), nodes.length);
+                  nodes.splice(idx, 0, snapshot.licenseNodesEntry);
+                  sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodes));
+                }
+              } catch (_) {}
+              // Restore UI row
+              if (removedRecord && removedIndex > -1) {
+                setData(cur => {
+                  const arr = [...cur];
+                  const idx = Math.min(Math.max(removedIndex, 0), arr.length);
+                  arr.splice(idx, 0, removedRecord);
+                  setResults && setResults(arr);
+                  return arr;
+                });
+              }
+
+              // Inform parent to restore into Validation/selected nodes
+              try {
+                if (onUndoRemoveNode) onUndoRemoveNode(ip, removedRecord, removedIndex);
+              } catch (_) {}
+            }}>
+              Undo
+            </Button>
+          )
+        });
+      }
+    });
+  };
+
   const columns = [
     { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
     {
@@ -149,6 +277,15 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next }) => {
             <div>Sockets: <b>{record.details.socket_count}</b></div>
           )}
         </div>
+      ),
+    },
+    {
+      title: 'Remove',
+      key: 'remove',
+      render: (_, record) => (
+        <Button danger onClick={() => handleRemove(record.ip)} style={{ width: 90 }}>
+          Remove
+        </Button>
       ),
     },
   ];

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin } from 'antd';
+import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin, Modal, notification } from 'antd';
 // (removed unused InfoCircleOutlined import)
 import { buildNetworkConfigPayload } from './networkapply.format';
 import { buildDeployConfigPayload } from './networkapply.deployformat';
@@ -14,7 +14,7 @@ const getCloudName = () => {
   return meta ? meta.content : '';
 };
 
-const Deployment = ({ onGoToReport } = {}) => {
+const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const cloudName = getCloudName();
 
   const { Option } = Select;
@@ -378,6 +378,294 @@ const Deployment = ({ onGoToReport } = {}) => {
       useBond: checked,
       tableData: generateRows(f.configType, checked)
     } : f));
+  };
+  // Remove a node card with confirmation and Undo
+  const handleRemoveNode = (idx) => {
+    const ip = forms[idx]?.ip || (licenseNodes[idx] && licenseNodes[idx].ip) || '';
+    Modal.confirm({
+      title: `Remove ${ip}?`,
+      content: 'This will remove the node from Deployment and previous steps. You can undo within 5 seconds.',
+      okText: 'Remove',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        const snapshot = {
+          idx,
+          ip,
+          licenseNodesEntry: licenseNodes[idx] || null,
+          formsEntry: forms[idx] || null,
+          cardStatusEntry: cardStatus[idx] || null,
+          btnLoadingEntry: btnLoading[idx] || false,
+          restartEndTime: null,
+          bootEndTime: null,
+          networkApplyResultEntry: null,
+          licenseActivationIndex: -1,
+          licenseActivationEntry: null,
+          licenseStatusEntry: null,
+          hostnameEntry: null,
+        };
+
+        // sv_networkApply restart/boot timers
+        try {
+          const restartRaw = sessionStorage.getItem('sv_networkApplyRestartEndTimes');
+          const bootRaw = sessionStorage.getItem('sv_networkApplyBootEndTimes');
+          const restartArr = restartRaw ? JSON.parse(restartRaw) : [];
+          const bootArr = bootRaw ? JSON.parse(bootRaw) : [];
+          snapshot.restartEndTime = restartArr[idx] ?? null;
+          snapshot.bootEndTime = bootArr[idx] ?? null;
+          // Splice arrays
+          if (Array.isArray(restartArr)) {
+            restartArr.splice(idx, 1);
+            sessionStorage.setItem('sv_networkApplyRestartEndTimes', JSON.stringify(restartArr));
+          }
+          if (Array.isArray(bootArr)) {
+            bootArr.splice(idx, 1);
+            sessionStorage.setItem('sv_networkApplyBootEndTimes', JSON.stringify(bootArr));
+          }
+        } catch (_) {}
+
+        // sv_networkApplyResult per-IP
+        try {
+          const resultRaw = sessionStorage.getItem('sv_networkApplyResult');
+          const resultObj = resultRaw ? JSON.parse(resultRaw) : {};
+          if (ip && resultObj && Object.prototype.hasOwnProperty.call(resultObj, ip)) {
+            snapshot.networkApplyResultEntry = resultObj[ip];
+            delete resultObj[ip];
+            sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
+          }
+        } catch (_) {}
+
+        // sv_licenseActivationResults array
+        try {
+          const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
+          const arr = arrRaw ? JSON.parse(arrRaw) : null;
+          if (Array.isArray(arr)) {
+            const i = arr.findIndex(e => e && e.ip === ip);
+            if (i > -1) {
+              snapshot.licenseActivationIndex = i;
+              snapshot.licenseActivationEntry = arr[i];
+              arr.splice(i, 1);
+              sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
+            }
+          }
+        } catch (_) {}
+
+        // sv_licenseStatus map
+        try {
+          const raw = sessionStorage.getItem('sv_licenseStatus');
+          const map = raw ? JSON.parse(raw) : {};
+          if (ip && map && Object.prototype.hasOwnProperty.call(map, ip)) {
+            snapshot.licenseStatusEntry = map[ip];
+            delete map[ip];
+            sessionStorage.setItem('sv_licenseStatus', JSON.stringify(map));
+          }
+        } catch (_) {}
+
+        // sv_hostnameMap
+        try {
+          const raw = sessionStorage.getItem('sv_hostnameMap');
+          const map = raw ? JSON.parse(raw) : {};
+          if (ip && map && Object.prototype.hasOwnProperty.call(map, ip)) {
+            snapshot.hostnameEntry = map[ip];
+            delete map[ip];
+            sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
+          }
+        } catch (_) {}
+
+        // sv_networkApplyForms and sv_networkApplyCardStatus (aligned to index)
+        try {
+          const formsRaw = sessionStorage.getItem('sv_networkApplyForms');
+          const statusRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
+          const formsArr = formsRaw ? JSON.parse(formsRaw) : [];
+          const statusArr = statusRaw ? JSON.parse(statusRaw) : [];
+          if (Array.isArray(formsArr) && idx > -1 && idx < formsArr.length) {
+            // snapshot.formsEntry already captured from state
+            formsArr.splice(idx, 1);
+            sessionStorage.setItem('sv_networkApplyForms', JSON.stringify(formsArr));
+          }
+          if (Array.isArray(statusArr) && idx > -1 && idx < statusArr.length) {
+            // snapshot.cardStatusEntry already captured from state
+            statusArr.splice(idx, 1);
+            sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(statusArr));
+          }
+        } catch (_) {}
+
+        // sv_licenseNodes (source for this page)
+        try {
+          const nodesRaw = sessionStorage.getItem('sv_licenseNodes');
+          const nodesArr = nodesRaw ? JSON.parse(nodesRaw) : [];
+          if (Array.isArray(nodesArr)) {
+            nodesArr.splice(idx, 1);
+            sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
+          }
+        } catch (_) {}
+
+        // Clear UI/polling timers for this IP and index
+        try {
+          if (timerRefs.current[idx]) {
+            clearTimeout(timerRefs.current[idx]);
+          }
+          timerRefs.current.splice(idx, 1);
+          if (window.__cloudPolling && window.__cloudPolling[ip]) {
+            clearInterval(window.__cloudPolling[ip]);
+            delete window.__cloudPolling[ip];
+          }
+          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+            clearTimeout(window.__cloudPollingStart[ip]);
+            delete window.__cloudPollingStart[ip];
+          }
+        } catch (_) {}
+
+        // Update local states
+        setLicenseNodes(prev => prev.filter((_, i) => i !== idx));
+        setForms(prev => prev.filter((_, i) => i !== idx));
+        setCardStatus(prev => prev.filter((_, i) => i !== idx));
+        setBtnLoading(prev => prev.filter((_, i) => i !== idx));
+        setForceEnableRoles(prev => {
+          const next = { ...prev };
+          if (ip) delete next[ip];
+          return next;
+        });
+        setNodeDisks(prev => {
+          const next = { ...prev };
+          if (ip && next[ip]) delete next[ip];
+          return next;
+        });
+        setNodeInterfaces(prev => {
+          const next = { ...prev };
+          if (ip && next[ip]) delete next[ip];
+          return next;
+        });
+
+        // Inform parent to remove from earlier tabs as well
+        try {
+          if (onRemoveNode) onRemoveNode(ip, { ip }, idx);
+        } catch (_) {}
+
+        const key = `sv-deploy-remove-${ip}`;
+        notification.open({
+          key,
+          message: `Removed ${ip}`,
+          description: 'The node was removed from Deployment and earlier steps.',
+          duration: 5,
+          btn: (
+            <Button type="link" onClick={() => {
+              notification.destroy(key);
+              // Restore arrays and maps from snapshot
+              try {
+                // licenseNodes
+                const nodesRaw = sessionStorage.getItem('sv_licenseNodes');
+                const nodesArr = nodesRaw ? JSON.parse(nodesRaw) : [];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), nodesArr.length);
+                if (snapshot.licenseNodesEntry) {
+                  nodesArr.splice(insIdx, 0, snapshot.licenseNodesEntry);
+                  sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
+                }
+              } catch (_) {}
+              try {
+                // networkApply forms/status
+                const formsRaw = sessionStorage.getItem('sv_networkApplyForms');
+                const statusRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
+                const formsArr = formsRaw ? JSON.parse(formsRaw) : [];
+                const statusArr = statusRaw ? JSON.parse(statusRaw) : [];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), Math.max(formsArr.length, statusArr.length));
+                if (snapshot.formsEntry) {
+                  formsArr.splice(insIdx, 0, snapshot.formsEntry);
+                  sessionStorage.setItem('sv_networkApplyForms', JSON.stringify(formsArr));
+                }
+                if (snapshot.cardStatusEntry) {
+                  statusArr.splice(insIdx, 0, snapshot.cardStatusEntry);
+                  sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(statusArr));
+                }
+              } catch (_) {}
+              try {
+                // timers arrays
+                const restartRaw = sessionStorage.getItem('sv_networkApplyRestartEndTimes');
+                const bootRaw = sessionStorage.getItem('sv_networkApplyBootEndTimes');
+                const restartArr = restartRaw ? JSON.parse(restartRaw) : [];
+                const bootArr = bootRaw ? JSON.parse(bootRaw) : [];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), Math.max(restartArr.length, bootArr.length));
+                if (snapshot.restartEndTime != null) {
+                  restartArr.splice(insIdx, 0, snapshot.restartEndTime);
+                  sessionStorage.setItem('sv_networkApplyRestartEndTimes', JSON.stringify(restartArr));
+                }
+                if (snapshot.bootEndTime != null) {
+                  bootArr.splice(insIdx, 0, snapshot.bootEndTime);
+                  sessionStorage.setItem('sv_networkApplyBootEndTimes', JSON.stringify(bootArr));
+                }
+              } catch (_) {}
+              try {
+                // networkApplyResult per-IP
+                if (snapshot.ip && snapshot.networkApplyResultEntry) {
+                  const resultRaw = sessionStorage.getItem('sv_networkApplyResult');
+                  const resultObj = resultRaw ? JSON.parse(resultRaw) : {};
+                  resultObj[snapshot.ip] = snapshot.networkApplyResultEntry;
+                  sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
+                }
+              } catch (_) {}
+              try {
+                // licenseActivationResults array and licenseStatus map
+                const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
+                const arr = arrRaw ? JSON.parse(arrRaw) : [];
+                const insIdx = Math.min(Math.max(snapshot.licenseActivationIndex, 0), arr.length);
+                if (snapshot.licenseActivationEntry && snapshot.licenseActivationIndex > -1) {
+                  arr.splice(insIdx, 0, snapshot.licenseActivationEntry);
+                  sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
+                }
+                const statusRaw = sessionStorage.getItem('sv_licenseStatus');
+                const statusMap = statusRaw ? JSON.parse(statusRaw) : {};
+                if (snapshot.licenseStatusEntry && snapshot.ip) {
+                  statusMap[snapshot.ip] = snapshot.licenseStatusEntry;
+                  sessionStorage.setItem('sv_licenseStatus', JSON.stringify(statusMap));
+                }
+              } catch (_) {}
+              try {
+                // hostname map
+                if (snapshot.hostnameEntry && snapshot.ip) {
+                  const raw = sessionStorage.getItem('sv_hostnameMap');
+                  const map = raw ? JSON.parse(raw) : {};
+                  map[snapshot.ip] = snapshot.hostnameEntry;
+                  sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
+                }
+              } catch (_) {}
+
+              // Restore local states at original index
+              setLicenseNodes(prev => {
+                const next = [...prev];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+                if (snapshot.licenseNodesEntry) next.splice(insIdx, 0, snapshot.licenseNodesEntry);
+                return next;
+              });
+              setForms(prev => {
+                const next = [...prev];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+                if (snapshot.formsEntry) next.splice(insIdx, 0, snapshot.formsEntry);
+                return next;
+              });
+              setCardStatus(prev => {
+                const next = [...prev];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+                if (snapshot.cardStatusEntry) next.splice(insIdx, 0, snapshot.cardStatusEntry);
+                return next;
+              });
+              setBtnLoading(prev => {
+                const next = [...prev];
+                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+                next.splice(insIdx, 0, snapshot.btnLoadingEntry || false);
+                return next;
+              });
+              setForceEnableRoles(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
+
+              // Inform parent to restore into earlier tabs
+              try {
+                if (onUndoRemoveNode) onUndoRemoveNode(snapshot.ip, { ip: snapshot.ip }, snapshot.idx);
+              } catch (_) {}
+            }}>
+              Undo
+            </Button>
+          ),
+        });
+      }
+    });
   };
   // Reset handler for a specific node
   const handleReset = (idx) => {
@@ -1277,6 +1565,11 @@ const Deployment = ({ onGoToReport } = {}) => {
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
+                {!cardStatus[idx]?.applied && (
+                  <Button danger onClick={() => handleRemoveNode(idx)} style={{ width: '130px', display: 'flex' }} disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}>
+                    Remove Node
+                  </Button>
+                )}
                 <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
                   Reset Value
                 </Button>

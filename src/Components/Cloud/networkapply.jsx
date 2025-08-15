@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin } from 'antd';
+import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin, Modal, notification } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { buildNetworkConfigPayload } from './networkapply.format';
 import { buildDeployConfigPayload } from './networkapply.deployformat';
 
 const hostIP = window.location.hostname;
 
-const NetworkApply = ({ onGoToReport } = {}) => {
+const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [hostServerId, setHostServerId] = useState(() => sessionStorage.getItem('host_server_id') || '');
   const [firstCloudName, setFirstCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
 
@@ -195,6 +195,8 @@ const NetworkApply = ({ onGoToReport } = {}) => {
   const [btnLoading, setBtnLoading] = useState(() => (Array.isArray(licenseNodes) ? licenseNodes.map(() => false) : []));
   // For loader recovery timers
   const timerRefs = React.useRef([]);
+  // Store last removed node data for Undo
+  const lastRemovedRef = React.useRef(null);
   // Restore forms from sessionStorage if available and merge with license details
   const getInitialForms = () => {
     // Get saved license details
@@ -918,6 +920,218 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     };
   }, []);
 
+  // Remove Node handlers with confirmation and Undo
+  const handleUndoRemoveNode = () => {
+    const payload = lastRemovedRef.current;
+    if (!payload) return;
+    const { idx, ip, form, status, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex } = payload;
+
+    // Restore forms, statuses, btn loading
+    setForms(prev => {
+      const next = [...prev];
+      next.splice(Math.min(Math.max(idx, 0), next.length), 0, form);
+      sessionStorage.setItem('cloud_networkApplyForms', JSON.stringify(next));
+      return next;
+    });
+    setCardStatus(prev => {
+      const next = [...prev];
+      next.splice(Math.min(Math.max(idx, 0), next.length), 0, status || { loading: false, applied: false });
+      sessionStorage.setItem('cloud_networkApplyCardStatus', JSON.stringify(next));
+      return next;
+    });
+    setBtnLoading(prev => {
+      const next = [...prev];
+      next.splice(Math.min(Math.max(idx, 0), next.length), 0, false);
+      return next;
+    });
+
+    // Restore licenseNodes and persist
+    setLicenseNodes(prev => {
+      const arr = [...prev];
+      if (!arr.some(n => n.ip === ip)) {
+        const insertIdx = Math.min(Math.max(idx, 0), arr.length);
+        arr.splice(insertIdx, 0, licenseNode || { ip });
+      }
+      try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch (_) {}
+      return arr;
+    });
+
+    // Restore networkApplyResult mapping
+    try {
+      const resRaw = sessionStorage.getItem('cloud_networkApplyResult');
+      const map = resRaw ? JSON.parse(resRaw) : {};
+      if (networkApplyResultEntry) map[ip] = networkApplyResultEntry;
+      sessionStorage.setItem('cloud_networkApplyResult', JSON.stringify(map));
+    } catch (_) {}
+
+    // Restore hostname map
+    try {
+      const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
+      const hm = hmRaw ? JSON.parse(hmRaw) : {};
+      if (hostname) hm[ip] = hostname;
+      sessionStorage.setItem('cloud_hostnameMap', JSON.stringify(hm));
+    } catch (_) {}
+
+    // Restore licenseActivationResults entry
+    try {
+      const laRaw = sessionStorage.getItem('cloud_licenseActivationResults');
+      const arr = laRaw ? JSON.parse(laRaw) : [];
+      if (laEntry) {
+        const exists = Array.isArray(arr) && arr.some(r => r?.ip === ip);
+        if (!exists) {
+          const out = Array.isArray(arr) ? [...arr] : [];
+          const insertAt = Number.isInteger(laIndex) ? Math.min(Math.max(laIndex, 0), out.length) : out.length;
+          out.splice(insertAt, 0, laEntry);
+          sessionStorage.setItem('cloud_licenseActivationResults', JSON.stringify(out));
+        }
+      }
+    } catch (_) {}
+
+    // Reindex timer end times (leave as-is; no timers needed on undo)
+    // Notify parent to restore across tabs
+    if (typeof onUndoRemoveNode === 'function') {
+      try { onUndoRemoveNode(ip, licenseNode, idx); } catch (_) {}
+    }
+    message.success(`Restored node ${ip}`);
+    lastRemovedRef.current = null;
+  };
+
+  const handleRemoveNode = (idx) => {
+    const form = forms[idx];
+    const ip = form?.ip;
+    if (!ip) return;
+    if (cardStatus[idx]?.loading || cardStatus[idx]?.applied) return;
+
+    Modal.confirm({
+      title: 'Remove Node',
+      content: `Are you sure you want to remove node ${ip}? You can undo this action.`,
+      okText: 'Remove',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: () => {
+        // Backup data for Undo
+        const licenseNode = (licenseNodes || []).find(n => n.ip === ip) || { ip };
+        let networkApplyResultEntry = null;
+        try {
+          const resRaw = sessionStorage.getItem('cloud_networkApplyResult');
+          const map = resRaw ? JSON.parse(resRaw) : {};
+          networkApplyResultEntry = map[ip] || null;
+        } catch (_) {}
+        let hostname = null;
+        try {
+          const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
+          const hm = hmRaw ? JSON.parse(hmRaw) : {};
+          hostname = hm[ip] || null;
+        } catch (_) {}
+        let laEntry = null;
+        let laIndex = -1;
+        try {
+          const laRaw = sessionStorage.getItem('cloud_licenseActivationResults');
+          const arr = laRaw ? JSON.parse(laRaw) : [];
+          if (Array.isArray(arr)) {
+            laIndex = arr.findIndex(r => r?.ip === ip);
+            laEntry = laIndex >= 0 ? arr[laIndex] : null;
+          }
+        } catch (_) {}
+        lastRemovedRef.current = { idx, ip, form: { ...form }, status: { ...cardStatus[idx] }, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex };
+
+        // Clear any global polling timers for this IP
+        try {
+          if (window.__cloudPolling && window.__cloudPolling[ip]) {
+            clearInterval(window.__cloudPolling[ip]);
+            delete window.__cloudPolling[ip];
+          }
+          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+            clearTimeout(window.__cloudPollingStart[ip]);
+            delete window.__cloudPollingStart[ip];
+          }
+        } catch (_) {}
+
+        // Remove from forms and statuses and persist
+        const nextForms = forms.filter((_, i) => i !== idx);
+        const nextStatus = cardStatus.filter((_, i) => i !== idx);
+        const nextBtnLoading = btnLoading.filter((_, i) => i !== idx);
+        setForms(nextForms);
+        setCardStatus(nextStatus);
+        setBtnLoading(nextBtnLoading);
+        try {
+          sessionStorage.setItem('cloud_networkApplyForms', JSON.stringify(nextForms));
+          sessionStorage.setItem('cloud_networkApplyCardStatus', JSON.stringify(nextStatus));
+        } catch (_) {}
+
+        // Reindex timer end time objects
+        try {
+          const rRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
+          const bRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
+          const r = rRaw ? JSON.parse(rRaw) : {};
+          const b = bRaw ? JSON.parse(bRaw) : {};
+          const newR = {};
+          const newB = {};
+          for (let newI = 0; newI < nextForms.length; newI++) {
+            const oldI = newI < idx ? newI : newI + 1;
+            if (r.hasOwnProperty(oldI)) newR[newI] = r[oldI];
+            if (b.hasOwnProperty(oldI)) newB[newI] = b[oldI];
+          }
+          sessionStorage.setItem(RESTART_ENDTIME_KEY, JSON.stringify(newR));
+          sessionStorage.setItem(BOOT_ENDTIME_KEY, JSON.stringify(newB));
+        } catch (_) {}
+
+        // Remove from licenseNodes and persist
+        setLicenseNodes(prev => {
+          const next = (prev || []).filter(n => n.ip !== ip);
+          try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch (_) {}
+          return next;
+        });
+
+        // Remove from networkApplyResult map
+        try {
+          const resRaw = sessionStorage.getItem('cloud_networkApplyResult');
+          const map = resRaw ? JSON.parse(resRaw) : {};
+          if (map && map[ip]) {
+            delete map[ip];
+            sessionStorage.setItem('cloud_networkApplyResult', JSON.stringify(map));
+          }
+        } catch (_) {}
+
+        // Remove from hostname map
+        try {
+          const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
+          const hm = hmRaw ? JSON.parse(hmRaw) : {};
+          if (hm && hm[ip]) {
+            delete hm[ip];
+            sessionStorage.setItem('cloud_hostnameMap', JSON.stringify(hm));
+          }
+        } catch (_) {}
+
+        // Optionally also remove from licenseActivationResults to keep tabs consistent
+        try {
+          const laRaw = sessionStorage.getItem('cloud_licenseActivationResults');
+          const arr = laRaw ? JSON.parse(laRaw) : [];
+          if (Array.isArray(arr)) {
+            const next = arr.filter(r => r?.ip !== ip);
+            sessionStorage.setItem('cloud_licenseActivationResults', JSON.stringify(next));
+          }
+        } catch (_) {}
+
+        // Notify parent so previous tabs sync their state
+        if (typeof onRemoveNode === 'function') {
+          try { onRemoveNode(ip, licenseNode, idx); } catch (_) {}
+        }
+
+        notification.open({
+          message: 'Node removed',
+          description: `Removed node ${ip}.`,
+          btn: (
+            <Button type="link" onClick={handleUndoRemoveNode}>
+              Undo
+            </Button>
+          ),
+          duration: 4.5,
+        });
+      }
+    });
+  };
+
   // Check if all cards are applied
   const allApplied = cardStatus.length > 0 && cardStatus.every(s => s.applied);
 
@@ -1153,14 +1367,25 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                     Bond
                   </Checkbox>
                 </div>
-                <Button
-                  onClick={() => fetchNodeData(form.ip)}
-                  size="small"
-                  type="default"
-                  style={{ width: 120 }}
-                >
-                  Refetch Data
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Button
+                    onClick={() => fetchNodeData(form.ip)}
+                    size="small"
+                    type="default"
+                    style={{ width: 120 }}
+                  >
+                    Refetch Data
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    onClick={() => handleRemoveNode(idx)}
+                    style={{ width: 120 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  >
+                    Remove Node
+                  </Button>
+                </div>
               </div>
               <Table
                 columns={getColumns(form, idx)}

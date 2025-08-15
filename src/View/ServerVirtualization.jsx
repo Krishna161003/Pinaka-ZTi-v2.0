@@ -239,8 +239,12 @@ const App = () => {
               message.warning('Please select at least one node.');
               return;
             }
-            setSelectedNodes(nodes);
-            sessionStorage.setItem('selectedNodes', JSON.stringify(nodes));
+            // Append newly selected nodes after existing ones, avoid duplicates by IP
+            const prev = Array.isArray(selectedNodes) ? selectedNodes : [];
+            const uniqueNew = (Array.isArray(nodes) ? nodes : []).filter(n => !prev.some(p => p.ip === n.ip));
+            const merged = [...prev, ...uniqueNew];
+            setSelectedNodes(merged);
+            sessionStorage.setItem('selectedNodes', JSON.stringify(merged));
             setDisabledTabs(prev => {
               const updated = { ...prev, "2": false, "3": false };
               sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
@@ -259,8 +263,12 @@ const App = () => {
                 message.error('Please ensure at least one node passes validation.');
                 return;
               }
-              setValidatedNodes(passedNodes);
-              sessionStorage.setItem('validatedNodes', JSON.stringify(passedNodes));
+              // Append only newly validated nodes after existing validatedNodes
+              const prev = Array.isArray(validatedNodes) ? validatedNodes : [];
+              const uniqueNew = passedNodes.filter(n => !prev.some(p => p.ip === n.ip));
+              const merged = [...prev, ...uniqueNew];
+              setValidatedNodes(merged);
+              sessionStorage.setItem('validatedNodes', JSON.stringify(merged));
               setDisabledTabs((prev) => {
                 const updated = { ...prev, "4": false };
                 sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
@@ -291,14 +299,29 @@ const App = () => {
                 return;
               }
               // Persist nodes for Deployment.js consumption
-              const licenseNodes = successfulNodes.map(n => ({ ip: n.ip }));
-              sessionStorage.setItem('sv_licenseNodes', JSON.stringify(licenseNodes));
+              try {
+                const prevLNRaw = sessionStorage.getItem('sv_licenseNodes');
+                const prevLN = prevLNRaw ? JSON.parse(prevLNRaw) : [];
+                const uniqueNewLN = successfulNodes
+                  .map(n => ({ ip: n.ip }))
+                  .filter(n => !Array.isArray(prevLN) || !prevLN.some(p => p.ip === n.ip));
+                const mergedLN = Array.isArray(prevLN) ? [...prevLN, ...uniqueNewLN] : uniqueNewLN;
+                sessionStorage.setItem('sv_licenseNodes', JSON.stringify(mergedLN));
+              } catch (_) {
+                const fallback = successfulNodes.map(n => ({ ip: n.ip }));
+                sessionStorage.setItem('sv_licenseNodes', JSON.stringify(fallback));
+              }
               // Build sv_licenseActivationResults array from per-IP map stored by ActivateKey
               try {
                 const mapRaw = sessionStorage.getItem('sv_licenseStatus');
                 const map = mapRaw ? JSON.parse(mapRaw) : {};
-                const arr = successfulNodes.map(n => ({ ip: n.ip, details: map[n.ip] || {} }));
-                sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
+                const prevArrRaw = sessionStorage.getItem('sv_licenseActivationResults');
+                const prevArr = prevArrRaw ? JSON.parse(prevArrRaw) : [];
+                const newEntries = successfulNodes
+                  .filter(n => !Array.isArray(prevArr) || !prevArr.some(p => p?.ip === n.ip))
+                  .map(n => ({ ip: n.ip, details: map[n.ip] || {} }));
+                const mergedArr = Array.isArray(prevArr) ? [...prevArr, ...newEntries] : newEntries;
+                sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(mergedArr));
               } catch (_) {}
               setDisabledTabs(prev => {
                 const updated = { ...prev, "5": false };
@@ -316,16 +339,92 @@ const App = () => {
                 }));
               }
             }}
+            onRemoveNode={(ip, removedRecord, removedIndex) => {
+              // Remove from validatedNodes (source for ActivateKey)
+              setValidatedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch(_) {}
+                return next;
+              });
+              // Also remove from selectedNodes so Validation tab reflects it
+              setSelectedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch(_) {}
+                return next;
+              });
+            }}
+            onUndoRemoveNode={(ip, record, index) => {
+              // Restore into validatedNodes at original index
+              setValidatedNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                // Avoid duplicates if already present
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('validatedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+              // Restore into selectedNodes (Validation input)
+              setSelectedNodes(prev => {
+                const arr = [...prev];
+                if (!arr.some(n => n.ip === ip)) {
+                  const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+            }}
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Deployment" key="5" disabled={disabledTabs["5"]}>
-          <Deployment onGoToReport={() => {
-            const updated = { "1": true, "2": true, "3": true, "4": true, "5": true, "6": false };
-            setDisabledTabs(updated);
-            sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
-            sessionStorage.setItem("disabledTabs", JSON.stringify(updated));
-            setActiveTab("6");
-          }} />
+          <Deployment
+            onGoToReport={() => {
+              const updated = { "1": true, "2": true, "3": true, "4": true, "5": true, "6": false };
+              setDisabledTabs(updated);
+              sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
+              sessionStorage.setItem("disabledTabs", JSON.stringify(updated));
+              setActiveTab("6");
+            }}
+            onRemoveNode={(ip, removedRecord, removedIndex) => {
+              // Remove from validatedNodes (source for ActivateKey)
+              setValidatedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch(_) {}
+                return next;
+              });
+              // Also remove from selectedNodes so Validation tab reflects it
+              setSelectedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch(_) {}
+                return next;
+              });
+            }}
+            onUndoRemoveNode={(ip, record, index) => {
+              // Restore into validatedNodes at original index
+              setValidatedNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                // Avoid duplicates if already present
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('validatedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+              // Restore into selectedNodes (Validation input)
+              setSelectedNodes(prev => {
+                const arr = [...prev];
+                if (!arr.some(n => n.ip === ip)) {
+                  const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+            }}
+          />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Report" key="6" disabled={disabledTabs["6"]}>
           <Report ibn={ibn} />
