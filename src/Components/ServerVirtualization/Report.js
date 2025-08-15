@@ -268,7 +268,7 @@ const Report = ({ onDeploymentComplete }) => {
       <Card title={`Server Virtualization Deployment Progress for ${cloudName} (${sessionStorage.getItem('server_ip') || 'N/A'})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 250 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 160 }}>
               {deploymentInProgress ? (
                 <>
                   <img
@@ -277,7 +277,7 @@ const Report = ({ onDeploymentComplete }) => {
                     loading="eager"
                     decoding="async"
                     draggable={false}
-                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+                    style={{ width: 180, height: 180, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
                   />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
@@ -288,7 +288,7 @@ const Report = ({ onDeploymentComplete }) => {
                     alt="Deployment Completed"
                     loading="eager"
                     decoding="sync"
-                    style={{ width: 280, height: 280, objectFit: 'contain', display: 'block' }}
+                    style={{ width: 180, height: 180, objectFit: 'contain', display: 'block' }}
                   />
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
                 </>
