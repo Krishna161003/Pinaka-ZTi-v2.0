@@ -617,7 +617,7 @@ const Dashboard = () => {
         }
 
         // Fetch dashboard counts
-        const countsResponse = await fetch(`https://${selectedHostIP}:5000/api/dashboard-counts/${userId}`);
+        const countsResponse = await fetch(`https://${hostIP}:5000/api/dashboard-counts/${userId}`);
         const countsData = await countsResponse.json();
 
         setCounts({
