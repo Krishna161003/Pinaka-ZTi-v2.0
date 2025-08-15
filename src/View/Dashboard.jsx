@@ -606,14 +606,13 @@ const Dashboard = () => {
                 padding: 2,
                 height: "56px",
                 background: colorBgContainer,
-                // borderRadius: borderRadiusLG,
                 marginLeft: "20px",
                 marginRight: "17px",
               }}
             >
             {/* Host IP Dropdown */}
             <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', margin: '19px 0 15px 18px', marginTop: "10px" }}>
-              <span style={{ marginRight: 8, fontWeight: 500, userSelect: "none" }}>Host:</span>
+              {/* <span style={{ marginRight: 8, fontWeight: 500, userSelect: "none" }}>Host:</span> */}
               <Select
                 style={{ width: 220 }}
                 value={selectedHostIP}
