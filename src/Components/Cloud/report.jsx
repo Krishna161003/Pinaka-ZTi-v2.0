@@ -296,7 +296,7 @@ const Report = ({ onDeploymentComplete }) => {
         Node Addition Status
       </h5>
       <Divider />
-      <Card title={`Cloud Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
+      <Card title={`Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
         <Row gutter={24}>
           <Col span={24}>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '580px' }}>
