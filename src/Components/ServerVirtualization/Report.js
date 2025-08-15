@@ -264,10 +264,10 @@ const Report = ({ onDeploymentComplete }) => {
       <Card title={`Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px', marginBottom: '30px' }}>
               {deploymentInProgress ? (
                 <>
-                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '-56px' }}>
                     <img
                       src={planeGif}
                       alt="Deployment Progress"
@@ -281,7 +281,7 @@ const Report = ({ onDeploymentComplete }) => {
                 </>
               ) : (
                 <>
-                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '-56px' }}>
                     <img
                       src={completedImage}
                       alt="Deployment Completed"
