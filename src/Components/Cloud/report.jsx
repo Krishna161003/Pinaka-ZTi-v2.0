@@ -273,7 +273,7 @@ const Report = ({ onDeploymentComplete }) => {
       <Card title={`Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px', marginBottom: '20px' }}>
               {deploymentInProgress ? (
                 <>
                   <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginTop: '-46px' }}>
