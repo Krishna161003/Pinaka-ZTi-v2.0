@@ -187,18 +187,6 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
-  // Keep filtered containers in sync with search text and containers; persist page
-  useEffect(() => {
-    const value = (dockerSearchText || '').toLowerCase();
-    const filtered = dockerContainers.filter(container =>
-      (container.dockerId || "").toLowerCase().includes(value) ||
-      (container.containerName || "").toLowerCase().includes(value) ||
-      (container.status || "").toLowerCase().includes(value)
-    );
-    setFilteredContainers(filtered);
-    setDockerCurrentPage(1);
-    sessionStorage.setItem('docker_current_page', '1');
-  }, [dockerSearchText, dockerContainers]);
 
   useEffect(() => {
     const storedSelectedHostIP = sessionStorage.getItem('dashboard_selectedHostIP');
@@ -222,27 +210,6 @@ const Dashboard = () => {
     sessionStorage.setItem('dashboard_selectedInterface', selectedInterface);
   }, [selectedInterface]);
 
-  useEffect(() => {
-    const storedDockerCurrentPage = sessionStorage.getItem('docker_current_page');
-    if (storedDockerCurrentPage) {
-      setDockerCurrentPage(parseInt(storedDockerCurrentPage));
-    }
-  }, []);
-
-  useEffect(() => {
-    sessionStorage.setItem('docker_current_page', dockerCurrentPage.toString());
-  }, [dockerCurrentPage]);
-
-  useEffect(() => {
-    const storedDockerSearchText = sessionStorage.getItem('docker_search_text');
-    if (storedDockerSearchText) {
-      setDockerSearchText(storedDockerSearchText);
-    }
-  }, []);
-
-  useEffect(() => {
-    sessionStorage.setItem('docker_search_text', dockerSearchText);
-  }, [dockerSearchText]);
 
   const memoryconfig = {
     data: memoryHistory,
@@ -505,6 +472,44 @@ const Dashboard = () => {
   const [dockerError, setDockerError] = useState("");
   // Persisted docker search text
   const [dockerSearchText, setDockerSearchText] = useState(() => sessionStorage.getItem('docker_search_text') || '');
+
+  // Keep filtered containers in sync with search text and containers; persist page
+  useEffect(() => {
+    const value = (dockerSearchText || '').toLowerCase();
+    const filtered = dockerContainers.filter(container =>
+      (container.dockerId || "").toLowerCase().includes(value) ||
+      (container.containerName || "").toLowerCase().includes(value) ||
+      (container.status || "").toLowerCase().includes(value)
+    );
+    setFilteredContainers(filtered);
+    setDockerCurrentPage(1);
+    sessionStorage.setItem('docker_current_page', '1');
+  }, [dockerSearchText, dockerContainers]);
+
+  // Load and persist docker current page
+  useEffect(() => {
+    const storedDockerCurrentPage = sessionStorage.getItem('docker_current_page');
+    if (storedDockerCurrentPage) {
+      const n = parseInt(storedDockerCurrentPage);
+      if (!Number.isNaN(n) && n > 0) setDockerCurrentPage(n);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('docker_current_page', dockerCurrentPage.toString());
+  }, [dockerCurrentPage]);
+
+  // Load and persist docker search text
+  useEffect(() => {
+    const storedDockerSearchText = sessionStorage.getItem('docker_search_text');
+    if (storedDockerSearchText !== null) {
+      setDockerSearchText(storedDockerSearchText);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('docker_search_text', dockerSearchText);
+  }, [dockerSearchText]);
 
 
   useEffect(() => {
