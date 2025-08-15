@@ -603,7 +603,7 @@ const Dashboard = () => {
             <div
               style={{
                 marginTop: 10,
-                // padding: 30,
+                padding: 5,
                 height: "40px",
                 background: colorBgContainer,
                 // borderRadius: borderRadiusLG,
