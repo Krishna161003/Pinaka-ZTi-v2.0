@@ -259,13 +259,35 @@ const Report = ({ onDeploymentComplete }) => {
     }
   }, [deploymentInProgress]);
 
+  // Build display of node IPs for title
+  const getNodeIpsTitle = () => {
+    try {
+      const raw = sessionStorage.getItem('sv_lastDeploymentNodes');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        const ips = Array.isArray(arr) ? arr.map(n => n?.serverip).filter(Boolean) : [];
+        if (ips.length) return ips.join(', ');
+      }
+    } catch (_) {}
+    try {
+      const rawMap = sessionStorage.getItem('sv_networkApplyResult');
+      if (rawMap) {
+        const obj = JSON.parse(rawMap) || {};
+        const ips = Object.keys(obj || {});
+        if (ips.length) return ips.join(', ');
+      }
+    } catch (_) {}
+    return sessionStorage.getItem('server_ip') || 'N/A';
+  };
+  const nodeIpsTitle = getNodeIpsTitle();
+
   return (
     <div style={{ padding: '20px' }}>
       <h5 style={{ display: 'flex', flex: 1, marginLeft: '-2%', marginBottom: '1.25%' }}>
         Node Addition Status
       </h5>
       <Divider />
-      <Card title={`Server Virtualization Deployment Progress for ${cloudName} (${sessionStorage.getItem('server_ip') || 'N/A'})`}>
+      <Card title={`Server Virtualization Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
         <Row gutter={24}>
           <Col span={24}>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px' }}>
