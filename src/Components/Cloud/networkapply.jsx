@@ -130,14 +130,15 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       ]);
 
       // Map disks to include all necessary properties
-      const formattedDisks = (diskRes.disks || []).map(disk => ({
-        name: disk.name,
-        size: disk.size,
-        wwn: disk.wwn,
-        label: `${disk.name} (${disk.size})`,
-        value: disk.wwn, // Store WWN as the value
-        display: `${disk.name} (${disk.size}, ${disk.wwn})`
-      }));
+      const formattedDisks = (diskRes.disks || []).map(disk => {
+        const name = disk?.name ?? '';
+        const size = disk?.size ?? '';
+        const wwn = disk?.wwn ?? '';
+        const id = wwn || `${name}|${size}`; // stable string id
+        const label = `${name || 'Disk'} (${size || 'N/A'})`;
+        const display = wwn ? `${name} (${size}, ${wwn})` : label;
+        return { name, size, wwn, id, label, value: id, display };
+      });
 
       setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
       setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
@@ -207,12 +208,21 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     if (savedForms) {
       try {
         const forms = JSON.parse(savedForms);
-        // Merge license details into saved forms
+        // Merge license details into saved forms and normalize selectedDisks to strings
         return forms.map(form => ({
           ...form,
           licenseType: licenseDetailsMap[form.ip]?.type || form.licenseType || '-',
           licensePeriod: licenseDetailsMap[form.ip]?.period || form.licensePeriod || '-',
           licenseCode: licenseDetailsMap[form.ip]?.licenseCode || form.licenseCode || '-',
+          selectedDisks: Array.isArray(form.selectedDisks)
+            ? form.selectedDisks.map(d => {
+                if (typeof d === 'string') return d;
+                if (d && typeof d === 'object') {
+                  return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                }
+                return String(d ?? '');
+              })
+            : [],
         }));
       } catch (e) {
         console.error('Failed to parse saved forms:', e);
@@ -254,6 +264,15 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         licenseType: savedLicenseDetails[form.ip]?.type || form.licenseType || '-',
         licensePeriod: savedLicenseDetails[form.ip]?.period || form.licensePeriod || '-',
         licenseCode: savedLicenseDetails[form.ip]?.licenseCode || form.licenseCode || '-',
+        selectedDisks: Array.isArray(form.selectedDisks)
+          ? form.selectedDisks.map(d => {
+              if (typeof d === 'string') return d;
+              if (d && typeof d === 'object') {
+                return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+              }
+              return String(d ?? '');
+            })
+          : [],
       }));
 
       setForms(updatedForms);
@@ -1431,7 +1450,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     mode="multiple"
                     allowClear
                     placeholder="Select disk(s)"
-                    value={form.selectedDisks || []}
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks : []}
                     style={{ width: 200 }}
                     disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
                     onChange={value => handleDiskChange(idx, value)}
@@ -1439,11 +1458,11 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                   >
                     {(nodeDisks[form.ip] || []).map(disk => (
                       <Option
-                        key={disk.wwn || disk}
-                        value={disk.wwn || disk}
-                        label={disk.display || disk}
+                        key={disk.id || disk.wwn || `${disk.name}|${disk.size}`}
+                        value={disk.value || disk.id || disk.wwn || `${disk.name}|${disk.size}`}
+                        label={String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
                       >
-                        {disk.display || disk}
+                        {String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
                       </Option>
                     ))}
                   </Select>
