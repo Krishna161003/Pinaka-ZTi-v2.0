@@ -788,6 +788,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             value={record.bondName ?? ''}
             placeholder="Enter Bond Name"
             onChange={e => handleCellChange(nodeIdx, rowIdx, 'bondName', e.target.value)}
+            disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
           />
         </Form.Item>
       ),
@@ -807,6 +808,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.vlanId ?? ''}
               placeholder="Enter VLAN ID (optional)"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'vlanId', e.target.value)}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             />
           </Form.Item>
         </Tooltip>
@@ -846,6 +848,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 handleCellChange(nodeIdx, rowIdx, 'interface', value);
               }}
               maxTagCount={2}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             >
               {availableInterfaces.map((ifaceObj) => (
                 <Option key={ifaceObj.iface} value={ifaceObj.iface}>
@@ -872,6 +875,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.type || undefined}
               placeholder="Select type"
               onChange={value => handleCellChange(nodeIdx, rowIdx, 'type', value)}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             >
               {form.configType === 'segregated' ? (
                 <>
@@ -932,7 +936,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.ip}
               placeholder="Enter IP Address"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
-              disabled={form.configType === 'default' && record.type === 'secondary'}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
             />
           </Form.Item>
         ),
@@ -950,7 +954,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.subnet}
               placeholder="Enter Subnet"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
-              disabled={form.configType === 'default' && record.type === 'secondary'}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
             />
           </Form.Item>
         ),
@@ -968,7 +972,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.dns}
               placeholder="Enter Nameserver"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'dns', e.target.value)}
-              disabled={form.configType === 'default' && record.type === 'secondary'}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
             />
           </Form.Item>
         ),
