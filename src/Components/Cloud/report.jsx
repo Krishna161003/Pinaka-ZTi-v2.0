@@ -302,25 +302,29 @@ const Report = ({ onDeploymentComplete }) => {
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px' }}>
               {deploymentInProgress ? (
                 <>
-                  <img
-                    src={gifUrl || planeGifRef.current}
-                    alt="Deployment Progress"
-                    loading="eager"
-                    decoding="async"
-                    draggable={false}
-                    style={{ width: 580, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
-                  />
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img
+                      src={gifUrl || planeGifRef.current}
+                      alt="Deployment Progress"
+                      loading="eager"
+                      decoding="async"
+                      draggable={false}
+                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+                    />
+                  </div>
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
               ) : (
                 <>
-                  <img
-                    src={completedImage}
-                    alt="Deployment Completed"
-                    loading="eager"
-                    decoding="sync"
-                    style={{ width: 580, height: 280, objectFit: 'contain', display: 'block' }}
-                  />
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img
+                      src={completedImage}
+                      alt="Deployment Completed"
+                      loading="eager"
+                      decoding="sync"
+                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block' }}
+                    />
+                  </div>
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
                 </>
               )}
