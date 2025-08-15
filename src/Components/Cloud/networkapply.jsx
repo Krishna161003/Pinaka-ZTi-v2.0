@@ -754,12 +754,15 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
     }
     // Submit logic here (API call or sessionStorage)
-    // Show button loader for backend validation phase
+    // Immediately disable fields/table by setting loading=true; show button loader too
     setBtnLoading(prev => {
       const next = [...prev];
       next[nodeIdx] = true;
       return next;
     });
+    setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
+    // Persist loader state immediately by IP to survive navigation
+    setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
     // Determine how many servers are already deployed to compute hostname starting index
     let deployedCount = 0;
     try {
@@ -798,15 +801,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       .then(res => res.json())
       .then(result => {
         if (result.success) {
-          // Stop button loader and switch to card spinner/polling
+          // Keep fields disabled (loading stays true); stop button spinner and proceed to polling
           setBtnLoading(prev => {
             const next = [...prev];
             next[nodeIdx] = false;
             return next;
           });
-          setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
-          // Persist loader state immediately by IP to survive navigation
-          setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
           // Store restartEndTime and bootEndTime in sessionStorage
           const restartEndTimesRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
           const bootEndTimesRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
@@ -919,6 +919,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
             next[nodeIdx] = false;
             return next;
           });
+          // Re-enable fields/table
+          setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: false, applied: false } : s));
+          setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
           message.error(result.message || 'Failed to apply network configuration.');
         }
       })
@@ -929,6 +932,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           next[nodeIdx] = false;
           return next;
         });
+        // Re-enable fields/table on error
+        setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: false, applied: false } : s));
+        setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
         message.error('Network error: ' + err.message);
       });
     return;
@@ -1486,6 +1492,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     <Option value="Control">Control</Option>
                     <Option value="Compute">Compute</Option>
                     <Option value="Storage">Storage</Option>
+                    <Option value="Monitoring">Monitoring</Option>
                   </Select>
                 </Form.Item>
               </div>
@@ -1503,7 +1510,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
                   Reset Value
                 </Button>
-                <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '120px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
                   Apply Change
                 </Button>
               </div>
