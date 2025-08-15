@@ -604,7 +604,7 @@ const Dashboard = () => {
               style={{
                 marginTop: 10,
                 padding: 30,
-                minHeight: "auto",
+                minHeight: "20px",
                 background: colorBgContainer,
                 // borderRadius: borderRadiusLG,
                 marginLeft: "20px",
