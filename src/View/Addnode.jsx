@@ -182,12 +182,18 @@ const App = () => {
 
   // When License Activation completes, save results
   const handleLicenseActivation = (results) => {
-    const prev = Array.isArray(licenseActivationResults) ? licenseActivationResults : [];
-    const incoming = Array.isArray(results) ? results : [];
-    const uniqueNew = incoming.filter(r => !prev.some(p => p?.ip === r?.ip));
-    const merged = [...prev, ...uniqueNew];
-    setLicenseActivationResults(merged);
-    sessionStorage.setItem("cloud_licenseActivationResults", JSON.stringify(merged));
+    setLicenseActivationResults(prevRes => {
+      const base = Array.isArray(prevRes) ? prevRes : [];
+      const incoming = Array.isArray(results) ? results : [];
+      const allowed = new Set((Array.isArray(licenseNodes) ? licenseNodes : []).map(n => n?.ip));
+      const map = new Map(base.map(r => [r?.ip, r]));
+      for (const r of incoming) {
+        if (r && r.ip) map.set(r.ip, r);
+      }
+      const merged = Array.from(map.values()).filter(r => allowed.has(r?.ip));
+      try { sessionStorage.setItem("cloud_licenseActivationResults", JSON.stringify(merged)); } catch (_) {}
+      return merged;
+    });
   };
 
   // When user manually clicks a tab
