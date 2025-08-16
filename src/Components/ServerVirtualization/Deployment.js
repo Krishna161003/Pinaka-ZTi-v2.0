@@ -164,9 +164,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   // Track mounted state globally to allow background polling to update storage without setState leaks
   useEffect(() => {
-    window.__cloudMountedNetworkApply = true;
+    window.__svMountedDeployment = true;
     return () => {
-      window.__cloudMountedNetworkApply = false;
+      window.__svMountedDeployment = false;
     };
   }, []);
 
@@ -361,20 +361,32 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           if (pollCount > maxPolls) {
             clearInterval(interval);
             setCardStatusForIpInSession(ip, { loading: false, applied: false });
-            if (window.__cloudMountedNetworkApply) {
+            if (window.__svMountedDeployment) {
               setCardStatus(prev => {
                 const idxNow = forms.findIndex(ff => ff?.ip === ip);
                 return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
               });
             }
             message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
-            notification.warning({
-              key: `sv-ssh-timeout-${ip}`,
-              message: 'SSH polling timeout',
-              description: `Timeout waiting for ${ip} to come online.`,
-              duration: 8,
-              btn: (<Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
-            });
+            {
+              let suppress = false;
+              try {
+                if (window.__svMountedDeployment) suppress = true;
+                else {
+                  const active = sessionStorage.getItem('serverVirtualization_activeTab');
+                  if (active === '5') suppress = true;
+                }
+              } catch (_) {}
+              if (!suppress) {
+                notification.warning({
+                  key: `sv-ssh-timeout-${ip}`,
+                  message: 'SSH polling timeout',
+                  description: `Timeout waiting for ${ip} to come online.`,
+                  duration: 8,
+                  btn: (<Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
+                });
+              }
+            }
             delete window.__cloudPolling[ip];
             return;
           }
@@ -384,20 +396,32 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             .then(data => {
               if (data.status === 'success' && data.ip === ip) {
                 setCardStatusForIpInSession(ip, { loading: false, applied: true });
-                if (window.__cloudMountedNetworkApply) {
+                if (window.__svMountedDeployment) {
                   setCardStatus(prev => {
                     const idxNow = forms.findIndex(ff => ff?.ip === ip);
                     return prev.map((s, i) => i === idxNow ? { loading: false, applied: true } : s);
                   });
                 }
                 message.success(`Node ${ip} is back online!`);
-                notification.open({
-                  key: `sv-ssh-success-${ip}`,
-                  message: `Node ${ip} is back online`,
-                  description: 'You can return to Deployment to continue.',
-                  duration: 8,
-                  btn: (<Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
-                });
+                {
+                  let suppress = false;
+                  try {
+                    if (window.__svMountedDeployment) suppress = true;
+                    else {
+                      const active = sessionStorage.getItem('serverVirtualization_activeTab');
+                      if (active === '5') suppress = true;
+                    }
+                  } catch (_) {}
+                  if (!suppress) {
+                    notification.open({
+                      key: `sv-ssh-success-${ip}`,
+                      message: `Node ${ip} is back online`,
+                      description: 'You can return to Deployment to continue.',
+                      duration: 8,
+                      btn: (<Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
+                    });
+                  }
+                }
                 clearInterval(interval);
                 delete window.__cloudPolling[ip];
                 if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
@@ -408,7 +432,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 const formNow = forms[idxNow];
                 if (formNow) storeFormData(ip, formNow);
               } else if (data.status === 'fail' && data.ip === ip) {
-                if (cardStatus[idx]?.loading || !window.__cloudMountedNetworkApply) {
+                if (cardStatus[idx]?.loading || !window.__svMountedDeployment) {
                   infoRestartThrottled(ip);
                 }
               }
@@ -1293,7 +1317,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 if (pollCount > maxPolls) {
                   clearInterval(pollInterval);
                   setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
-                  if (window.__cloudMountedNetworkApply) {
+                  if (window.__svMountedDeployment) {
                     setCardStatus(prev => {
                       const idxNow = forms.findIndex(f => f?.ip === node_ip);
                       return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
@@ -1310,15 +1334,27 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     }
                   } catch (_) {}
                   // Cross-menu notification on timeout
-                  notification.warning({
-                    key: `sv-ssh-timeout-${node_ip}`,
-                    message: 'SSH polling timeout',
-                    description: `Timeout waiting for ${node_ip} to come online.`,
-                    duration: 8,
-                    btn: (
-                      <Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
-                    ),
-                  });
+                  {
+                    let suppress = false;
+                    try {
+                      if (window.__svMountedDeployment) suppress = true;
+                      else {
+                        const active = sessionStorage.getItem('serverVirtualization_activeTab');
+                        if (active === '5') suppress = true;
+                      }
+                    } catch (_) {}
+                    if (!suppress) {
+                      notification.warning({
+                        key: `sv-ssh-timeout-${node_ip}`,
+                        message: 'SSH polling timeout',
+                        description: `Timeout waiting for ${node_ip} to come online.`,
+                        duration: 8,
+                        btn: (
+                          <Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
+                        ),
+                      });
+                    }
+                  }
                   delete window.__cloudPolling[node_ip];
                   return;
                 }
@@ -1329,7 +1365,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     if (data.status === 'success' && data.ip === node_ip) {
                       // Persist status to sessionStorage so it reflects on remount or in other menus
                       setCardStatusForIpInSession(node_ip, { loading: false, applied: true });
-                      if (window.__cloudMountedNetworkApply) {
+                      if (window.__svMountedDeployment) {
                         setCardStatus(prev => {
                           const idxNow = forms.findIndex(f => f?.ip === node_ip);
                           return prev.map((s, i) => i === idxNow ? { loading: false, applied: true } : s);
@@ -1337,15 +1373,27 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       }
                       message.success(`Node ${data.ip} is back online!`);
                       // Cross-menu notification on success
-                      notification.open({
-                        key: `sv-ssh-success-${node_ip}`,
-                        message: `Node ${data.ip} is back online`,
-                        description: 'You can return to Deployment to continue.',
-                        duration: 8,
-                        btn: (
-                          <Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
-                        ),
-                      });
+                      {
+                        let suppress = false;
+                        try {
+                          if (window.__svMountedDeployment) suppress = true;
+                          else {
+                            const active = sessionStorage.getItem('serverVirtualization_activeTab');
+                            if (active === '5') suppress = true;
+                          }
+                        } catch (_) {}
+                        if (!suppress) {
+                          notification.open({
+                            key: `sv-ssh-success-${node_ip}`,
+                            message: `Node ${data.ip} is back online`,
+                            description: 'You can return to Deployment to continue.',
+                            duration: 8,
+                            btn: (
+                              <Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
+                            ),
+                          });
+                        }
+                      }
                       clearInterval(pollInterval);
                       delete window.__cloudPolling[node_ip];
                       if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
@@ -1364,7 +1412,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       const nodeIp = form.ip || `node${nodeIdx + 1}`;
                       storeFormData(nodeIp, form);
                     } else if (data.status === 'fail' && data.ip === node_ip) {
-                      if (cardStatus[nodeIdx]?.loading || !window.__cloudMountedNetworkApply) {
+                      if (cardStatus[nodeIdx]?.loading || !window.__svMountedDeployment) {
                         infoRestartThrottled(node_ip);
                       }
                     }

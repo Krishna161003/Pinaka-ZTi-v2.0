@@ -26,6 +26,99 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
   // Persisted hostname map for Cloud: ip -> hostname (SQDN-XX)
   const CLOUD_HOSTNAME_MAP_KEY = 'cloud_hostnameMap';
 
+  // SSH polling constants and keys
+  const POLL_DELAY_MS = 90000; // 90s delay to allow node reboot
+  const POLL_INTERVAL_MS = 5000; // poll every 5s
+  const POLL_MAX_POLLS = 60; // max ~5 minutes after delay
+  const SSH_DELAY_START_KEY = 'cloud_networkApplyPollingDelayStart';
+  const RESTART_MSG_THROTTLE_MS = 15000; // throttle "Node restarting..." every 15s per IP
+
+  // Delay start helpers
+  const getDelayStartMap = () => {
+    try {
+      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
+  const setDelayStartForIp = (ip, ts) => {
+    try {
+      const map = getDelayStartMap();
+      if (ts) map[ip] = ts; else delete map[ip];
+      sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+    } catch (_) {}
+  };
+
+  // Throttled restart info
+  function infoRestartThrottled(ip) {
+    try {
+      const now = Date.now();
+      if (!window.__cloudRestartInfoTs) window.__cloudRestartInfoTs = {};
+      const last = window.__cloudRestartInfoTs[ip] || 0;
+      if (now - last > RESTART_MSG_THROTTLE_MS) {
+        window.__cloudRestartInfoTs[ip] = now;
+        message.info('Node restarting...');
+      }
+    } catch (_) {}
+  }
+
+  // Cross-menu navigation and notifications
+  function navigateToNetworkApply() {
+    try {
+      const savedDisabled = sessionStorage.getItem('cloud_disabledTabs');
+      const disabledTabs = savedDisabled ? JSON.parse(savedDisabled) : {};
+      disabledTabs['4'] = false;
+      sessionStorage.setItem('cloud_disabledTabs', JSON.stringify(disabledTabs));
+      sessionStorage.setItem('cloud_activeTab', '4');
+    } catch (_) {}
+    try {
+      const url = new URL(window.location.href);
+      url.pathname = '/addnode';
+      url.searchParams.set('tab', '4');
+      window.location.href = url.toString();
+    } catch (_) {
+      window.location.href = '/addnode?tab=4';
+    }
+  }
+
+  const notifySshSuccess = (ip) => {
+    // Suppress redirect notification if already on Network Apply tab
+    if (window.__cloudMountedNetworkApply) return;
+    try { const active = sessionStorage.getItem('cloud_activeTab'); if (active === '4') return; } catch (_) {}
+    const key = `cloud-ssh-${ip}`;
+    notification.open({
+      key,
+      message: 'Node online',
+      description: `Node ${ip} is back online.`,
+      btn: (
+        <Button type="link" onClick={navigateToNetworkApply}>
+          Open Network Apply
+        </Button>
+      ),
+      duration: 8,
+    });
+  };
+
+  const notifySshTimeout = (ip) => {
+    // Suppress redirect notification if already on Network Apply tab
+    if (window.__cloudMountedNetworkApply) return;
+    try { const active = sessionStorage.getItem('cloud_activeTab'); if (active === '4') return; } catch (_) {}
+    const key = `cloud-ssh-${ip}`;
+    notification.open({
+      key,
+      message: 'SSH polling timeout',
+      description: `Timeout while waiting for ${ip}.`,
+      btn: (
+        <Button type="link" onClick={navigateToNetworkApply}>
+          Open Network Apply
+        </Button>
+      ),
+      duration: 10,
+    });
+  };
+
   const getCloudHostnameMap = () => {
     try {
       const raw = sessionStorage.getItem(CLOUD_HOSTNAME_MAP_KEY);
@@ -346,6 +439,89 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
   useEffect(() => {
     sessionStorage.setItem('cloud_networkApplyCardStatus', JSON.stringify(cardStatus));
   }, [cardStatus]);
+
+  // Recover SSH polling timers after reload/navigation based on persisted delay-start timestamps
+  useEffect(() => {
+    if (!Array.isArray(forms) || forms.length === 0) return;
+    const delayMap = getDelayStartMap();
+
+    forms.forEach((f, idx) => {
+      const ip = f?.ip;
+      if (!ip) return;
+      const status = cardStatus[idx] || {};
+      if (!status.loading || status.applied) return;
+
+      // Skip if timers already exist for this IP
+      if ((window.__cloudPolling && window.__cloudPolling[ip]) || (window.__cloudPollingStart && window.__cloudPollingStart[ip])) return;
+
+      const startAt = delayMap[ip] || 0;
+      const elapsed = startAt ? (Date.now() - startAt) : 0;
+      const remaining = Math.max(POLL_DELAY_MS - elapsed, 0);
+
+      const beginInterval = () => {
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+          pollCount++;
+          if (pollCount > POLL_MAX_POLLS) {
+            clearInterval(pollInterval);
+            setCardStatusForIpInSession(ip, { loading: false, applied: false });
+            if (window.__cloudMountedNetworkApply) {
+              setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: false } : s));
+            }
+            notifySshTimeout(ip);
+            message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
+            if (window.__cloudPolling) delete window.__cloudPolling[ip];
+            setDelayStartForIp(ip, null);
+            return;
+          }
+
+          fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ip)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === 'success' && data.ip === ip) {
+                setCardStatusForIpInSession(ip, { loading: false, applied: true });
+                if (window.__cloudMountedNetworkApply) {
+                  setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: true } : s));
+                }
+                message.success(`Node ${data.ip} is back online!`);
+                notifySshSuccess(ip);
+                clearInterval(pollInterval);
+                if (window.__cloudPolling) delete window.__cloudPolling[ip];
+                if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+                  delete window.__cloudPollingStart[ip];
+                }
+                setDelayStartForIp(ip, null);
+                // Ensure form data is stored
+                const nodeForm = forms[idx];
+                const nodeIp = nodeForm?.ip || `node${idx + 1}`;
+                if (nodeForm) storeFormData(nodeIp, nodeForm);
+              } else if (data.status === 'fail' && data.ip === ip) {
+                infoRestartThrottled(ip);
+              }
+            })
+            .catch(err => {
+              console.error('SSH status check failed:', err);
+            });
+        }, POLL_INTERVAL_MS);
+
+        if (!window.__cloudPolling) window.__cloudPolling = {};
+        window.__cloudPolling[ip] = pollInterval;
+      };
+
+      if (remaining > 0) {
+        const to = setTimeout(() => {
+          beginInterval();
+          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+            delete window.__cloudPollingStart[ip];
+          }
+        }, remaining);
+        if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+        window.__cloudPollingStart[ip] = to;
+      } else {
+        beginInterval();
+      }
+    });
+  }, [forms, cardStatus]);
 
   function handleDiskChange(idx, value) {
     setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
@@ -849,26 +1025,27 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
             }
           }).then(() => {
-            // Delay starting the frontend polling until 90 seconds (to match backend delay)
-            const startPollingTimeout = setTimeout(() => {
+            // Persist delay start timestamp and schedule delayed start (to match backend delay)
+            setDelayStartForIp(node_ip, Date.now());
+
+            const beginInterval = () => {
               let pollCount = 0;
-              const maxPolls = 60; // Maximum 5 minutes of polling (60 * 5 seconds)
-              
               const pollInterval = setInterval(() => {
                 pollCount++;
-                
                 // Stop polling if we've exceeded the maximum attempts
-                if (pollCount > maxPolls) {
+                if (pollCount > POLL_MAX_POLLS) {
                   clearInterval(pollInterval);
                   setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
                   if (window.__cloudMountedNetworkApply) {
                     setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: false } : s));
                   }
+                  notifySshTimeout(node_ip);
                   message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
-                  delete window.__cloudPolling[node_ip];
+                  if (window.__cloudPolling) delete window.__cloudPolling[node_ip];
+                  setDelayStartForIp(node_ip, null);
                   return;
                 }
-                
+
                 fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
                   .then(res => res.json())
                   .then(data => {
@@ -879,29 +1056,36 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                         setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
                       }
                       message.success(`Node ${data.ip} is back online!`);
+                      notifySshSuccess(node_ip);
                       clearInterval(pollInterval);
-                      delete window.__cloudPolling[node_ip];
+                      if (window.__cloudPolling) delete window.__cloudPolling[node_ip];
                       if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
                         delete window.__cloudPollingStart[node_ip];
                       }
+                      setDelayStartForIp(node_ip, null);
                       // Store the form data for this node in sessionStorage
                       const nodeIp = form.ip || `node${nodeIdx + 1}`;
                       storeFormData(nodeIp, form);
                     } else if (data.status === 'fail' && data.ip === node_ip) {
-                      if (cardStatus[nodeIdx]?.loading || !window.__cloudMountedNetworkApply) {
-                        message.info('Node restarting...');
-                      }
+                      infoRestartThrottled(node_ip);
                     }
                   })
                   .catch(err => {
                     console.error('SSH status check failed:', err);
                   });
-              }, 5000); // Check every 5 seconds
-  
+              }, POLL_INTERVAL_MS);
+
               // Store the interval reference globally (do not clear on unmount to allow background polling)
               if (!window.__cloudPolling) window.__cloudPolling = {};
               window.__cloudPolling[node_ip] = pollInterval;
-            }, 90000); // Start polling after 90 seconds
+            };
+
+            const startPollingTimeout = setTimeout(() => {
+              beginInterval();
+              if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
+                delete window.__cloudPollingStart[node_ip];
+              }
+            }, POLL_DELAY_MS);
 
             if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
             window.__cloudPollingStart[node_ip] = startPollingTimeout;
@@ -953,7 +1137,24 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
   const handleUndoRemoveNode = () => {
     const payload = lastRemovedRef.current;
     if (!payload) return;
-    const { idx, ip, form, status, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex } = payload;
+    const { idx, ip, form, status, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex, delayTs } = payload;
+
+    // Safety: clear any global timers and existing SSH notifications for this IP before restoring
+    try {
+      if (window.__cloudPolling && window.__cloudPolling[ip]) {
+        clearInterval(window.__cloudPolling[ip]);
+        delete window.__cloudPolling[ip];
+      }
+      if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+        clearTimeout(window.__cloudPollingStart[ip]);
+        delete window.__cloudPollingStart[ip];
+      }
+    } catch (_) {}
+    try { notification.close(`cloud-ssh-${ip}`); } catch (_) {}
+    // Restore delay start timestamp so polling can recover if it was in progress
+    if (delayTs) {
+      try { setDelayStartForIp(ip, delayTs); } catch (_) {}
+    }
 
     // Restore forms, statuses, btn loading
     setForms(prev => {
@@ -1064,7 +1265,13 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
             laEntry = laIndex >= 0 ? arr[laIndex] : null;
           }
         } catch (_) {}
-        lastRemovedRef.current = { idx, ip, form: { ...form }, status: { ...cardStatus[idx] }, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex };
+        // Snapshot delay-start timestamp for SSH polling so Undo can restore it
+        let delayTs = null;
+        try {
+          const dmap = getDelayStartMap();
+          delayTs = dmap[ip] || null;
+        } catch (_) {}
+        lastRemovedRef.current = { idx, ip, form: { ...form }, status: { ...cardStatus[idx] }, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex, delayTs };
 
         // Clear any global polling timers for this IP
         try {
@@ -1075,6 +1282,14 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
             clearTimeout(window.__cloudPollingStart[ip]);
             delete window.__cloudPollingStart[ip];
+          }
+        } catch (_) {}
+        // Clear persisted delay start and any SSH notifications/throttle entries for this IP
+        try { setDelayStartForIp(ip, null); } catch (_) {}
+        try { notification.close(`cloud-ssh-${ip}`); } catch (_) {}
+        try {
+          if (window.__cloudRestartInfoTs && window.__cloudRestartInfoTs[ip]) {
+            delete window.__cloudRestartInfoTs[ip];
           }
         } catch (_) {}
 

@@ -87,18 +87,18 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
           setResults && setResults(newData);
           return newData;
         });
-        message.success(`License activated successfully for ${ip}`);
+        message.success(`License validated successfully for ${ip}`);
       } else {
-        throw new Error(result.message || 'License activation failed');
+        throw new Error(result.message || 'License validation failed');
       }
     } catch (error) {
-      console.error('License activation error:', error);
+      console.error('License validation error:', error);
       setData(prev => prev.map(r =>
         r.ip === ip
           ? { ...r, result: 'Failed', details: { type: 'N/A', period: 'N/A' }, checking: false }
           : r
       ));
-      message.error(`License activation failed for ${ip}: ${error.response?.data?.message || error.message}`);
+      message.error(`License validation failed for ${ip}: ${error.response?.data?.message || error.message}`);
     }
   };
 
