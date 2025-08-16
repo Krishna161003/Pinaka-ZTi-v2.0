@@ -163,15 +163,21 @@ const App = () => {
     setLicenseNodes(merged);
     sessionStorage.setItem("cloud_licenseNodes", JSON.stringify(merged));
     if (results) {
-      const prevRes = Array.isArray(validationResults) ? validationResults : [];
-      const incoming = Array.isArray(results) ? results : [];
-      const uniqueNewRes = incoming.filter(r => !prevRes.some(p => p?.ip === r?.ip));
-      const mergedRes = [...prevRes, ...uniqueNewRes];
-      setValidationResults(mergedRes);
-      sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes));
+      setValidationResults(prevRes => {
+        const base = Array.isArray(prevRes) ? prevRes : [];
+        const incoming = Array.isArray(results) ? results : [];
+        const map = new Map(base.map(r => [r?.ip, r]));
+        for (const r of incoming) {
+          if (r && r.ip) map.set(r.ip, r);
+        }
+        const mergedRes = Array.from(map.values());
+        try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch(_) {}
+        return mergedRes;
+      });
     }
     setDisabledTabs((prev) => ({ ...prev, "3": false }));
-    setActiveTab("3");
+    // Defer activation until after disabled state is applied
+    setTimeout(() => setActiveTab("3"), 0);
   };
 
   // When License Activation completes, save results
@@ -224,12 +230,17 @@ const App = () => {
             onNext={handleValidationNext}
             results={validationResults}
             setResults={(results) => {
-              const prevRes = Array.isArray(validationResults) ? validationResults : [];
-              const incoming = Array.isArray(results) ? results : [];
-              const uniqueNewRes = incoming.filter(r => !prevRes.some(p => p?.ip === r?.ip));
-              const mergedRes = [...prevRes, ...uniqueNewRes];
-              setValidationResults(mergedRes);
-              sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes));
+              setValidationResults(prevRes => {
+                const base = Array.isArray(prevRes) ? prevRes : [];
+                const incoming = Array.isArray(results) ? results : [];
+                const map = new Map(base.map(r => [r?.ip, r]));
+                for (const r of incoming) {
+                  if (r && r.ip) map.set(r.ip, r);
+                }
+                const mergedRes = Array.from(map.values());
+                try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch(_) {}
+                return mergedRes;
+              });
             }}
           />
         </Tabs.TabPane>
