@@ -8,18 +8,32 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults }) => {
     const [data, setData] = useState(results || []);
     const [infoModal, setInfoModal] = useState({ visible: false, details: '' });
 
-    // Sync data with results or nodes
+    // Sync data with results or nodes (preserve existing row state)
     useEffect(() => {
-        if (results) setData(results);
-        else setData(
-            (nodes || []).map(node => ({
-                ...node,
-                key: node.ip,
-                result: null,
-                details: '',
-                validating: false,
-            }))
-        );
+        if (results && Array.isArray(results)) {
+            setData(results);
+            return;
+        }
+        setData(prev => {
+            const prevIPs = new Set(prev.map(r => r.ip));
+            const nodeList = Array.isArray(nodes) ? nodes : [];
+            const nodeIPs = new Set(nodeList.map(n => n.ip));
+            const sameSet = prev.length === nodeList.length && [...nodeIPs].every(ip => prevIPs.has(ip));
+            if (sameSet && prev.length > 0) return prev; // don't overwrite validated states
+
+            const prevMap = new Map(prev.map(r => [r.ip, r]));
+            return nodeList.map(n => {
+                const old = prevMap.get(n.ip);
+                return {
+                    ...n,
+                    key: n.ip,
+                    result: old?.result ?? null,
+                    details: old?.details ?? '',
+                    validating: old?.validating ?? false,
+                    validationData: old?.validationData,
+                };
+            });
+        });
     }, [results, nodes]);
 
     // Call backend validation API
