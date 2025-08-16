@@ -76,7 +76,7 @@ const Dashboard = () => {
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
-  const [selectedHostIP, setSelectedHostIP] = useState(() => sessionStorage.getItem('dashboard_selectedHostIP') || window.location.hostname);
+  const [selectedHostIP, setSelectedHostIP] = useState(() => localStorage.getItem('dashboard_selectedHostIP') || window.location.hostname);
   
   // Server details state
   const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', role: '' });
@@ -189,25 +189,25 @@ const Dashboard = () => {
 
 
   useEffect(() => {
-    const storedSelectedHostIP = sessionStorage.getItem('dashboard_selectedHostIP');
+    const storedSelectedHostIP = localStorage.getItem('dashboard_selectedHostIP');
     if (storedSelectedHostIP) {
       setSelectedHostIP(storedSelectedHostIP);
     }
   }, []);
 
   useEffect(() => {
-    const storedSelectedInterface = sessionStorage.getItem('dashboard_selectedInterface');
+    const storedSelectedInterface = localStorage.getItem('dashboard_selectedInterface');
     if (storedSelectedInterface) {
       setSelectedInterface(storedSelectedInterface);
     }
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('dashboard_selectedHostIP', selectedHostIP);
+    localStorage.setItem('dashboard_selectedHostIP', selectedHostIP);
   }, [selectedHostIP]);
 
   useEffect(() => {
-    sessionStorage.setItem('dashboard_selectedInterface', selectedInterface);
+    localStorage.setItem('dashboard_selectedInterface', selectedInterface);
   }, [selectedInterface]);
 
 
@@ -319,11 +319,11 @@ const Dashboard = () => {
       .then(data => {
         setInterfaces(data);
         if (data && data.length > 0) {
-          const saved = sessionStorage.getItem('dashboard_selectedInterface');
+          const saved = localStorage.getItem('dashboard_selectedInterface');
           const valid = saved && data.some(d => d.value === saved);
           const next = valid ? saved : data[0].value;
           setSelectedInterface(next);
-          sessionStorage.setItem('dashboard_selectedInterface', next);
+          localStorage.setItem('dashboard_selectedInterface', next);
         }
       })
       .catch(() => {
@@ -367,7 +367,7 @@ const Dashboard = () => {
       }
     };
     fetchBandwidthHistory();
-    const interval = setInterval(fetchBandwidthHistory, 5000); // every 5s
+    const interval = setInterval(fetchBandwidthHistory, 20000); // every 20s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
@@ -385,7 +385,7 @@ const Dashboard = () => {
       }
     };
     fetchData();
-    const interval = setInterval(fetchData, 5000); // every 5s
+    const interval = setInterval(fetchData, 10000); // every 10s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
