@@ -14,6 +14,48 @@ const getCloudName = () => {
   return meta ? meta.content : '';
 };
 
+// SSH Polling constants and helpers
+const POLL_DELAY_MS = 90000; // 90 seconds before first check
+const POLL_INTERVAL_MS = 5000; // 5 seconds interval
+const POLL_MAX_POLLS = 60; // 5 minutes total
+const SSH_DELAY_START_KEY = 'sv_networkApplyPollingDelayStart';
+const RESTART_MSG_THROTTLE_MS = 15000; // throttle 'Node restarting...' message per IP
+
+// Global navigation to Deployment tab (tab key "5") for notifications
+function navigateToDeploymentTab() {
+  try {
+    const pathWithTab = '/servervirtualization?tab=5';
+    sessionStorage.setItem('serverVirtualization_activeTab', '5');
+    sessionStorage.setItem('lastServerVirtualizationPath', pathWithTab);
+    sessionStorage.setItem('lastMenuPath', pathWithTab);
+    sessionStorage.setItem('lastZtiPath', pathWithTab);
+  } catch (_) {}
+  try {
+    const url = new URL(window.location.origin + '/servervirtualization');
+    url.searchParams.set('tab', '5');
+    window.location.assign(url.toString());
+  } catch (_) {
+    // Fallback
+    window.location.href = '/servervirtualization?tab=5';
+  }
+}
+
+// Throttled info message for restart state to avoid spamming every 5s
+function infoRestartThrottled(ip) {
+  try {
+    const now = Date.now();
+    if (!window.__svRestartInfoTs) window.__svRestartInfoTs = {};
+    const last = window.__svRestartInfoTs[ip] || 0;
+    if (now - last > RESTART_MSG_THROTTLE_MS) {
+      window.__svRestartInfoTs[ip] = now;
+      message.info('Node restarting...');
+    }
+  } catch (_) {
+    // fallback: single info without throttle if globals blocked
+    message.info('Node restarting...');
+  }
+}
+
 const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const cloudName = getCloudName();
 
@@ -283,41 +325,111 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     }
   }, [licenseNodes]);
 
-  // Loader recovery: keep loader until SSH polling succeeds or times out; do NOT auto-apply based on timers
+  // Recovery: if any node card is loading but no active timers exist, resume polling timers
   useEffect(() => {
-    const restartEndTimesRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
-    const bootEndTimesRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
-    const restartEndTimes = restartEndTimesRaw ? JSON.parse(restartEndTimesRaw) : {};
-    const bootEndTimes = bootEndTimesRaw ? JSON.parse(bootEndTimesRaw) : {};
-    const now = Date.now();
-    // For storing results
-    let networkApplyResult = getNetworkApplyResult();
-    cardStatus.forEach((status, idx) => {
-      if (!status.loading) {
-        // If not loading, ensure timer is cleared
-        if (timerRefs.current[idx]) {
-          clearTimeout(timerRefs.current[idx]);
-          timerRefs.current[idx] = null;
-        }
-        // If applied and not yet stored, store the result (for robustness)
-        if (status.applied) {
-          const nodeIp = forms[idx]?.ip || `node${idx + 1}`;
-          if (!networkApplyResult[nodeIp]) {
-            storeFormData(nodeIp, forms[idx]);
+    // Ensure globals exist
+    if (!window.__cloudPolling) window.__cloudPolling = {};
+    if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+
+    let delayMap = {};
+    try {
+      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+      delayMap = raw ? JSON.parse(raw) : {};
+    } catch (_) { delayMap = {}; }
+
+    const statusArrRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
+    const statusArr = statusArrRaw ? JSON.parse(statusArrRaw) : [];
+
+    (forms || []).forEach((f, idx) => {
+      const ip = f?.ip;
+      if (!ip) return;
+      const st = statusArr[idx] || {};
+      const needsResume = st.loading && !st.applied && !window.__cloudPolling[ip] && !window.__cloudPollingStart[ip];
+      if (!needsResume) return;
+
+      const startAt = Number(delayMap[ip] || 0);
+      const elapsed = startAt ? (Date.now() - startAt) : Number.POSITIVE_INFINITY;
+      const remaining = startAt ? Math.max(POLL_DELAY_MS - elapsed, 0) : 0;
+
+      const beginInterval = () => {
+        let pollCount = 0;
+        const maxPolls = POLL_MAX_POLLS;
+        const interval = setInterval(() => {
+          pollCount++;
+
+          // Stop polling if we've exceeded the maximum attempts
+          if (pollCount > maxPolls) {
+            clearInterval(interval);
+            setCardStatusForIpInSession(ip, { loading: false, applied: false });
+            if (window.__cloudMountedNetworkApply) {
+              setCardStatus(prev => {
+                const idxNow = forms.findIndex(ff => ff?.ip === ip);
+                return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+              });
+            }
+            message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
+            notification.warning({
+              key: `sv-ssh-timeout-${ip}`,
+              message: 'SSH polling timeout',
+              description: `Timeout waiting for ${ip} to come online.`,
+              duration: 8,
+              btn: (<Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
+            });
+            delete window.__cloudPolling[ip];
+            return;
           }
-        }
+
+          fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ip)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === 'success' && data.ip === ip) {
+                setCardStatusForIpInSession(ip, { loading: false, applied: true });
+                if (window.__cloudMountedNetworkApply) {
+                  setCardStatus(prev => {
+                    const idxNow = forms.findIndex(ff => ff?.ip === ip);
+                    return prev.map((s, i) => i === idxNow ? { loading: false, applied: true } : s);
+                  });
+                }
+                message.success(`Node ${ip} is back online!`);
+                notification.open({
+                  key: `sv-ssh-success-${ip}`,
+                  message: `Node ${ip} is back online`,
+                  description: 'You can return to Deployment to continue.',
+                  duration: 8,
+                  btn: (<Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
+                });
+                clearInterval(interval);
+                delete window.__cloudPolling[ip];
+                if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+                  delete window.__cloudPollingStart[ip];
+                }
+                // Store the form data for this node in sessionStorage
+                const idxNow = forms.findIndex(ff => ff?.ip === ip);
+                const formNow = forms[idxNow];
+                if (formNow) storeFormData(ip, formNow);
+              } else if (data.status === 'fail' && data.ip === ip) {
+                if (cardStatus[idx]?.loading || !window.__cloudMountedNetworkApply) {
+                  infoRestartThrottled(ip);
+                }
+              }
+            })
+            .catch(err => console.error('SSH status check failed:', err));
+        }, POLL_INTERVAL_MS); // Check every 5 seconds
+
+        window.__cloudPolling[ip] = interval;
+      };
+
+      if (remaining > 0 && remaining !== Infinity) {
+        const to = setTimeout(() => {
+          beginInterval();
+          delete window.__cloudPollingStart[ip];
+        }, remaining);
+        window.__cloudPollingStart[ip] = to;
+      } else {
+        beginInterval();
       }
     });
-    // Also, on every render, clean up any timers for cards that are no longer loading
-    cardStatus.forEach((status, idx) => {
-      if (!status.loading && timerRefs.current[idx]) {
-        clearTimeout(timerRefs.current[idx]);
-        timerRefs.current[idx] = null;
-      }
-    });
-    // Persist the result object
-    sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(networkApplyResult));
-  }, [cardStatus, forms]);
+  }, [forms, cardStatus]);
 
   // Persist forms and cardStatus to sessionStorage on change
   useEffect(() => {
@@ -404,6 +516,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           licenseActivationEntry: null,
           licenseStatusEntry: null,
           hostnameEntry: null,
+          delayStartTs: null,
         };
 
         // sv_networkApply restart/boot timers
@@ -433,6 +546,17 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             snapshot.networkApplyResultEntry = resultObj[ip];
             delete resultObj[ip];
             sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
+          }
+        } catch (_) {}
+
+        // sv_networkApplyPollingDelayStart per-IP
+        try {
+          const raw = sessionStorage.getItem('sv_networkApplyPollingDelayStart');
+          const map = raw ? JSON.parse(raw) : {};
+          if (ip && map && Object.prototype.hasOwnProperty.call(map, ip)) {
+            snapshot.delayStartTs = map[ip];
+            delete map[ip];
+            sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
           }
         } catch (_) {}
 
@@ -515,6 +639,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             clearTimeout(window.__cloudPollingStart[ip]);
             delete window.__cloudPollingStart[ip];
           }
+          // Close any lingering SSH notifications for this IP
+          try {
+            notification.close(`sv-ssh-success-${ip}`);
+            notification.close(`sv-ssh-timeout-${ip}`);
+          } catch (_) {}
         } catch (_) {}
 
         // Update local states
@@ -551,7 +680,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           duration: 5,
           btn: (
             <Button type="link" onClick={() => {
-              notification.destroy(key);
+              notification.close(key);
               // Restore arrays and maps from snapshot
               try {
                 // licenseNodes
@@ -561,6 +690,15 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 if (snapshot.licenseNodesEntry) {
                   nodesArr.splice(insIdx, 0, snapshot.licenseNodesEntry);
                   sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
+                }
+              } catch (_) {}
+              try {
+                // restore delay-start timestamp for polling recovery
+                if (snapshot.delayStartTs && snapshot.ip) {
+                  const raw = sessionStorage.getItem('sv_networkApplyPollingDelayStart');
+                  const map = raw ? JSON.parse(raw) : {};
+                  map[snapshot.ip] = snapshot.delayStartTs;
+                  sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
                 }
               } catch (_) {}
               try {
@@ -1124,26 +1262,67 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
             }
           }).then(() => {
+            // Prevent duplicate timers for this IP
+            if (!window.__cloudPolling) window.__cloudPolling = {};
+            if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+            if (window.__cloudPolling[node_ip]) {
+              try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) {}
+              delete window.__cloudPolling[node_ip];
+            }
+            if (window.__cloudPollingStart[node_ip]) {
+              try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) {}
+              delete window.__cloudPollingStart[node_ip];
+            }
+            // Persist delay start time for recovery
+            try {
+              const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+              const map = raw ? JSON.parse(raw) : {};
+              map[node_ip] = Date.now();
+              sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+            } catch (_) {}
+
             // Delay starting the frontend polling until 90 seconds (to match backend delay)
             const startPollingTimeout = setTimeout(() => {
               let pollCount = 0;
-              const maxPolls = 60; // Maximum 5 minutes of polling (60 * 5 seconds)
-              
+              const maxPolls = POLL_MAX_POLLS; // Maximum 5 minutes of polling
+
               const pollInterval = setInterval(() => {
                 pollCount++;
-                
+
                 // Stop polling if we've exceeded the maximum attempts
                 if (pollCount > maxPolls) {
                   clearInterval(pollInterval);
                   setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
                   if (window.__cloudMountedNetworkApply) {
-                    setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: false } : s));
+                    setCardStatus(prev => {
+                      const idxNow = forms.findIndex(f => f?.ip === node_ip);
+                      return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+                    });
                   }
                   message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
+                  // Clear delay-start entry for this IP
+                  try {
+                    const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                    const map = raw ? JSON.parse(raw) : {};
+                    if (map[node_ip]) {
+                      delete map[node_ip];
+                      sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                    }
+                  } catch (_) {}
+                  // Cross-menu notification on timeout
+                  notification.warning({
+                    key: `sv-ssh-timeout-${node_ip}`,
+                    message: 'SSH polling timeout',
+                    description: `Timeout waiting for ${node_ip} to come online.`,
+                    duration: 8,
+                    btn: (
+                      <Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
+                    ),
+                  });
                   delete window.__cloudPolling[node_ip];
                   return;
                 }
-                
+
                 fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
                   .then(res => res.json())
                   .then(data => {
@@ -1151,32 +1330,54 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       // Persist status to sessionStorage so it reflects on remount or in other menus
                       setCardStatusForIpInSession(node_ip, { loading: false, applied: true });
                       if (window.__cloudMountedNetworkApply) {
-                        setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
+                        setCardStatus(prev => {
+                          const idxNow = forms.findIndex(f => f?.ip === node_ip);
+                          return prev.map((s, i) => i === idxNow ? { loading: false, applied: true } : s);
+                        });
                       }
                       message.success(`Node ${data.ip} is back online!`);
+                      // Cross-menu notification on success
+                      notification.open({
+                        key: `sv-ssh-success-${node_ip}`,
+                        message: `Node ${data.ip} is back online`,
+                        description: 'You can return to Deployment to continue.',
+                        duration: 8,
+                        btn: (
+                          <Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
+                        ),
+                      });
                       clearInterval(pollInterval);
                       delete window.__cloudPolling[node_ip];
                       if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
                         delete window.__cloudPollingStart[node_ip];
                       }
+                      // Clear delay-start entry for this IP
+                      try {
+                        const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                        const map = raw ? JSON.parse(raw) : {};
+                        if (map[node_ip]) {
+                          delete map[node_ip];
+                          sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                        }
+                      } catch (_) {}
                       // Store the form data for this node in sessionStorage
                       const nodeIp = form.ip || `node${nodeIdx + 1}`;
                       storeFormData(nodeIp, form);
                     } else if (data.status === 'fail' && data.ip === node_ip) {
                       if (cardStatus[nodeIdx]?.loading || !window.__cloudMountedNetworkApply) {
-                        message.info('Node restarting...');
+                        infoRestartThrottled(node_ip);
                       }
                     }
                   })
                   .catch(err => {
                     console.error('SSH status check failed:', err);
                   });
-              }, 5000); // Check every 5 seconds
-  
+              }, POLL_INTERVAL_MS); // Check every 5 seconds
+
               // Store the interval reference globally (do not clear on unmount to allow background polling)
               if (!window.__cloudPolling) window.__cloudPolling = {};
               window.__cloudPolling[node_ip] = pollInterval;
-            }, 90000); // Start polling after 90 seconds
+            }, POLL_DELAY_MS); // Start polling after 90 seconds
 
             if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
             window.__cloudPollingStart[node_ip] = startPollingTimeout;
