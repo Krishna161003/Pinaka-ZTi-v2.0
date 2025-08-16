@@ -151,7 +151,10 @@ const Dashboard = () => {
         if (data && Array.isArray(data.cpu_history)) {
           setCpuHistory(
             data.cpu_history.map(item => {
-              const cpuVal = typeof item.cpu === 'number' && !isNaN(item.cpu) ? item.cpu : 0;
+              const rawCpu = item.cpu;
+              const cpuVal = typeof rawCpu === 'number' && !isNaN(rawCpu)
+                ? (rawCpu <= 1 ? rawCpu * 100 : rawCpu)
+                : 0;
               return {
                 date: new Date(item.timestamp * 1000),
                 cpu: cpuVal
@@ -164,7 +167,10 @@ const Dashboard = () => {
         if (data && Array.isArray(data.memory_history)) {
           setMemoryHistory(
             data.memory_history.map(item => {
-              const memVal = typeof item.memory === 'number' && !isNaN(item.memory) ? item.memory : 0;
+              const rawMem = item.memory;
+              const memVal = typeof rawMem === 'number' && !isNaN(rawMem)
+                ? (rawMem <= 1 ? rawMem * 100 : rawMem)
+                : 0;
               return {
                 date: new Date(item.timestamp * 1000),
                 memory: memVal
@@ -219,6 +225,19 @@ const Dashboard = () => {
     // Set the solid or semi-transparent fill color:
     style: {
       fill: '#8fd98f',
+    },
+    // Y axis in percentage with ticks at 10,20,...,100
+    yAxis: {
+      label: {
+        formatter: (v) => `${v}%`,
+      },
+    },
+    meta: {
+      memory: {
+        min: 0,
+        max: 100,
+        tickInterval: 10,
+      },
     },
     // Optional: make the line match the fill color
     // line: {
@@ -367,7 +386,7 @@ const Dashboard = () => {
       }
     };
     fetchBandwidthHistory();
-    const interval = setInterval(fetchBandwidthHistory, 20000); // every 20s
+    const interval = setInterval(fetchBandwidthHistory, 10000); // every 20s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
@@ -888,6 +907,19 @@ const Dashboard = () => {
                         yField="cpu"
                         height={180}
                         smooth={true}
+                        // Y axis in percentage with ticks at 10,20,...,100
+                        yAxis={{
+                          label: {
+                            formatter: (v) => `${v}%`,
+                          },
+                        }}
+                        meta={{
+                          cpu: {
+                            min: 0,
+                            max: 100,
+                            tickInterval: 10,
+                          },
+                        }}
                         areaStyle={{ fill: 'l(270) 0:#1890ff 0.5:#e6f7ff 1:#ffffff' }}
                         line={{ color: '#1890ff' }}
                       />
