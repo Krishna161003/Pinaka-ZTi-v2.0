@@ -235,8 +235,12 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
             license_status=VALUES(license_status),
             server_id=VALUES(server_id)
         `;
+        // Normalize license_type and force period NULL for perpetual
+        const normalizedType = String(license_type || '').trim().toLowerCase();
+        const isPerpetual = normalizedType === 'perpectual' || normalizedType === 'perpetual';
+        const periodToStore = isPerpetual ? null : (license_period || null);
         await new Promise((resolve, reject) => {
-          db.query(licenseInsertSQL, [license_code, license_type, license_period, 'validated', serverid], (licErr) => (licErr ? reject(licErr) : resolve()));
+          db.query(licenseInsertSQL, [license_code, license_type, periodToStore, 'validated', serverid], (licErr) => (licErr ? reject(licErr) : resolve()));
         });
       }
 
@@ -282,7 +286,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
         const licenseCodeToUse = licRows && licRows.length > 0 ? licRows[0].license_code : null;
 
         if (licenseCodeToUse) {
-          const getLicenseSQL = `SELECT license_period FROM License WHERE license_code = ?`;
+          const getLicenseSQL = `SELECT license_type, license_period FROM License WHERE license_code = ?`;
           db.query(getLicenseSQL, [licenseCodeToUse], (getLicErr, licResults) => {
             if (getLicErr) {
               console.error('Error fetching license period for child node:', getLicErr);
@@ -291,11 +295,15 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
                 if (licUpdErr) console.error('Error activating child node license:', licUpdErr);
               });
             } else {
-              const licensePeriod = licResults[0]?.license_period;
+              const row = licResults && licResults[0] ? licResults[0] : {};
+              const normalizedType = String(row.license_type || '').trim().toLowerCase();
+              const isPerpetual = normalizedType === 'perpectual' || normalizedType === 'perpetual';
+              const licensePeriod = row.license_period;
               const startDate = new Date().toISOString().split('T')[0];
-              const endDate = calculateEndDate(licensePeriod);
-              const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = ? WHERE license_code = ?`;
-              db.query(updLicSQL, [serverid, startDate, endDate, licenseCodeToUse], (licUpdErr) => {
+              const endDate = isPerpetual ? null : calculateEndDate(licensePeriod);
+              const periodToStore = isPerpetual ? null : licensePeriod;
+              const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = ?, license_period = ? WHERE license_code = ?`;
+              db.query(updLicSQL, [serverid, startDate, endDate, periodToStore, licenseCodeToUse], (licUpdErr) => {
                 if (licUpdErr) console.error('Error activating child node license:', licUpdErr);
               });
             }
@@ -838,6 +846,10 @@ app.post('/api/deployment-activity-log', (req, res) => {
       // Insert license details if provided
       const { license_code, license_type, license_period } = req.body;
       if (license_code) {
+        // Normalize type and force NULL period for perpetual licenses
+        const normalizedType = String(license_type || '').trim().toLowerCase();
+        const isPerpetual = normalizedType === 'perpectual' || normalizedType === 'perpetual';
+        const periodToStore = isPerpetual ? null : (license_period || null);
         const licenseInsertSQL = `
           INSERT INTO License (license_code, license_type, license_period, license_status, server_id) 
           VALUES (?, ?, ?, 'validated', ?)
@@ -846,7 +858,7 @@ app.post('/api/deployment-activity-log', (req, res) => {
             license_period=VALUES(license_period), 
             server_id=VALUES(server_id)
         `;
-        db.query(licenseInsertSQL, [license_code, license_type, license_period, serverid], (licErr) => {
+        db.query(licenseInsertSQL, [license_code, license_type, periodToStore, serverid], (licErr) => {
           if (licErr) {
             console.error('Error inserting/updating license:', licErr);
             // Continue anyway, but log error
@@ -916,20 +928,19 @@ app.put('/api/update-license/:serverid', (req, res) => {
   const normalizedType = String(license_type).toLowerCase();
   const isPerpetual = normalizedType === 'perpectual' || normalizedType === 'perpetual';
   const effectiveStatus = (status || 'activated').toLowerCase();
+  // If type is perpetual, force status activated
+  const finalStatus = isPerpetual ? 'activated' : effectiveStatus;
+  // Force license_period to NULL for perpetual
+  const licensePeriodToStore = isPerpetual ? null : (license_period || null);
 
-  // Decide dates per requirement:
-  // If status is activated:
-  //  - Always set start_date to today
-  //  - Set end_date to NULL for perpetual; otherwise compute from license_period
+  // Decide dates per requirement based on finalStatus:
+  //  - If finalStatus is activated: set start_date to today; end_date NULL for perpetual, else computed
   let startDate = null;
   let endDate = null;
-  if (effectiveStatus === 'activated') {
+  if (finalStatus === 'activated') {
     startDate = new Date().toISOString().split('T')[0];
-    endDate = isPerpetual ? null : calculateEndDate(license_period);
+    endDate = isPerpetual ? null : calculateEndDate(licensePeriodToStore);
   }
-
-  // If type is perpetual, force status activated and dates null as per requirement
-  const finalStatus = isPerpetual ? 'activated' : effectiveStatus;
 
   const insertSql = `
     INSERT INTO License (license_code, license_type, license_period, license_status, server_id, start_date, end_date)
@@ -938,7 +949,7 @@ app.put('/api/update-license/:serverid', (req, res) => {
 
   db.query(
     insertSql,
-    [license_code, license_type, license_period || null, finalStatus, serverid, startDate, endDate],
+    [license_code, license_type, licensePeriodToStore, finalStatus, serverid, startDate, endDate],
     (err, result) => {
       if (err) {
         if (err.code === 'ER_DUP_ENTRY') {
@@ -961,7 +972,7 @@ app.put('/api/update-license/:serverid', (req, res) => {
           license: {
             license_code,
             license_type,
-            license_period: license_period || null,
+            license_period: licensePeriodToStore,
             license_status: finalStatus,
             server_id: serverid,
             start_date: startDate,
@@ -1056,6 +1067,39 @@ app.get('/api/deployed-servers', (req, res) => {
   });
 });
 
+// API: Get server details by IP from deployed_server table
+app.get('/api/server-details-by-ip', (req, res) => {
+  const { ip, userId } = req.query;
+  
+  if (!ip) {
+    return res.status(400).json({ error: 'IP parameter is required' });
+  }
+
+  let sql = "SELECT serverid, serverip, role FROM deployed_server WHERE serverip = ?";
+  const params = [ip];
+  
+  if (userId) {
+    sql += ' AND user_id = ?';
+    params.push(userId);
+  }
+  
+  sql += ' ORDER BY datetime DESC LIMIT 1';
+  
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error('Error fetching server details by IP:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    if (results && results.length > 0) {
+      res.json(results[0]);
+    } else {
+      // Return null if no server found for this IP
+      res.json({ serverid: null, serverip: ip, role: null });
+    }
+  });
+});
+
 // API: Get first cloudname from deployed_server globally (earliest row)
 app.get('/api/first-cloudname', (req, res) => {
   const sql = `
@@ -1075,7 +1119,7 @@ app.get('/api/first-cloudname', (req, res) => {
 });
 
 // API: Get distinct server IPs from deployed_server for dropdowns
-app.get('/api/deployed-server-ips', (req, res) => {
+app.get('/api/deployed-server-ips-dropdown', (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json([req.hostname]);
   const sql = `SELECT DISTINCT serverip FROM deployed_server WHERE user_id = ? AND serverip IS NOT NULL AND serverip <> '' ORDER BY serverip`;

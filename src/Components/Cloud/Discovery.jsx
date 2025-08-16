@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Input, Form, Space, message } from 'antd';
+import { Table, Button, Input, Form, Space, message, Modal } from 'antd';
 
 const subnetRegex = /^([0-9]{1,3}\.){3}[0-9]{1,3}\/(\d|[1-2]\d|3[0-2])$/;
 const hostIP = window.location.hostname;
@@ -12,6 +12,16 @@ const Cloud = ({ onNext, results, setResults }) => {
   const [data, setData] = useState(results || []);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [searchText, setSearchText] = useState('');
+
+  // Helper: get userId from sessionStorage
+  const getUserId = () => {
+    try {
+      const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
+      return loginDetails?.data?.id || sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || null;
+    } catch (_) {
+      return sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || null;
+    }
+  };
 
   // Fetch scan results
   const fetchScan = async (customSubnet = '', type = 'scan') => {
@@ -51,6 +61,102 @@ const Cloud = ({ onNext, results, setResults }) => {
   // const handleRefresh = () => {
   //   fetchScan(form.getFieldValue('subnet'), 'refresh');
   // };
+
+  // Validate selected IPs are not already used in deployed_server table
+  const handleNextClick = async () => {
+    const selected = data.filter(row => selectedRowKeys.includes(row.ip + (row.mac || '')));
+    if (!selected.length) return;
+
+    const selectedIPs = selected.map(s => (s.ip || '').trim()).filter(Boolean);
+    if (!selectedIPs.length) return onNext && onNext(selected, data);
+
+    const userId = getUserId();
+    const url = new URL(`https://${hostIP}:5000/api/deployed-servers`);
+    if (userId) url.searchParams.set('userId', userId);
+
+    let deployed = [];
+    try {
+      const res = await fetch(url.toString());
+      if (res.ok) {
+        deployed = await res.json();
+      } else {
+        // If API fails, warn and proceed
+        message.warning('Could not verify deployed servers. Proceeding without check.');
+        return onNext && onNext(selected, data);
+      }
+    } catch (e) {
+      message.warning('Network error during deployed servers check. Proceeding.');
+      return onNext && onNext(selected, data);
+    }
+
+    // Build conflicts list: for each selected IP, check across columns
+    const COLUMN_LABELS = {
+      serverip: 'Server IP',
+      server_vip: 'Server VIP',
+      Management: 'Management',
+      Storage: 'Storage',
+      External_Traffic: 'External Traffic',
+      VXLAN: 'VXLAN',
+    };
+
+    const conflicts = [];
+    for (const row of deployed || []) {
+      for (const [colKey, label] of Object.entries(COLUMN_LABELS)) {
+        const v = (row?.[colKey] || '').trim();
+        if (!v) continue;
+        if (selectedIPs.includes(v)) {
+          conflicts.push({
+            ip: v,
+            column: label,
+            cloudname: row?.cloudname || '-',
+            role: row?.role || '-',
+            serverid: row?.serverid || '-',
+          });
+        }
+      }
+    }
+
+    if (conflicts.length) {
+      // Group by IP for clearer message
+      const byIp = conflicts.reduce((acc, c) => {
+        acc[c.ip] = acc[c.ip] || [];
+        acc[c.ip].push(c);
+        return acc;
+      }, {});
+
+      Modal.error({
+        title: 'Selected IP(s) already used in deployed servers',
+        width: 700,
+        okButtonProps: { style: { width: 80 }, size: 'small' },
+        content: (
+          <div>
+            <p>The following selected IPs are already present in existing deployments. Please deselect or choose different nodes:</p>
+            <ul style={{ paddingLeft: 18 }}>
+              {Object.entries(byIp).map(([ip, items]) => (
+                <li key={ip} style={{ marginBottom: 8 }}>
+                  <strong>{ip}</strong>
+                  <ul style={{ paddingLeft: 18, marginTop: 6 }}>
+                    {items.map((it, idx) => (
+                      <li key={ip + '-' + idx}>
+                        In <strong>{it.column}</strong>
+                        {it.cloudname && it.cloudname !== '-' ? ` | Cloud: ${it.cloudname}` : ''}
+                        {it.role && it.role !== '-' ? ` | Role: ${it.role}` : ''}
+                        {it.serverid && it.serverid !== '-' ? ` | Server ID: ${it.serverid}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ),
+      });
+      return; // Do not proceed
+    }
+
+    // No conflicts -> proceed
+    onNext && onNext(selected, data);
+  };
 
   const columns = [
     {
@@ -121,10 +227,7 @@ const Cloud = ({ onNext, results, setResults }) => {
         <Button
           type="primary"
           disabled={selectedRowKeys.length === 0}
-          onClick={() => {
-            const selected = data.filter(row => selectedRowKeys.includes(row.ip + (row.mac || '')));
-            onNext && onNext(selected, data); // Pass both selection and all scan results
-          }}
+          onClick={handleNextClick}
           style={{ size: "middle", width: "75px" }}
         >
           Next

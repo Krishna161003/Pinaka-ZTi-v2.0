@@ -260,37 +260,72 @@ def check_license_used(file_path, license_code):
 # ------------------------------------------------- Save and validate deploy config start----------------------------
 
 def store_network_config(data):
-    """Store or update the network config for a node in a canonical JSON file."""
+    """Store or update the network config for a node as a flat list of configs.
+
+    Backward compatible with old dict-shaped files keyed by hostname/default_gateway
+    and with any legacy 'pinakasv' inner wrapper.
+    """
     import threading
-    lock = threading.Lock()
     file_path = os.path.join("submitted_configs", "network_configs.json")
     os.makedirs("submitted_configs", exist_ok=True)
-    
-    # Use hostname or default gateway as key, but not VIP
-    key = data.get("hostname") or data.get("default_gateway") or "unknown"
-    
-    # Remove disk information if present and ensure no pinakasv wrapper
-    if 'disk' in data:
-        data = {k: v for k, v in data.items() if k != 'disk'}
-    
-    with lock:
+
+    # Module-level lock fallback (avoid per-call locks)
+    global CONFIG_LOCK
+    try:
+        CONFIG_LOCK
+    except NameError:
+        CONFIG_LOCK = threading.Lock()
+
+    # Clean incoming data: drop 'disk' and unwrap any 'pinakasv' wrapper
+    incoming = data or {}
+    if isinstance(incoming, dict) and 'pinakasv' in incoming and isinstance(incoming['pinakasv'], dict):
+        incoming = incoming['pinakasv']
+    if isinstance(incoming, dict) and 'disk' in incoming:
+        incoming = {k: v for k, v in incoming.items() if k != 'disk'}
+
+    def get_key(obj):
+        if not isinstance(obj, dict):
+            return "unknown"
+        return obj.get("hostname") or obj.get("default_gateway") or "unknown"
+
+    with CONFIG_LOCK:
+        # Load existing file
+        existing_list = []
         if os.path.exists(file_path):
-            with open(file_path, "r") as f:
-                try:
-                    configs = json.load(f)
-                    # If the config has a pinakasv wrapper, extract the inner data
-                    if key in configs and 'pinakasv' in configs[key]:
-                        configs[key] = configs[key]['pinakasv']
-                except Exception:
-                    configs = {}
-        else:
-            configs = {}
-            
-        # Store the data directly without pinakasv wrapper
-        configs[key] = data
-        
+            try:
+                with open(file_path, "r") as f:
+                    existing = json.load(f)
+                # Convert dict-shaped to list of values; keep list as-is
+                if isinstance(existing, dict):
+                    # Legacy: unwrap any inner 'pinakasv' in values
+                    tmp = []
+                    for v in existing.values():
+                        if isinstance(v, dict) and 'pinakasv' in v and isinstance(v['pinakasv'], dict):
+                            tmp.append(v['pinakasv'])
+                        else:
+                            tmp.append(v)
+                    existing_list = [x for x in tmp if isinstance(x, dict)]
+                elif isinstance(existing, list):
+                    existing_list = [x for x in existing if isinstance(x, dict)]
+                else:
+                    existing_list = []
+            except Exception:
+                existing_list = []
+
+        # Upsert by key (hostname/default_gateway)
+        in_key = get_key(incoming)
+        updated = False
+        for i, item in enumerate(existing_list):
+            if get_key(item) == in_key:
+                existing_list[i] = incoming
+                updated = True
+                break
+        if not updated:
+            existing_list.append(incoming)
+
+        # Write back as a list (flat, no wrapper)
         with open(file_path, "w") as f:
-            json.dump(configs, f, indent=4)
+            json.dump(existing_list, f, indent=4)
     return True
 
 def validate_ip_address(ip):

@@ -37,7 +37,7 @@ export function buildDeployConfigPayload(form) {
   // Compose output object
   const out = {
     using_interfaces,
-    hostname: hostname && hostname.trim() ? hostname : 'pinakasv',
+    hostname: (hostname && hostname.trim()) ? hostname : '',
     disk: selectedDisks || [],
     roles: selectedRoles || []
   };

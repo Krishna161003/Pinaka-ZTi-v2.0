@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Divider, Table, Button, Modal, Tag, message } from 'antd';
+import { Divider, Table, Button, Modal, Tag, message, notification } from 'antd';
 import axios from 'axios';
 
 const getCloudName = () => {
@@ -92,6 +92,52 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
     }
   };
 
+  // Remove a node from the table with confirm and Undo support
+  const handleRemove = (ip) => {
+    Modal.confirm({
+      title: `Remove ${ip}?`,
+      content: 'This will remove the node from the list. You can undo within 5 seconds.',
+      okText: 'Remove',
+      okButtonProps: { danger: true, size: 'small', style: { width: 90 } },
+      cancelText: 'Cancel',
+      cancelButtonProps: { size: 'small', style: { width: 90 } },
+      onOk: () => {
+        let removedIndex = -1;
+        let removedRecord = null;
+        setData(prev => {
+          removedIndex = prev.findIndex(r => r.ip === ip);
+          removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+          const newData = prev.filter(row => row.ip !== ip);
+          setResults && setResults(newData);
+          return newData;
+        });
+        const key = `remove-${ip}`;
+        notification.open({
+          key,
+          message: `Removed ${ip}`,
+          description: 'The node was removed.',
+          duration: 5,
+          btn: (
+            <Button type="link" onClick={() => {
+              notification.destroy(key);
+              if (removedRecord && removedIndex > -1) {
+                setData(cur => {
+                  const arr = [...cur];
+                  const idx = Math.min(Math.max(removedIndex, 0), arr.length);
+                  arr.splice(idx, 0, removedRecord);
+                  setResults && setResults(arr);
+                  return arr;
+                });
+              }
+            }}>
+              Undo
+            </Button>
+          ),
+        });
+      }
+    });
+  };
+
   const columns = [
     { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
     {
@@ -141,13 +187,22 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
         </Button>
       ),
     },
+    {
+      title: 'Remove',
+      key: 'remove',
+      render: (_, record) => (
+        <Button danger onClick={() => handleRemove(record.ip)} style={{ width: '95px' }}>
+          Remove
+        </Button>
+      ),
+    },
   ];
 
   return (
     <div style={{ padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h4 style={{ marginBottom: '-16px', marginTop: '3px' }}>
-          Cloud Name: <span style={{ color: 'blue' }}>{cloudName}</span>
+          Cloud Name: <span style={{ color: '#1890ff' }}>{cloudName}</span>
         </h4>
         <Button
           size="middle"

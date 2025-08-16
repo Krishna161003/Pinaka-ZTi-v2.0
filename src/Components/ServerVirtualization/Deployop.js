@@ -10,6 +10,7 @@ const DeploymentOptions = ({ onStart }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [cloudName, setCloudName] = useState('');
   const [isDeployed, setIsDeployed] = useState(false); // NEW: track deployed state
+  const [isChecking, setIsChecking] = useState(true); // NEW: disable Start until check completes
 
   const inputRef = useRef(null); // Create a reference for the input
 
@@ -26,9 +27,12 @@ const DeploymentOptions = ({ onStart }) => {
     // Check on mount only (not on cloudName change)
   useEffect(() => {
     const checkHostDeployed = async () => {
+      setIsChecking(true);
       const userId = getUserId();
       if (!userId) {
         setIsDeployed(false);
+        setIsChecking(false);
+        try { sessionStorage.setItem('sv_hostDeployed', 'false'); } catch (_) {}
         return;
       }
       try {
@@ -36,8 +40,12 @@ const DeploymentOptions = ({ onStart }) => {
           params: { userId }
         });
         setIsDeployed(res.data.exists === true);
+        try { sessionStorage.setItem('sv_hostDeployed', String(res.data.exists === true)); } catch (_) {}
       } catch (err) {
         setIsDeployed(false);
+        try { sessionStorage.setItem('sv_hostDeployed', 'false'); } catch (_) {}
+      } finally {
+        setIsChecking(false);
       }
     };
     checkHostDeployed();
@@ -86,6 +94,8 @@ const DeploymentOptions = ({ onStart }) => {
       if (response.status === 200) {
         // Persist in session and update meta so it survives refresh
         sessionStorage.setItem('cloudName', cloudName);
+        // Explicitly clear any existing-deployed lock since we're starting a new flow
+        try { sessionStorage.setItem('sv_hostDeployed', 'false'); } catch (_) {}
         updateMetadata(cloudName);
         onStart(cloudName);
 
@@ -154,12 +164,12 @@ const DeploymentOptions = ({ onStart }) => {
                 <Button
                   className="custom-button"
                   type="primary"
-                  disabled={isDeployed}
+                  disabled={isDeployed || isChecking}
                   onClick={() => {
-                    if (!isDeployed) setIsModalVisible(true);
+                    if (!isDeployed && !isChecking) setIsModalVisible(true);
                   }}
                 >
-                  {isDeployed ? 'Deployed' : 'Start'}
+                  {isChecking ? 'Checking...' : (isDeployed ? 'Deployed' : 'Start')}
                 </Button>
               </div>
             </div>

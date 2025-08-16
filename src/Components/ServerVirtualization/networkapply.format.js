@@ -79,6 +79,6 @@ export function buildNetworkConfigPayload(form) {
   return {
     using_interfaces,
     default_gateway: defaultGateway || '',
-    hostname: form.hostname || 'pinakasv'
+    hostname: (form.hostname && form.hostname.trim()) ? form.hostname : ''
   };
 }

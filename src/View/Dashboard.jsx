@@ -76,14 +76,47 @@ const Dashboard = () => {
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
-  const [selectedHostIP, setSelectedHostIP] = useState(window.location.hostname);
+  const [selectedHostIP, setSelectedHostIP] = useState(() => localStorage.getItem('dashboard_selectedHostIP') || window.location.hostname);
+  
+  // Server details state
+  const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', role: '' });
+
+  // Fetch server details by IP
+  const fetchServerDetailsByIP = async (ip) => {
+    try {
+      const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
+      const res = await fetch(`https://${hostIP}:5000/api/server-details-by-ip?ip=${encodeURIComponent(ip)}${userId ? `&userId=${encodeURIComponent(userId)}` : ''}`);
+      const data = await res.json();
+      if (data && data.serverid) {
+        setServerDetails({
+          serverid: data.serverid || '',
+          serverip: data.serverip || ip,
+          role: data.role || ''
+        });
+      } else {
+        // If no server found, show Flight Deck details
+        setServerDetails({
+          serverid: 'FD-MAIN',
+          serverip: ip,
+          role: 'Flight Deck'
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching server details:', e);
+      setServerDetails({
+        serverid: 'FD-MAIN',
+        serverip: ip,
+        role: 'Flight Deck'
+      });
+    }
+  };
 
   // Fetch unique server IPs from deployed_server table (backend aggregates)
   useEffect(() => {
     async function fetchServerIps() {
       try {
         const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
-        const res = await fetch(`https://${hostIP}:5000/api/deployed-server-ips${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
+        const res = await fetch(`https://${hostIP}:5000/api/deployed-server-ips-dropdown${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
         const json = await res.json();
         // Support both shapes: ["ip1", ...] or { ips: ["ip1", ...] }
         const arr = Array.isArray(json) ? json : (Array.isArray(json?.ips) ? json.ips : []);
@@ -101,6 +134,13 @@ const Dashboard = () => {
     fetchServerIps();
   }, []);
 
+  // Fetch server details when selectedHostIP changes
+  useEffect(() => {
+    if (selectedHostIP) {
+      fetchServerDetailsByIP(selectedHostIP);
+    }
+  }, [selectedHostIP]);
+
   // Fetch CPU and Memory time series for Area charts
   const [memoryHistory, setMemoryHistory] = useState([]);
   useEffect(() => {
@@ -111,7 +151,10 @@ const Dashboard = () => {
         if (data && Array.isArray(data.cpu_history)) {
           setCpuHistory(
             data.cpu_history.map(item => {
-              const cpuVal = typeof item.cpu === 'number' && !isNaN(item.cpu) ? item.cpu : 0;
+              const rawCpu = item.cpu;
+              const cpuVal = typeof rawCpu === 'number' && !isNaN(rawCpu)
+                ? (rawCpu <= 1 ? rawCpu * 100 : rawCpu)
+                : 0;
               return {
                 date: new Date(item.timestamp * 1000),
                 cpu: cpuVal
@@ -124,7 +167,10 @@ const Dashboard = () => {
         if (data && Array.isArray(data.memory_history)) {
           setMemoryHistory(
             data.memory_history.map(item => {
-              const memVal = typeof item.memory === 'number' && !isNaN(item.memory) ? item.memory : 0;
+              const rawMem = item.memory;
+              const memVal = typeof rawMem === 'number' && !isNaN(rawMem)
+                ? (rawMem <= 1 ? rawMem * 100 : rawMem)
+                : 0;
               return {
                 date: new Date(item.timestamp * 1000),
                 memory: memVal
@@ -139,7 +185,6 @@ const Dashboard = () => {
         setMemoryHistory([]);
         if (lastErrorIpRef.current !== selectedHostIP) {
           message.error(`Failed to fetch system utilization history from ${selectedHostIP}`);
-          lastErrorIpRef.current = selectedHostIP;
         }
       }
     }
@@ -147,6 +192,29 @@ const Dashboard = () => {
     const interval = setInterval(fetchHistory, 10000);
     return () => clearInterval(interval);
   }, [selectedHostIP]);
+
+
+  useEffect(() => {
+    const storedSelectedHostIP = localStorage.getItem('dashboard_selectedHostIP');
+    if (storedSelectedHostIP) {
+      setSelectedHostIP(storedSelectedHostIP);
+    }
+  }, []);
+
+  useEffect(() => {
+    const storedSelectedInterface = localStorage.getItem('dashboard_selectedInterface');
+    if (storedSelectedInterface) {
+      setSelectedInterface(storedSelectedInterface);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_selectedHostIP', selectedHostIP);
+  }, [selectedHostIP]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_selectedInterface', selectedInterface);
+  }, [selectedInterface]);
 
 
   const memoryconfig = {
@@ -157,6 +225,19 @@ const Dashboard = () => {
     // Set the solid or semi-transparent fill color:
     style: {
       fill: '#8fd98f',
+    },
+    // Y axis in percentage with ticks at 10,20,...,100
+    yAxis: {
+      label: {
+        formatter: (v) => `${v}%`,
+      },
+    },
+    meta: {
+      memory: {
+        min: 0,
+        max: 100,
+        tickInterval: 10,
+      },
     },
     // Optional: make the line match the fill color
     // line: {
@@ -187,7 +268,7 @@ const Dashboard = () => {
   const BandwidthLine = ({ bandwidthHistory }) => {
     const config = {
       data: bandwidthHistory,
-      width: 280,
+      // width: 280,
       height: 110,
       smooth: true,
       xField: 'date',
@@ -257,7 +338,11 @@ const Dashboard = () => {
       .then(data => {
         setInterfaces(data);
         if (data && data.length > 0) {
-          setSelectedInterface(data[0].value);
+          const saved = localStorage.getItem('dashboard_selectedInterface');
+          const valid = saved && data.some(d => d.value === saved);
+          const next = valid ? saved : data[0].value;
+          setSelectedInterface(next);
+          localStorage.setItem('dashboard_selectedInterface', next);
         }
       })
       .catch(() => {
@@ -301,7 +386,7 @@ const Dashboard = () => {
       }
     };
     fetchBandwidthHistory();
-    const interval = setInterval(fetchBandwidthHistory, 5000); // every 5s
+    const interval = setInterval(fetchBandwidthHistory, 10000); // every 20s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
@@ -319,7 +404,7 @@ const Dashboard = () => {
       }
     };
     fetchData();
-    const interval = setInterval(fetchData, 5000); // every 5s
+    const interval = setInterval(fetchData, 10000); // every 10s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
@@ -391,10 +476,60 @@ const Dashboard = () => {
   // Docker containers state (live from backend)
   const [dockerContainers, setDockerContainers] = useState([]);
   const [filteredContainers, setFilteredContainers] = useState([]);
+  // Controlled pagination for Docker table
+  const [dockerPageSize, setDockerPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('docker_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 5;
+  });
+  const [dockerCurrentPage, setDockerCurrentPage] = useState(() => {
+    const saved = Number(sessionStorage.getItem('docker_current_page'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 1;
+  });
   const [dockerUp, setDockerUp] = useState(0);
   const [dockerDown, setDockerDown] = useState(0);
   const [dockerTotal, setDockerTotal] = useState(0);
   const [dockerError, setDockerError] = useState("");
+  // Persisted docker search text
+  const [dockerSearchText, setDockerSearchText] = useState(() => sessionStorage.getItem('docker_search_text') || '');
+
+  // Keep filtered containers in sync with search text and containers; persist page
+  useEffect(() => {
+    const value = (dockerSearchText || '').toLowerCase();
+    const filtered = dockerContainers.filter(container =>
+      (container.dockerId || "").toLowerCase().includes(value) ||
+      (container.containerName || "").toLowerCase().includes(value) ||
+      (container.status || "").toLowerCase().includes(value)
+    );
+    setFilteredContainers(filtered);
+    setDockerCurrentPage(1);
+    sessionStorage.setItem('docker_current_page', '1');
+  }, [dockerSearchText, dockerContainers]);
+
+  // Load and persist docker current page
+  useEffect(() => {
+    const storedDockerCurrentPage = sessionStorage.getItem('docker_current_page');
+    if (storedDockerCurrentPage) {
+      const n = parseInt(storedDockerCurrentPage);
+      if (!Number.isNaN(n) && n > 0) setDockerCurrentPage(n);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('docker_current_page', dockerCurrentPage.toString());
+  }, [dockerCurrentPage]);
+
+  // Load and persist docker search text
+  useEffect(() => {
+    const storedDockerSearchText = sessionStorage.getItem('docker_search_text');
+    if (storedDockerSearchText !== null) {
+      setDockerSearchText(storedDockerSearchText);
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('docker_search_text', dockerSearchText);
+  }, [dockerSearchText]);
+
 
   useEffect(() => {
     async function fetchDockerInfo() {
@@ -501,7 +636,7 @@ const Dashboard = () => {
         }
 
         // Fetch dashboard counts
-        const countsResponse = await fetch(`https://${selectedHostIP}:5000/api/dashboard-counts/${userId}`);
+        const countsResponse = await fetch(`https://${hostIP}:5000/api/dashboard-counts/${userId}`);
         const countsData = await countsResponse.json();
 
         setCounts({
@@ -594,21 +729,46 @@ const Dashboard = () => {
                 </div>
               </Col>
             </Row>
-            {/* Host IP Dropdown */}
-            <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', margin: '19px 0 15px 18px', marginTop: "10px" }}>
-              <span style={{ marginRight: 8, fontWeight: 500, userSelect: "none" }}>Host:</span>
-              <Select
-                style={{ width: 220 }}
-                value={selectedHostIP}
-                onChange={setSelectedHostIP}
-                options={[
-                  { label: 'Flight Deck', value: window.location.hostname },
-                  ...((hostIpOptions || []).map(ip => ({ label: ip, value: ip })))
-                ]}
-                showSearch
-                optionFilterProp="children"
-                filterOption={(input, option) => (option?.label || '').toLowerCase().includes((input || '').toLowerCase())}
-              />
+            <div
+              style={{
+                marginTop: 10,
+                padding: 2,
+                height: "56px",
+                background: colorBgContainer,
+                marginLeft: "20px",
+                marginRight: "17px",
+              }}
+            >
+              {/* Host IP Dropdown and Server Details */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '19px 0 15px 18px', marginTop: "10px" }}>
+                {/* Left side - Dropdown */}
+                <div>
+                  <Select
+                    style={{ width: 220 }}
+                    value={selectedHostIP}
+                    onChange={setSelectedHostIP}
+                    options={[
+                      { label: 'Flight Deck', value: window.location.hostname },
+                      ...((hostIpOptions || []).map(ip => ({ label: ip, value: ip })))
+                    ]}
+                    showSearch
+                    optionFilterProp="children"
+                    filterOption={(input, option) => (option?.label || '').toLowerCase().includes((input || '').toLowerCase())}
+                  />
+                </div>
+                
+                {/* Right side - Server Details */}
+                <div style={{ display: 'flex', gap: '30px', alignItems: 'center', marginRight: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Server ID:</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#1890ff' }}>{serverDetails.serverid || 'Loading...'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Role:</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>{serverDetails.role || 'Loading...'}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             {/* Performance Section Header */}
             <div
@@ -747,6 +907,19 @@ const Dashboard = () => {
                         yField="cpu"
                         height={180}
                         smooth={true}
+                        // Y axis in percentage with ticks at 10,20,...,100
+                        yAxis={{
+                          label: {
+                            formatter: (v) => `${v}%`,
+                          },
+                        }}
+                        meta={{
+                          cpu: {
+                            min: 0,
+                            max: 100,
+                            tickInterval: 10,
+                          },
+                        }}
                         areaStyle={{ fill: 'l(270) 0:#1890ff 0.5:#e6f7ff 1:#ffffff' }}
                         line={{ color: '#1890ff' }}
                       />
@@ -884,7 +1057,9 @@ const Dashboard = () => {
               <Input.Search
                 placeholder="Search containers..."
                 style={{ marginBottom: 16, width: 300 }}
+                value={dockerSearchText}
                 onChange={(e) => {
+                  setDockerSearchText(e.target.value);
                   const value = e.target.value.toLowerCase();
                   const filtered = dockerContainers.filter(container =>
                     (container.dockerId || "").toLowerCase().includes(value) ||
@@ -892,6 +1067,8 @@ const Dashboard = () => {
                     (container.status || "").toLowerCase().includes(value)
                   );
                   setFilteredContainers(filtered);
+                  // Reset to first page on new filter
+                  setDockerCurrentPage(1);
                 }}
               />
 
@@ -900,10 +1077,24 @@ const Dashboard = () => {
                 dataSource={filteredContainers}
                 columns={dockerColumns}
                 pagination={{
-                  pageSize: 5,
+                  current: dockerCurrentPage,
+                  pageSize: dockerPageSize,
                   showSizeChanger: true,
+                  pageSizeOptions: [5, 10, 20, 50],
                   showQuickJumper: true,
                   showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} containers`,
+                  onChange: (page, size) => {
+                    setDockerCurrentPage(page);
+                    if (size && size !== dockerPageSize) {
+                      setDockerPageSize(size);
+                      sessionStorage.setItem('docker_page_size', String(size));
+                    }
+                  },
+                  onShowSizeChange: (_, size) => {
+                    setDockerCurrentPage(1);
+                    setDockerPageSize(size);
+                    sessionStorage.setItem('docker_page_size', String(size));
+                  },
                 }}
                 rowKey="dockerId"
                 size="middle"

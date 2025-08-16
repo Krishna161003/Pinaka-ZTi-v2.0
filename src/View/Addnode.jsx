@@ -140,8 +140,12 @@ const App = () => {
 
   // When Discovery Next is clicked, enable Validation tab and switch to it
   const handleDiscoveryNext = (nodes, results) => {
-    setSelectedNodes(nodes);
-    sessionStorage.setItem("cloud_selectedNodes", JSON.stringify(nodes));
+    // Append only newly selected nodes after already processed ones, preserving order
+    const prev = Array.isArray(selectedNodes) ? selectedNodes : [];
+    const uniqueNew = (Array.isArray(nodes) ? nodes : []).filter(n => !prev.some(p => p.ip === n.ip));
+    const merged = [...prev, ...uniqueNew];
+    setSelectedNodes(merged);
+    sessionStorage.setItem("cloud_selectedNodes", JSON.stringify(merged));
     if (results) {
       setDiscoveryResults(results);
       sessionStorage.setItem("cloud_discoveryResults", JSON.stringify(results));
@@ -152,20 +156,44 @@ const App = () => {
 
   // When Validation Next is clicked, enable License tab and switch to it
   const handleValidationNext = (passedNodes, results) => {
-    setLicenseNodes(passedNodes);
-    sessionStorage.setItem("cloud_licenseNodes", JSON.stringify(passedNodes));
+    // Append only newly validated nodes after existing licenseNodes
+    const prev = Array.isArray(licenseNodes) ? licenseNodes : [];
+    const uniqueNew = (Array.isArray(passedNodes) ? passedNodes : []).filter(n => !prev.some(p => p.ip === n.ip));
+    const merged = [...prev, ...uniqueNew];
+    setLicenseNodes(merged);
+    sessionStorage.setItem("cloud_licenseNodes", JSON.stringify(merged));
     if (results) {
-      setValidationResults(results);
-      sessionStorage.setItem("cloud_validationResults", JSON.stringify(results));
+      setValidationResults(prevRes => {
+        const base = Array.isArray(prevRes) ? prevRes : [];
+        const incoming = Array.isArray(results) ? results : [];
+        const map = new Map(base.map(r => [r?.ip, r]));
+        for (const r of incoming) {
+          if (r && r.ip) map.set(r.ip, r);
+        }
+        const mergedRes = Array.from(map.values());
+        try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch(_) {}
+        return mergedRes;
+      });
     }
     setDisabledTabs((prev) => ({ ...prev, "3": false }));
-    setActiveTab("3");
+    // Defer activation until after disabled state is applied
+    setTimeout(() => setActiveTab("3"), 0);
   };
 
   // When License Activation completes, save results
   const handleLicenseActivation = (results) => {
-    setLicenseActivationResults(results);
-    sessionStorage.setItem("cloud_licenseActivationResults", JSON.stringify(results));
+    setLicenseActivationResults(prevRes => {
+      const base = Array.isArray(prevRes) ? prevRes : [];
+      const incoming = Array.isArray(results) ? results : [];
+      const allowed = new Set((Array.isArray(licenseNodes) ? licenseNodes : []).map(n => n?.ip));
+      const map = new Map(base.map(r => [r?.ip, r]));
+      for (const r of incoming) {
+        if (r && r.ip) map.set(r.ip, r);
+      }
+      const merged = Array.from(map.values()).filter(r => allowed.has(r?.ip));
+      try { sessionStorage.setItem("cloud_licenseActivationResults", JSON.stringify(merged)); } catch (_) {}
+      return merged;
+    });
   };
 
   // When user manually clicks a tab
@@ -208,8 +236,17 @@ const App = () => {
             onNext={handleValidationNext}
             results={validationResults}
             setResults={(results) => {
-              setValidationResults(results);
-              sessionStorage.setItem("cloud_validationResults", JSON.stringify(results));
+              setValidationResults(prevRes => {
+                const base = Array.isArray(prevRes) ? prevRes : [];
+                const incoming = Array.isArray(results) ? results : [];
+                const map = new Map(base.map(r => [r?.ip, r]));
+                for (const r of incoming) {
+                  if (r && r.ip) map.set(r.ip, r);
+                }
+                const mergedRes = Array.from(map.values());
+                try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch(_) {}
+                return mergedRes;
+              });
             }}
           />
         </Tabs.TabPane>
@@ -224,22 +261,99 @@ const App = () => {
             results={licenseActivationResults}
             setResults={handleLicenseActivation}
             onNext={successfulNodes => {
-              setLicenseNodes(successfulNodes);
-              sessionStorage.setItem("cloud_licenseNodes", JSON.stringify(successfulNodes));
-              setDisabledTabs(prev => ({ ...prev, "4": false }));
+              // Append newly activated nodes after existing ones
+              const prev = Array.isArray(licenseNodes) ? licenseNodes : [];
+              const uniqueNew = (Array.isArray(successfulNodes) ? successfulNodes : []).filter(n => !prev.some(p => p.ip === n.ip));
+              const merged = [...prev, ...uniqueNew];
+              setLicenseNodes(merged);
+              sessionStorage.setItem("cloud_licenseNodes", JSON.stringify(merged));
+              setDisabledTabs(prevState => ({ ...prevState, "4": false }));
               setTimeout(() => setActiveTab("4"), 0);
+            }}
+            onRemoveNode={(ip, removedRecord, removedIndex) => {
+              // Remove from licenseNodes (source for LicenseActivation)
+              setLicenseNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch(_) {}
+                return next;
+              });
+              // Also remove from selectedNodes so Validation input reflects it
+              setSelectedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch(_) {}
+                return next;
+              });
+            }}
+            onUndoRemoveNode={(ip, record, index) => {
+              // Restore into licenseNodes at original index
+              setLicenseNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
+              // Restore into selectedNodes (Validation input)
+              setSelectedNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                }
+                return arr;
+              });
             }}
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Network Apply" key="4" disabled={disabledTabs["4"]}>
           <NetworkApply onGoToReport={() => {
-            // Enable tab 5 and navigate without full reload
-            setDisabledTabs(prev => ({ ...prev, '5': false }));
+            // Disable tabs 1-4 and enable tab 5, then navigate without full reload
+            setDisabledTabs(prev => ({ ...prev, '1': true, '2': true, '3': true, '4': true, '5': false }));
             setActiveTab('5');
             const params = new URLSearchParams(location.search);
             params.set('tab', '5');
             navigate({ search: params.toString() }, { replace: true });
-          }} />
+          }}
+          onRemoveNode={(ip, removedRecord, removedIndex) => {
+            // Remove from licenseNodes (source for LicenseActivation & NetworkApply)
+            setLicenseNodes(prev => {
+              const next = prev.filter(n => n.ip !== ip);
+              try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch(_) {}
+              return next;
+            });
+            // Also remove from selectedNodes so Validation input reflects it
+            setSelectedNodes(prev => {
+              const next = prev.filter(n => n.ip !== ip);
+              try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch(_) {}
+              return next;
+            });
+          }}
+          onUndoRemoveNode={(ip, record, index) => {
+            // Restore into licenseNodes at original index
+            setLicenseNodes(prev => {
+              const arr = [...prev];
+              const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+              if (!arr.some(n => n.ip === ip)) {
+                arr.splice(idx, 0, { ip, ...(record || {}) });
+                try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch(_) {}
+              }
+              return arr;
+            });
+            // Restore into selectedNodes (Validation input)
+            setSelectedNodes(prev => {
+              const arr = [...prev];
+              const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+              if (!arr.some(n => n.ip === ip)) {
+                arr.splice(idx, 0, { ip, ...(record || {}) });
+                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch(_) {}
+              }
+              return arr;
+            });
+          }}
+          />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Report" key="5" disabled={disabledTabs["5"]}>
           <Report />

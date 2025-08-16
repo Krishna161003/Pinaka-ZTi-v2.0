@@ -16,11 +16,11 @@ import Compliance from "../View/Compliance";
 import Setting from "../View/Setting";
 import Administration from "../View/Administration";
 import Vdi from "../View/Vdi";
-import Hpc from "../View/Hpc";
+// import Hpc from "../View/Hpc";
 import Marketplace from "../View/Marketplace";
 import Inventory from "../View/Inventory";
 import DistributedStorage from "../View/DistributedStorage";
-
+import ServiceStatus from "../View/ServiceStatus";
 
 // Public routes (e.g., Login and Signup)
 const publicRoutes = [
@@ -71,8 +71,8 @@ const authenticatedRoutes = [
         element: <Vdi />,
       },
       {
-        path: "/hpc",
-        element: <Hpc />,
+        path: "/servicestatus",
+        element: <ServiceStatus />,
       },
       {
         path: "/noc",

@@ -9,6 +9,9 @@ const getCloudNameFromMetadata = () => {
 };
 
 const hostIP = window.location.hostname;
+// Stable asset imports to avoid re-decoding/restarting animations on re-renders
+const planeGif = require('../../Images/plane.gif');
+const completedImage = require('../../Images/completed.png');
 
 const Report = ({ onDeploymentComplete }) => {
   const navigate = useNavigate();
@@ -24,11 +27,10 @@ const Report = ({ onDeploymentComplete }) => {
   const logStartedRef = useRef(false);
   const intervalRef = useRef(null);
   const finalizedRef = useRef(false);
+  // Using static asset for GIF; no blob preloading
 
   // Backend deployment progress polling
   const [deploymentInProgress, setDeploymentInProgress] = useState(true);
-  // Placeholder for completed image path
-  const completedImage = require('../../Images/completed.png'); // Change later
 
   useEffect(() => {
     let interval = setInterval(() => {
@@ -129,13 +131,39 @@ const Report = ({ onDeploymentComplete }) => {
             if (!storedUserId) {
               storedUserId = sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || '';
             }
-            const params = { status: 'progress', cloudname: cloudName };
-            if (storedUserId) params.user_id = storedUserId;
-            const qs = new URLSearchParams(params).toString();
-            const res = await fetch(`https://${hostIP}:5000/api/pending-child-deployments?${qs}`);
-            const data = await res.json().catch(() => ({}));
-            if (res.ok && Array.isArray(data?.rows)) {
-              nodes = data.rows.map(r => ({ serverid: r.serverid, serverip: r.serverip, type: 'secondary' }));
+            // Build a resilient fetch that tolerates cleared session values
+            const fetchCandidates = async (params) => {
+              const qs = new URLSearchParams(params).toString();
+              const res = await fetch(`https://${hostIP}:5000/api/pending-child-deployments?${qs}`);
+              const data = await res.json().catch(() => ({}));
+              return res.ok && Array.isArray(data?.rows) ? data.rows : [];
+            };
+
+            // Attempt 1: with cloudname (only if valid) + user_id
+            const validCloud = cloudName && cloudName !== 'Cloud';
+            let base = { status: 'progress' };
+            if (validCloud) base.cloudname = cloudName;
+            if (storedUserId) base.user_id = storedUserId;
+            let rows = await fetchCandidates(base);
+
+            // Attempt 2: drop cloudname filter
+            if ((!rows || rows.length === 0) && validCloud) {
+              const { cloudname, ...rest } = base;
+              rows = await fetchCandidates(rest);
+            }
+
+            // Attempt 3: drop user filter as well
+            if (!rows || rows.length === 0) {
+              rows = await fetchCandidates({ status: 'progress' });
+            }
+
+            // Attempt 4: sometimes status might already be 'completed' by the time we reach here
+            if (!rows || rows.length === 0) {
+              rows = await fetchCandidates({ status: 'completed' });
+            }
+
+            if (Array.isArray(rows) && rows.length > 0) {
+              nodes = rows.map(r => ({ serverid: r.serverid, serverip: r.serverip, type: 'secondary' }));
             }
           } catch (_) {}
         }
@@ -214,32 +242,63 @@ const Report = ({ onDeploymentComplete }) => {
     }
   }, [deploymentInProgress]);
 
+  // Build display of node IPs for title
+  const getNodeIpsTitle = () => {
+    try {
+      const raw = sessionStorage.getItem('cloud_lastDeploymentNodes');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        const ips = Array.isArray(arr) ? arr.map(n => n?.serverip).filter(Boolean) : [];
+        if (ips.length) return ips.join(', ');
+      }
+    } catch (_) {}
+    try {
+      const rawMap = sessionStorage.getItem('cloud_networkApplyResult');
+      if (rawMap) {
+        const obj = JSON.parse(rawMap) || {};
+        const ips = Object.keys(obj || {});
+        if (ips.length) return ips.join(', ');
+      }
+    } catch (_) {}
+    return sessionStorage.getItem('cloud_server_ip') || 'N/A';
+  };
+  const nodeIpsTitle = getNodeIpsTitle();
+
   return (
     <div style={{ padding: '20px' }}>
       <h5 style={{ display: "flex", flex: "1", marginLeft: "-2%", marginBottom: "1.25%" }}>
         Node Addition Status
       </h5>
       <Divider />
-      <Card title={`Cloud Deployment Progress for ${cloudName} (${sessionStorage.getItem('cloud_server_ip') || 'N/A'})`}>
+      <Card title={`Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 250 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px', marginBottom: '30px' }}>
               {deploymentInProgress ? (
                 <>
-                  <img
-                    src={require('./../../Images/plane.gif')}
-                    alt="Deployment Progress"
-                    style={{ width: 280, height: 280, objectFit: 'contain' }}
-                  />
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginTop: '-56px' }}>
+                    <img
+                      src={planeGif}
+                      alt="Deployment Progress"
+                      loading="eager"
+                      decoding="async"
+                      draggable={false}
+                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+                    />
+                  </div>
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
                 </>
               ) : (
                 <>
-                  <img
-                    src={completedImage}
-                    alt="Deployment Completed"
-                    style={{ width: 280, height: 280, objectFit: 'contain' }}
-                  />
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginTop: '-56px' }}>
+                    <img
+                      src={completedImage}
+                      alt="Deployment Completed"
+                      loading="eager"
+                      decoding="sync"
+                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block' }}
+                    />
+                  </div>
                   <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
                 </>
               )}

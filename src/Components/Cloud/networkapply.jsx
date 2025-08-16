@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin } from 'antd';
+import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin, Modal, notification } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { buildNetworkConfigPayload } from './networkapply.format';
 import { buildDeployConfigPayload } from './networkapply.deployformat';
 
 const hostIP = window.location.hostname;
 
-const NetworkApply = ({ onGoToReport } = {}) => {
+const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [hostServerId, setHostServerId] = useState(() => sessionStorage.getItem('host_server_id') || '');
   const [firstCloudName, setFirstCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
 
@@ -23,6 +23,121 @@ const NetworkApply = ({ onGoToReport } = {}) => {
   const BOOT_DURATION = 5000; // ms after restart
   const RESTART_ENDTIME_KEY = 'cloud_networkApplyRestartEndTimes';
   const BOOT_ENDTIME_KEY = 'cloud_networkApplyBootEndTimes';
+  // Persisted hostname map for Cloud: ip -> hostname (SQDN-XX)
+  const CLOUD_HOSTNAME_MAP_KEY = 'cloud_hostnameMap';
+
+  // SSH polling constants and keys
+  const POLL_DELAY_MS = 90000; // 90s delay to allow node reboot
+  const POLL_INTERVAL_MS = 5000; // poll every 5s
+  const POLL_MAX_POLLS = 60; // max ~5 minutes after delay
+  const SSH_DELAY_START_KEY = 'cloud_networkApplyPollingDelayStart';
+  const RESTART_MSG_THROTTLE_MS = 15000; // throttle "Node restarting..." every 15s per IP
+
+  // Delay start helpers
+  const getDelayStartMap = () => {
+    try {
+      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
+  const setDelayStartForIp = (ip, ts) => {
+    try {
+      const map = getDelayStartMap();
+      if (ts) map[ip] = ts; else delete map[ip];
+      sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+    } catch (_) {}
+  };
+
+  // Throttled restart info
+  function infoRestartThrottled(ip) {
+    try {
+      const now = Date.now();
+      if (!window.__cloudRestartInfoTs) window.__cloudRestartInfoTs = {};
+      const last = window.__cloudRestartInfoTs[ip] || 0;
+      if (now - last > RESTART_MSG_THROTTLE_MS) {
+        window.__cloudRestartInfoTs[ip] = now;
+        message.info('Node restarting...');
+      }
+    } catch (_) {}
+  }
+
+  // Cross-menu navigation and notifications
+  function navigateToNetworkApply() {
+    try {
+      const savedDisabled = sessionStorage.getItem('cloud_disabledTabs');
+      const disabledTabs = savedDisabled ? JSON.parse(savedDisabled) : {};
+      disabledTabs['4'] = false;
+      sessionStorage.setItem('cloud_disabledTabs', JSON.stringify(disabledTabs));
+      sessionStorage.setItem('cloud_activeTab', '4');
+    } catch (_) {}
+    try {
+      const url = new URL(window.location.href);
+      url.pathname = '/addnode';
+      url.searchParams.set('tab', '4');
+      window.location.href = url.toString();
+    } catch (_) {
+      window.location.href = '/addnode?tab=4';
+    }
+  }
+
+  const notifySshSuccess = (ip) => {
+    // Suppress redirect notification if already on Network Apply tab
+    if (window.__cloudMountedNetworkApply) return;
+    try { const active = sessionStorage.getItem('cloud_activeTab'); if (active === '4') return; } catch (_) {}
+    const key = `cloud-ssh-${ip}`;
+    notification.open({
+      key,
+      message: 'Node online',
+      description: `Node ${ip} is back online.`,
+      btn: (
+        <Button type="link" onClick={navigateToNetworkApply}>
+          Open Network Apply
+        </Button>
+      ),
+      duration: 8,
+    });
+  };
+
+  const notifySshTimeout = (ip) => {
+    // Suppress redirect notification if already on Network Apply tab
+    if (window.__cloudMountedNetworkApply) return;
+    try { const active = sessionStorage.getItem('cloud_activeTab'); if (active === '4') return; } catch (_) {}
+    const key = `cloud-ssh-${ip}`;
+    notification.open({
+      key,
+      message: 'SSH polling timeout',
+      description: `Timeout while waiting for ${ip}.`,
+      btn: (
+        <Button type="link" onClick={navigateToNetworkApply}>
+          Open Network Apply
+        </Button>
+      ),
+      duration: 10,
+    });
+  };
+
+  const getCloudHostnameMap = () => {
+    try {
+      const raw = sessionStorage.getItem(CLOUD_HOSTNAME_MAP_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  };
+
+  const saveCloudHostnameMap = (map) => {
+    try { sessionStorage.setItem(CLOUD_HOSTNAME_MAP_KEY, JSON.stringify(map)); } catch (_) {}
+  };
+
+  const nextAvailableHostname = (usedSet, preferredNumber = 1) => {
+    const make = (n) => `SQDN-${String(n).padStart(2, '0')}`;
+    let n = Math.max(1, preferredNumber);
+    while (usedSet.has(make(n))) n++;
+    return make(n);
+  };
 
   // Helper function to get network apply result from sessionStorage
   const getNetworkApplyResult = () => {
@@ -108,14 +223,15 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       ]);
 
       // Map disks to include all necessary properties
-      const formattedDisks = (diskRes.disks || []).map(disk => ({
-        name: disk.name,
-        size: disk.size,
-        wwn: disk.wwn,
-        label: `${disk.name} (${disk.size})`,
-        value: disk.wwn, // Store WWN as the value
-        display: `${disk.name} (${disk.size}, ${disk.wwn})`
-      }));
+      const formattedDisks = (diskRes.disks || []).map(disk => {
+        const name = disk?.name ?? '';
+        const size = disk?.size ?? '';
+        const wwn = disk?.wwn ?? '';
+        const id = wwn || `${name}|${size}`; // stable string id
+        const label = `${name || 'Disk'} (${size || 'N/A'})`;
+        const display = wwn ? `${name} (${size}, ${wwn})` : label;
+        return { name, size, wwn, id, label, value: id, display };
+      });
 
       setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
       setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
@@ -169,8 +285,12 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     return licenseNodes.map(() => ({ loading: false, applied: false }));
   };
   const [cardStatus, setCardStatus] = useState(getInitialCardStatus);
+  // Per-card button loading for backend validation phase (before SSH polling)
+  const [btnLoading, setBtnLoading] = useState(() => (Array.isArray(licenseNodes) ? licenseNodes.map(() => false) : []));
   // For loader recovery timers
   const timerRefs = React.useRef([]);
+  // Store last removed node data for Undo
+  const lastRemovedRef = React.useRef(null);
   // Restore forms from sessionStorage if available and merge with license details
   const getInitialForms = () => {
     // Get saved license details
@@ -181,12 +301,21 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     if (savedForms) {
       try {
         const forms = JSON.parse(savedForms);
-        // Merge license details into saved forms
+        // Merge license details into saved forms and normalize selectedDisks to strings
         return forms.map(form => ({
           ...form,
           licenseType: licenseDetailsMap[form.ip]?.type || form.licenseType || '-',
           licensePeriod: licenseDetailsMap[form.ip]?.period || form.licensePeriod || '-',
           licenseCode: licenseDetailsMap[form.ip]?.licenseCode || form.licenseCode || '-',
+          selectedDisks: Array.isArray(form.selectedDisks)
+            ? form.selectedDisks.map(d => {
+                if (typeof d === 'string') return d;
+                if (d && typeof d === 'object') {
+                  return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                }
+                return String(d ?? '');
+              })
+            : [],
         }));
       } catch (e) {
         console.error('Failed to parse saved forms:', e);
@@ -228,10 +357,21 @@ const NetworkApply = ({ onGoToReport } = {}) => {
         licenseType: savedLicenseDetails[form.ip]?.type || form.licenseType || '-',
         licensePeriod: savedLicenseDetails[form.ip]?.period || form.licensePeriod || '-',
         licenseCode: savedLicenseDetails[form.ip]?.licenseCode || form.licenseCode || '-',
+        selectedDisks: Array.isArray(form.selectedDisks)
+          ? form.selectedDisks.map(d => {
+              if (typeof d === 'string') return d;
+              if (d && typeof d === 'object') {
+                return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+              }
+              return String(d ?? '');
+            })
+          : [],
       }));
 
       setForms(updatedForms);
       setCardStatus(JSON.parse(savedStatus));
+      // Reset per-card button loaders to idle for current forms length
+      setBtnLoading(updatedForms.map(() => false));
     } else {
       setForms(
         licenseNodes.map(node => ({
@@ -251,6 +391,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
         }))
       );
       setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
+      setBtnLoading(licenseNodes.map(() => false));
     }
   }, [licenseNodes]);
 
@@ -298,6 +439,89 @@ const NetworkApply = ({ onGoToReport } = {}) => {
   useEffect(() => {
     sessionStorage.setItem('cloud_networkApplyCardStatus', JSON.stringify(cardStatus));
   }, [cardStatus]);
+
+  // Recover SSH polling timers after reload/navigation based on persisted delay-start timestamps
+  useEffect(() => {
+    if (!Array.isArray(forms) || forms.length === 0) return;
+    const delayMap = getDelayStartMap();
+
+    forms.forEach((f, idx) => {
+      const ip = f?.ip;
+      if (!ip) return;
+      const status = cardStatus[idx] || {};
+      if (!status.loading || status.applied) return;
+
+      // Skip if timers already exist for this IP
+      if ((window.__cloudPolling && window.__cloudPolling[ip]) || (window.__cloudPollingStart && window.__cloudPollingStart[ip])) return;
+
+      const startAt = delayMap[ip] || 0;
+      const elapsed = startAt ? (Date.now() - startAt) : 0;
+      const remaining = Math.max(POLL_DELAY_MS - elapsed, 0);
+
+      const beginInterval = () => {
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+          pollCount++;
+          if (pollCount > POLL_MAX_POLLS) {
+            clearInterval(pollInterval);
+            setCardStatusForIpInSession(ip, { loading: false, applied: false });
+            if (window.__cloudMountedNetworkApply) {
+              setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: false } : s));
+            }
+            notifySshTimeout(ip);
+            message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
+            if (window.__cloudPolling) delete window.__cloudPolling[ip];
+            setDelayStartForIp(ip, null);
+            return;
+          }
+
+          fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ip)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status === 'success' && data.ip === ip) {
+                setCardStatusForIpInSession(ip, { loading: false, applied: true });
+                if (window.__cloudMountedNetworkApply) {
+                  setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: true } : s));
+                }
+                message.success(`Node ${data.ip} is back online!`);
+                notifySshSuccess(ip);
+                clearInterval(pollInterval);
+                if (window.__cloudPolling) delete window.__cloudPolling[ip];
+                if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+                  delete window.__cloudPollingStart[ip];
+                }
+                setDelayStartForIp(ip, null);
+                // Ensure form data is stored
+                const nodeForm = forms[idx];
+                const nodeIp = nodeForm?.ip || `node${idx + 1}`;
+                if (nodeForm) storeFormData(nodeIp, nodeForm);
+              } else if (data.status === 'fail' && data.ip === ip) {
+                infoRestartThrottled(ip);
+              }
+            })
+            .catch(err => {
+              console.error('SSH status check failed:', err);
+            });
+        }, POLL_INTERVAL_MS);
+
+        if (!window.__cloudPolling) window.__cloudPolling = {};
+        window.__cloudPolling[ip] = pollInterval;
+      };
+
+      if (remaining > 0) {
+        const to = setTimeout(() => {
+          beginInterval();
+          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+            delete window.__cloudPollingStart[ip];
+          }
+        }, remaining);
+        if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+        window.__cloudPollingStart[ip] = to;
+      } else {
+        beginInterval();
+      }
+    });
+  }, [forms, cardStatus]);
 
   function handleDiskChange(idx, value) {
     setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
@@ -455,6 +679,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
             value={record.bondName ?? ''}
             placeholder="Enter Bond Name"
             onChange={e => handleCellChange(nodeIdx, rowIdx, 'bondName', e.target.value)}
+            disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
           />
         </Form.Item>
       ),
@@ -474,6 +699,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               value={record.vlanId ?? ''}
               placeholder="Enter VLAN ID (optional)"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'vlanId', e.target.value)}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             />
           </Form.Item>
         </Tooltip>
@@ -513,6 +739,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                 handleCellChange(nodeIdx, rowIdx, 'interface', value);
               }}
               maxTagCount={2}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             >
               {availableInterfaces.map((ifaceObj) => (
                 <Option key={ifaceObj.iface} value={ifaceObj.iface}>
@@ -539,6 +766,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               value={record.type || undefined}
               placeholder="Select type"
               onChange={value => handleCellChange(nodeIdx, rowIdx, 'type', value)}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             >
               {form.configType === 'segregated' ? (
                 <>
@@ -596,7 +824,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               value={record.ip}
               placeholder="Enter IP Address"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
-              disabled={form.configType === 'default' && record.type === 'secondary'}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
             />
           </Form.Item>
         ),
@@ -614,7 +842,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               value={record.subnet}
               placeholder="Enter Subnet"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
-              disabled={form.configType === 'default' && record.type === 'secondary'}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
             />
           </Form.Item>
         ),
@@ -632,7 +860,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               value={record.dns}
               placeholder="Enter Nameserver"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'dns', e.target.value)}
-              disabled={form.configType === 'default' && record.type === 'secondary'}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
             />
           </Form.Item>
         ),
@@ -646,7 +874,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     ];
   };
 
-  const handleSubmit = (nodeIdx) => {
+  const handleSubmit = async (nodeIdx) => {
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
@@ -702,7 +930,39 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
     }
     // Submit logic here (API call or sessionStorage)
-    const payloadBase = buildNetworkConfigPayload(form);
+    // Immediately disable fields/table by setting loading=true; show button loader too
+    setBtnLoading(prev => {
+      const next = [...prev];
+      next[nodeIdx] = true;
+      return next;
+    });
+    setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
+    // Persist loader state immediately by IP to survive navigation
+    setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
+    // Determine how many servers are already deployed to compute hostname starting index
+    let deployedCount = 0;
+    try {
+      const loginDetails = JSON.parse(sessionStorage.getItem('loginDetails'));
+      const user_id_param = loginDetails?.data?.id || '';
+      const cloudnameParam = firstCloudName || sessionStorage.getItem('cloud_first_cloudname') || '';
+      const qs = new URLSearchParams({ cloudname: cloudnameParam, ...(user_id_param ? { user_id: user_id_param } : {}) }).toString();
+      const ipsRes = await fetch(`https://${hostIP}:5000/api/deployed-server-ips?${qs}`);
+      const ipsData = await ipsRes.json().catch(() => ({}));
+      if (ipsRes.ok && Array.isArray(ipsData.ips)) {
+        deployedCount = ipsData.ips.length;
+      }
+    } catch (_) {}
+
+    const existingMap = getCloudHostnameMap();
+    const used = new Set(Object.values(existingMap || {}));
+    const preferred = deployedCount + nodeIdx + 1;
+    const assigned = existingMap[form.ip] || nextAvailableHostname(used, preferred);
+    if (!existingMap[form.ip]) {
+      existingMap[form.ip] = assigned;
+      saveCloudHostnameMap(existingMap);
+    }
+
+    const payloadBase = buildNetworkConfigPayload({ ...form, hostname: assigned });
     const payload = {
       ...payloadBase,
       license_code: form.licenseCode || null,
@@ -717,9 +977,12 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       .then(res => res.json())
       .then(result => {
         if (result.success) {
-          setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
-          // Persist loader state immediately by IP to survive navigation
-          setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
+          // Keep fields disabled (loading stays true); stop button spinner and proceed to polling
+          setBtnLoading(prev => {
+            const next = [...prev];
+            next[nodeIdx] = false;
+            return next;
+          });
           // Store restartEndTime and bootEndTime in sessionStorage
           const restartEndTimesRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
           const bootEndTimesRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
@@ -762,26 +1025,27 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
             }
           }).then(() => {
-            // Delay starting the frontend polling until 90 seconds (to match backend delay)
-            const startPollingTimeout = setTimeout(() => {
+            // Persist delay start timestamp and schedule delayed start (to match backend delay)
+            setDelayStartForIp(node_ip, Date.now());
+
+            const beginInterval = () => {
               let pollCount = 0;
-              const maxPolls = 60; // Maximum 5 minutes of polling (60 * 5 seconds)
-              
               const pollInterval = setInterval(() => {
                 pollCount++;
-                
                 // Stop polling if we've exceeded the maximum attempts
-                if (pollCount > maxPolls) {
+                if (pollCount > POLL_MAX_POLLS) {
                   clearInterval(pollInterval);
                   setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
                   if (window.__cloudMountedNetworkApply) {
                     setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: false } : s));
                   }
+                  notifySshTimeout(node_ip);
                   message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
-                  delete window.__cloudPolling[node_ip];
+                  if (window.__cloudPolling) delete window.__cloudPolling[node_ip];
+                  setDelayStartForIp(node_ip, null);
                   return;
                 }
-                
+
                 fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
                   .then(res => res.json())
                   .then(data => {
@@ -792,29 +1056,36 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                         setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
                       }
                       message.success(`Node ${data.ip} is back online!`);
+                      notifySshSuccess(node_ip);
                       clearInterval(pollInterval);
-                      delete window.__cloudPolling[node_ip];
+                      if (window.__cloudPolling) delete window.__cloudPolling[node_ip];
                       if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
                         delete window.__cloudPollingStart[node_ip];
                       }
+                      setDelayStartForIp(node_ip, null);
                       // Store the form data for this node in sessionStorage
                       const nodeIp = form.ip || `node${nodeIdx + 1}`;
                       storeFormData(nodeIp, form);
                     } else if (data.status === 'fail' && data.ip === node_ip) {
-                      if (cardStatus[nodeIdx]?.loading || !window.__cloudMountedNetworkApply) {
-                        message.info('Node restarting...');
-                      }
+                      infoRestartThrottled(node_ip);
                     }
                   })
                   .catch(err => {
                     console.error('SSH status check failed:', err);
                   });
-              }, 5000); // Check every 5 seconds
-  
+              }, POLL_INTERVAL_MS);
+
               // Store the interval reference globally (do not clear on unmount to allow background polling)
               if (!window.__cloudPolling) window.__cloudPolling = {};
               window.__cloudPolling[node_ip] = pollInterval;
-            }, 90000); // Start polling after 90 seconds
+            };
+
+            const startPollingTimeout = setTimeout(() => {
+              beginInterval();
+              if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
+                delete window.__cloudPollingStart[node_ip];
+              }
+            }, POLL_DELAY_MS);
 
             if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
             window.__cloudPollingStart[node_ip] = startPollingTimeout;
@@ -826,10 +1097,28 @@ const NetworkApply = ({ onGoToReport } = {}) => {
             // message.success(`Network config for node ${form.ip} applied! Node restarting...`);
           }, RESTART_DURATION);
         } else {
+          // Validation failed on backend, stop button loader for user to correct
+          setBtnLoading(prev => {
+            const next = [...prev];
+            next[nodeIdx] = false;
+            return next;
+          });
+          // Re-enable fields/table
+          setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: false, applied: false } : s));
+          setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
           message.error(result.message || 'Failed to apply network configuration.');
         }
       })
       .catch(err => {
+        // Network error during validation, stop button loader
+        setBtnLoading(prev => {
+          const next = [...prev];
+          next[nodeIdx] = false;
+          return next;
+        });
+        // Re-enable fields/table on error
+        setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: false, applied: false } : s));
+        setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
         message.error('Network error: ' + err.message);
       });
     return;
@@ -843,6 +1132,251 @@ const NetworkApply = ({ onGoToReport } = {}) => {
       // Do not clear window.__cloudPolling or __cloudPollingStart here, to allow background progress
     };
   }, []);
+
+  // Remove Node handlers with confirmation and Undo
+  const handleUndoRemoveNode = () => {
+    const payload = lastRemovedRef.current;
+    if (!payload) return;
+    const { idx, ip, form, status, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex, delayTs } = payload;
+
+    // Safety: clear any global timers and existing SSH notifications for this IP before restoring
+    try {
+      if (window.__cloudPolling && window.__cloudPolling[ip]) {
+        clearInterval(window.__cloudPolling[ip]);
+        delete window.__cloudPolling[ip];
+      }
+      if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+        clearTimeout(window.__cloudPollingStart[ip]);
+        delete window.__cloudPollingStart[ip];
+      }
+    } catch (_) {}
+    try { notification.close(`cloud-ssh-${ip}`); } catch (_) {}
+    // Restore delay start timestamp so polling can recover if it was in progress
+    if (delayTs) {
+      try { setDelayStartForIp(ip, delayTs); } catch (_) {}
+    }
+
+    // Restore forms, statuses, btn loading
+    setForms(prev => {
+      const next = [...prev];
+      next.splice(Math.min(Math.max(idx, 0), next.length), 0, form);
+      sessionStorage.setItem('cloud_networkApplyForms', JSON.stringify(next));
+      return next;
+    });
+    setCardStatus(prev => {
+      const next = [...prev];
+      next.splice(Math.min(Math.max(idx, 0), next.length), 0, status || { loading: false, applied: false });
+      sessionStorage.setItem('cloud_networkApplyCardStatus', JSON.stringify(next));
+      return next;
+    });
+    setBtnLoading(prev => {
+      const next = [...prev];
+      next.splice(Math.min(Math.max(idx, 0), next.length), 0, false);
+      return next;
+    });
+
+    // Restore licenseNodes and persist
+    setLicenseNodes(prev => {
+      const arr = [...prev];
+      if (!arr.some(n => n.ip === ip)) {
+        const insertIdx = Math.min(Math.max(idx, 0), arr.length);
+        arr.splice(insertIdx, 0, licenseNode || { ip });
+      }
+      try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch (_) {}
+      return arr;
+    });
+
+    // Restore networkApplyResult mapping
+    try {
+      const resRaw = sessionStorage.getItem('cloud_networkApplyResult');
+      const map = resRaw ? JSON.parse(resRaw) : {};
+      if (networkApplyResultEntry) map[ip] = networkApplyResultEntry;
+      sessionStorage.setItem('cloud_networkApplyResult', JSON.stringify(map));
+    } catch (_) {}
+
+    // Restore hostname map
+    try {
+      const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
+      const hm = hmRaw ? JSON.parse(hmRaw) : {};
+      if (hostname) hm[ip] = hostname;
+      sessionStorage.setItem('cloud_hostnameMap', JSON.stringify(hm));
+    } catch (_) {}
+
+    // Restore licenseActivationResults entry
+    try {
+      const laRaw = sessionStorage.getItem('cloud_licenseActivationResults');
+      const arr = laRaw ? JSON.parse(laRaw) : [];
+      if (laEntry) {
+        const exists = Array.isArray(arr) && arr.some(r => r?.ip === ip);
+        if (!exists) {
+          const out = Array.isArray(arr) ? [...arr] : [];
+          const insertAt = Number.isInteger(laIndex) ? Math.min(Math.max(laIndex, 0), out.length) : out.length;
+          out.splice(insertAt, 0, laEntry);
+          sessionStorage.setItem('cloud_licenseActivationResults', JSON.stringify(out));
+        }
+      }
+    } catch (_) {}
+
+    // Reindex timer end times (leave as-is; no timers needed on undo)
+    // Notify parent to restore across tabs
+    if (typeof onUndoRemoveNode === 'function') {
+      try { onUndoRemoveNode(ip, licenseNode, idx); } catch (_) {}
+    }
+    message.success(`Restored node ${ip}`);
+    lastRemovedRef.current = null;
+  };
+
+  const handleRemoveNode = (idx) => {
+    const form = forms[idx];
+    const ip = form?.ip;
+    if (!ip) return;
+    if (cardStatus[idx]?.loading || cardStatus[idx]?.applied) return;
+
+    Modal.confirm({
+      title: 'Remove Node',
+      content: `Are you sure you want to remove node ${ip}? You can undo this action.`,
+      okText: 'Remove',
+      okType: 'danger',
+      okButtonProps: { danger: true, size: 'small', style: { width: 90 } },
+      cancelText: 'Cancel',
+      cancelButtonProps: { size: 'small', style: { width: 90 } },
+      onOk: () => {
+        // Backup data for Undo
+        const licenseNode = (licenseNodes || []).find(n => n.ip === ip) || { ip };
+        let networkApplyResultEntry = null;
+        try {
+          const resRaw = sessionStorage.getItem('cloud_networkApplyResult');
+          const map = resRaw ? JSON.parse(resRaw) : {};
+          networkApplyResultEntry = map[ip] || null;
+        } catch (_) {}
+        let hostname = null;
+        try {
+          const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
+          const hm = hmRaw ? JSON.parse(hmRaw) : {};
+          hostname = hm[ip] || null;
+        } catch (_) {}
+        let laEntry = null;
+        let laIndex = -1;
+        try {
+          const laRaw = sessionStorage.getItem('cloud_licenseActivationResults');
+          const arr = laRaw ? JSON.parse(laRaw) : [];
+          if (Array.isArray(arr)) {
+            laIndex = arr.findIndex(r => r?.ip === ip);
+            laEntry = laIndex >= 0 ? arr[laIndex] : null;
+          }
+        } catch (_) {}
+        // Snapshot delay-start timestamp for SSH polling so Undo can restore it
+        let delayTs = null;
+        try {
+          const dmap = getDelayStartMap();
+          delayTs = dmap[ip] || null;
+        } catch (_) {}
+        lastRemovedRef.current = { idx, ip, form: { ...form }, status: { ...cardStatus[idx] }, licenseNode, networkApplyResultEntry, hostname, laEntry, laIndex, delayTs };
+
+        // Clear any global polling timers for this IP
+        try {
+          if (window.__cloudPolling && window.__cloudPolling[ip]) {
+            clearInterval(window.__cloudPolling[ip]);
+            delete window.__cloudPolling[ip];
+          }
+          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+            clearTimeout(window.__cloudPollingStart[ip]);
+            delete window.__cloudPollingStart[ip];
+          }
+        } catch (_) {}
+        // Clear persisted delay start and any SSH notifications/throttle entries for this IP
+        try { setDelayStartForIp(ip, null); } catch (_) {}
+        try { notification.close(`cloud-ssh-${ip}`); } catch (_) {}
+        try {
+          if (window.__cloudRestartInfoTs && window.__cloudRestartInfoTs[ip]) {
+            delete window.__cloudRestartInfoTs[ip];
+          }
+        } catch (_) {}
+
+        // Remove from forms and statuses and persist
+        const nextForms = forms.filter((_, i) => i !== idx);
+        const nextStatus = cardStatus.filter((_, i) => i !== idx);
+        const nextBtnLoading = btnLoading.filter((_, i) => i !== idx);
+        setForms(nextForms);
+        setCardStatus(nextStatus);
+        setBtnLoading(nextBtnLoading);
+        try {
+          sessionStorage.setItem('cloud_networkApplyForms', JSON.stringify(nextForms));
+          sessionStorage.setItem('cloud_networkApplyCardStatus', JSON.stringify(nextStatus));
+        } catch (_) {}
+
+        // Reindex timer end time objects
+        try {
+          const rRaw = sessionStorage.getItem(RESTART_ENDTIME_KEY);
+          const bRaw = sessionStorage.getItem(BOOT_ENDTIME_KEY);
+          const r = rRaw ? JSON.parse(rRaw) : {};
+          const b = bRaw ? JSON.parse(bRaw) : {};
+          const newR = {};
+          const newB = {};
+          for (let newI = 0; newI < nextForms.length; newI++) {
+            const oldI = newI < idx ? newI : newI + 1;
+            if (r.hasOwnProperty(oldI)) newR[newI] = r[oldI];
+            if (b.hasOwnProperty(oldI)) newB[newI] = b[oldI];
+          }
+          sessionStorage.setItem(RESTART_ENDTIME_KEY, JSON.stringify(newR));
+          sessionStorage.setItem(BOOT_ENDTIME_KEY, JSON.stringify(newB));
+        } catch (_) {}
+
+        // Remove from licenseNodes and persist
+        setLicenseNodes(prev => {
+          const next = (prev || []).filter(n => n.ip !== ip);
+          try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch (_) {}
+          return next;
+        });
+
+        // Remove from networkApplyResult map
+        try {
+          const resRaw = sessionStorage.getItem('cloud_networkApplyResult');
+          const map = resRaw ? JSON.parse(resRaw) : {};
+          if (map && map[ip]) {
+            delete map[ip];
+            sessionStorage.setItem('cloud_networkApplyResult', JSON.stringify(map));
+          }
+        } catch (_) {}
+
+        // Remove from hostname map
+        try {
+          const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
+          const hm = hmRaw ? JSON.parse(hmRaw) : {};
+          if (hm && hm[ip]) {
+            delete hm[ip];
+            sessionStorage.setItem('cloud_hostnameMap', JSON.stringify(hm));
+          }
+        } catch (_) {}
+
+        // Optionally also remove from licenseActivationResults to keep tabs consistent
+        try {
+          const laRaw = sessionStorage.getItem('cloud_licenseActivationResults');
+          const arr = laRaw ? JSON.parse(laRaw) : [];
+          if (Array.isArray(arr)) {
+            const next = arr.filter(r => r?.ip !== ip);
+            sessionStorage.setItem('cloud_licenseActivationResults', JSON.stringify(next));
+          }
+        } catch (_) {}
+
+        // Notify parent so previous tabs sync their state
+        if (typeof onRemoveNode === 'function') {
+          try { onRemoveNode(ip, licenseNode, idx); } catch (_) {}
+        }
+
+        notification.open({
+          message: 'Node removed',
+          description: `Removed node ${ip}.`,
+          btn: (
+            <Button type="link" onClick={handleUndoRemoveNode}>
+              Undo
+            </Button>
+          ),
+          duration: 4.5,
+        });
+      }
+    });
+  };
 
   // Check if all cards are applied
   const allApplied = cardStatus.length > 0 && cardStatus.every(s => s.applied);
@@ -908,13 +1442,23 @@ const NetworkApply = ({ onGoToReport } = {}) => {
     }
 
     // Transform configs for backend storage, now that we know deployedCount
-    // Assign sequential hostnames SQDN-(deployedCount+1), SQDN-(deployedCount+2), ... based on card order
-    const hostnameMap = {};
-    forms.forEach((f, idx) => {
-      const seq = deployedCount + idx + 1;
-      const hn = `SQDN-${String(seq).padStart(2, '0')}`;
-      if (f?.ip) hostnameMap[f.ip] = hn;
-    });
+  // Reuse hostnames assigned during Network Apply; allocate unique for any missing starting from deployedCount+1
+  const savedHostnameMap = getCloudHostnameMap();
+  const usedHostnames = new Set(Object.values(savedHostnameMap || {}));
+  const hostnameMap = {};
+  forms.forEach((f, idx) => {
+    if (!f?.ip) return;
+    const preferred = deployedCount + idx + 1;
+    let hn = savedHostnameMap[f.ip];
+    if (!hn) {
+      hn = nextAvailableHostname(usedHostnames, preferred);
+      usedHostnames.add(hn);
+      savedHostnameMap[f.ip] = hn;
+    }
+    hostnameMap[f.ip] = hn;
+  });
+  // Persist any newly allocated hostnames
+  saveCloudHostnameMap(savedHostnameMap);
 
     const transformedConfigs = {};
     Object.entries(configs).forEach(([ip, form]) => {
@@ -1069,14 +1613,25 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                     Bond
                   </Checkbox>
                 </div>
-                <Button
-                  onClick={() => fetchNodeData(form.ip)}
-                  size="small"
-                  type="default"
-                  style={{ width: 120 }}
-                >
-                  Refetch Data
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Button
+                    onClick={() => fetchNodeData(form.ip)}
+                    size="small"
+                    type="default"
+                    style={{ width: 120 }}
+                  >
+                    Refetch Data
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    onClick={() => handleRemoveNode(idx)}
+                    style={{ width: 120 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  >
+                    Remove Node
+                  </Button>
+                </div>
               </div>
               <Table
                 columns={getColumns(form, idx)}
@@ -1116,7 +1671,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                     mode="multiple"
                     allowClear
                     placeholder="Select disk(s)"
-                    value={form.selectedDisks || []}
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks : []}
                     style={{ width: 200 }}
                     disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
                     onChange={value => handleDiskChange(idx, value)}
@@ -1124,11 +1679,11 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                   >
                     {(nodeDisks[form.ip] || []).map(disk => (
                       <Option
-                        key={disk.wwn || disk}
-                        value={disk.wwn || disk}
-                        label={disk.display || disk}
+                        key={disk.id || disk.wwn || `${disk.name}|${disk.size}`}
+                        value={disk.value || disk.id || disk.wwn || `${disk.name}|${disk.size}`}
+                        label={String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
                       >
-                        {disk.display || disk}
+                        {String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
                       </Option>
                     ))}
                   </Select>
@@ -1152,6 +1707,7 @@ const NetworkApply = ({ onGoToReport } = {}) => {
                     <Option value="Control">Control</Option>
                     <Option value="Compute">Compute</Option>
                     <Option value="Storage">Storage</Option>
+                    <Option value="Monitoring">Monitoring</Option>
                   </Select>
                 </Form.Item>
               </div>
@@ -1166,10 +1722,10 @@ const NetworkApply = ({ onGoToReport } = {}) => {
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
-                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
                   Reset Value
                 </Button>
-                <Button type="primary" onClick={() => handleSubmit(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '120px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
                   Apply Change
                 </Button>
               </div>

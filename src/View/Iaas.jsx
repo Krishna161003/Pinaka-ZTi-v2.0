@@ -452,6 +452,12 @@ const SquadronNodesTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalRecord, setModalRecord] = useState(null);
+  // Controlled pagination state for Squadron table
+  const [squadronPageSize, setSquadronPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('squadron_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 10;
+  });
+  const [squadronCurrentPage, setSquadronCurrentPage] = useState(1);
 
   useEffect(() => {
     setLoading(true);
@@ -586,10 +592,30 @@ const SquadronNodesTable = () => {
           dataSource={data}
           rowKey={row => row.sno + '-' + row.serverid}
           pagination={{
-            pageSize: 10,
+            current: squadronCurrentPage,
+            pageSize: squadronPageSize,
             showSizeChanger: true,
+            pageSizeOptions: [5, 10, 20, 50],
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} nodes`,
+            onChange: (page, size) => {
+              setSquadronCurrentPage(page);
+              if (size && size !== squadronPageSize) {
+                setSquadronPageSize(size);
+                sessionStorage.setItem('squadron_page_size', String(size));
+              }
+            },
+            onShowSizeChange: (_current, size) => {
+              setSquadronCurrentPage(1);
+              setSquadronPageSize(size);
+              sessionStorage.setItem('squadron_page_size', String(size));
+            },
+          }}
+          onChange={(pagination, filters, sorter, extra) => {
+            // Reset to first page when filters are applied
+            if (extra && extra.action === 'filter') {
+              setSquadronCurrentPage(1);
+            }
           }}
           bordered
           size="middle"
@@ -605,59 +631,74 @@ const SquadronNodesTable = () => {
         width={600}
       >
         <div>
-          <b>1. Squadron</b>
-          <ul style={{ marginBottom: 8 }}>
-            <li>{modalRecord?.serverip ? (
-              <div>
-                <a href={`https://${modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
-                  https://{modalRecord.serverip}
-                </a>
-                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
-                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
-                </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
-          <b>2. Storage</b>
-          <ul style={{ marginBottom: 8 }}>
-            <li>{modalRecord?.serverip ? (
-              <div>
-                <a href={`https://${modalRecord.serverip}:8443/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalRecord.serverip}:8443/
-                </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: -</div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
-          <b>3. Monitoring</b>
-          <ul style={{ marginBottom: 8 }}>
-            <li>{modalRecord?.serverip ? (
-              <div>
-                <a href={`https://${modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalRecord.serverip}:7000/
-                </a>
-                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
-                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
-                </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
-          <b>4. Diagnosis Dashboard</b>
-          <ul style={{ marginBottom: 0 }}>
-            <li>{modalRecord?.serverip ? (
-              <div>
-                <a href={`https://${modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalRecord.serverip}:5601/
-                </a>
-                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
-                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
-                </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
+          {(() => {
+            let idx = 1;
+            const role = modalRecord?.role;
+            const hasStorage = Array.isArray(role)
+              ? role.map(r => String(r).toLowerCase()).includes('storage')
+              : String(role || '').toLowerCase().includes('storage');
+            return (
+              <>
+                <b>{idx++}. Squadron</b>
+                <ul style={{ marginBottom: 8 }}>
+                  <li>{modalRecord?.serverip ? (
+                    <div>
+                      <a href={`https://${modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.serverip}
+                      </a>
+                      <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
+                        <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
+                      </div>
+                    </div>
+                  ) : <span>No URL</span>}</li>
+                </ul>
+                {hasStorage && (
+                  <>
+                    <b>{idx++}. Storage</b>
+                    <ul style={{ marginBottom: 8 }}>
+                      <li>{modalRecord?.serverip ? (
+                        <div>
+                          <a href={`https://${modalRecord.serverip}:8443/`} target="_blank" rel="noopener noreferrer">
+                            https://{modalRecord.serverip}:8443/
+                          </a>
+                          <div style={{ marginTop: 4, color: '#666' }}>Password: -</div>
+                        </div>
+                      ) : <span>No URL</span>}</li>
+                    </ul>
+                  </>
+                )}
+                <b>{idx++}. Monitoring</b>
+                <ul style={{ marginBottom: 8 }}>
+                  <li>{modalRecord?.serverip ? (
+                    <div>
+                      <a href={`https://${modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.serverip}:7000/
+                      </a>
+                      <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
+                        <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
+                      </div>
+                    </div>
+                  ) : <span>No URL</span>}</li>
+                </ul>
+                <b>{idx++}. Diagnosis Dashboard</b>
+                <ul style={{ marginBottom: 0 }}>
+                  <li>{modalRecord?.serverip ? (
+                    <div>
+                      <a href={`https://${modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.serverip}:5601/
+                      </a>
+                      <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
+                        <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
+                      </div>
+                    </div>
+                  ) : <span>No URL</span>}</li>
+                </ul>
+              </>
+            );
+          })()}
         </div>
       </Modal>
       {/* License Modal */}
@@ -687,6 +728,13 @@ const CloudDeploymentsTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalCredentials, setModalCredentials] = useState({});
+  // Controlled pagination state for Cloud table
+  const [cloudPageSize, setCloudPageSize] = useState(() => {
+    const saved = Number(sessionStorage.getItem('cloud_page_size'));
+    return Number.isFinite(saved) && saved > 0 ? saved : 10;
+    
+  });
+  const [cloudCurrentPage, setCloudCurrentPage] = useState(1);
 
   useEffect(() => {
     setLoading(true);
@@ -757,10 +805,29 @@ const CloudDeploymentsTable = () => {
           dataSource={data}
           rowKey={row => row.sno + '-' + row.cloudname}
           pagination={{
-            pageSize: 10,
+            current: cloudCurrentPage,
+            pageSize: cloudPageSize,
             showSizeChanger: true,
+            pageSizeOptions: [5, 10, 20, 50],
             showQuickJumper: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} cloud`,
+            onChange: (page, size) => {
+              setCloudCurrentPage(page);
+              if (size && size !== cloudPageSize) {
+                setCloudPageSize(size);
+                sessionStorage.setItem('cloud_page_size', String(size));
+              }
+            },
+            onShowSizeChange: (_current, size) => {
+              setCloudCurrentPage(1);
+              setCloudPageSize(size);
+              sessionStorage.setItem('cloud_page_size', String(size));
+            },
+          }}
+          onChange={(pagination, filters, sorter, extra) => {
+            if (extra && extra.action === 'filter') {
+              setCloudCurrentPage(1);
+            }
           }}
           bordered
           size="middle"

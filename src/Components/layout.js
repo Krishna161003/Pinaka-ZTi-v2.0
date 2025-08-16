@@ -14,7 +14,7 @@ import {
   TruckOutlined,
   CloudServerOutlined,
   // SettingOutlined,
-  // FileDoneOutlined,
+  FileDoneOutlined,
   // DatabaseOutlined,
   // WifiOutlined,
   // FileSearchOutlined,
@@ -62,6 +62,7 @@ const AppLayout = ({ children }) => {
     // "/distributedstorage": "2",
     "/iaas": "3",
     "/inventory": "4",
+    "/servicestatus": "5",
     // "/hpc": "5",
     // "/aiworkbench": "6",
     // "/vdi": "7",
@@ -149,15 +150,15 @@ const AppLayout = ({ children }) => {
         </Link>
       ),
     },
-    // {
-    //   key: "5",
-    //   icon: <FileDoneOutlined />,
-    //   label: (
-    //     <Link to="/hpc" style={{ textDecoration: "none" }}>
-    //       HPC
-    //     </Link>
-    //   ),
-    // },
+    {
+      key: "5",
+      icon: <FileDoneOutlined />,
+      label: (
+        <Link to="/servicestatus" style={{ textDecoration: "none" }}>
+          Service Status
+        </Link>
+      ),
+    },
     // {
     //   key: "6",
     //   icon: <InteractionOutlined />,
