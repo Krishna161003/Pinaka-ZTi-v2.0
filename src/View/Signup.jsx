@@ -23,7 +23,7 @@ const Signup = () => {
     const [loading, setLoading] = useState(false); // Loading state for button and global loader
     const [passwordVisible, setPasswordVisible] = useState(false);
     const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
-   const hostIP = window.location.hostname;  //retrive host ip
+    const hostIP = window.location.hostname;  //retrive host ip
 
 
 

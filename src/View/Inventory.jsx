@@ -8,7 +8,7 @@ import downImage from '../Images/down_15362973.png';
 import node from '../Images/database_666406.png';
 import axios from 'axios';
 
-const hostIP=window.location.hostname;
+const hostIP = window.location.hostname;
 
 const { Content } = Layout;
 const style = {
@@ -25,7 +25,7 @@ const Inventory = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
-  
+
   // React Router hooks removed (no tabs)
 
   // State for server data
@@ -50,7 +50,7 @@ const Inventory = () => {
       }, {
         headers: { 'Content-Type': 'application/json' }
       });
-      
+
       if (response.data.success) {
         message.success(`${action.charAt(0).toUpperCase() + action.slice(1)} command sent successfully`);
         setTimeout(() => {
@@ -83,22 +83,62 @@ const Inventory = () => {
     }
   };
 
-  
+
   // Function to shutdown server
   const shutdownServer = async (serverIp) => {
     await controlServer(serverIp, 'shutdown');
   };
-  
+
   // Function to reboot server
   const rebootServer = async (serverIp) => {
     await controlServer(serverIp, 'reboot');
   };
-  
+
+  // Bulk control for all online servers in the table
+  const bulkControlServers = async (action) => {
+    const onlineServers = Array.isArray(squadronServers)
+      ? squadronServers.filter(s => s && s.isOnline && s.serverip)
+      : [];
+    const ips = onlineServers.map(s => s.serverip);
+    if (ips.length === 0) {
+      message.warning('No online servers found to perform this action');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        ips.map(ip =>
+          axios.post(`https://${hostIP}:2020/server-control`,
+            { server_ip: ip, action },
+            { headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+      );
+
+      const succeeded = results.filter(r => r.status === 'fulfilled' && r.value?.data?.success).length;
+      const failed = ips.length - succeeded;
+      const Action = action.charAt(0).toUpperCase() + action.slice(1);
+      if (succeeded > 0) {
+        message.success(`${Action} command sent to ${succeeded}/${ips.length} online servers${failed ? `, ${failed} failed` : ''}`);
+      }
+      if (failed > 0) {
+        message.error(`${failed} server(s) failed to ${action}`);
+      }
+      setTimeout(() => { fetchServerData(); }, 2000);
+    } catch (e) {
+      console.error('Bulk control error:', e);
+      message.error(`Failed to ${action} servers`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Function to fetch server data
   const fetchServerData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch server counts from Node.js backend instead of Flask
       const countsResponse = await axios.get(`https://${hostIP}:5000/api/server-counts`);
       setServerCounts({
@@ -106,7 +146,7 @@ const Inventory = () => {
         online: countsResponse.data.online_count,
         offline: countsResponse.data.offline_count
       });
-      
+
       // Fetch deployed servers for Squadron tab (from deployed_server table)
       const userId = localStorage.getItem('userId');
       const squadronResponse = await axios.get(`https://${hostIP}:5000/api/deployed-servers`, {
@@ -125,7 +165,7 @@ const Inventory = () => {
         };
       }));
       setSquadronServers(squadronData);
-      
+
     } catch (error) {
       console.error('Error fetching server data:', error);
       message.error('Failed to fetch server data');
@@ -133,7 +173,7 @@ const Inventory = () => {
       setLoading(false);
     }
   };
-  
+
   // Fetch server data on component mount
   useEffect(() => {
     fetchServerData();
@@ -300,6 +340,42 @@ const Inventory = () => {
                         borderRadius: 8,
                       }}
                     />
+                    <Popconfirm
+                      title="Shutdown all online servers?"
+                      onConfirm={() => bulkControlServers('shutdown')}
+                      okText="Yes"
+                      cancelText="No"
+                      overlayStyle={{ width: '220px' }}
+                      okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
+                      cancelButtonProps={{ style: { width: '70px' } }}
+                    >
+                      <Button
+                        color="danger"
+                        variant="outline"
+                        disabled={loading}
+                        style={{ marginLeft: 8 }}
+                      >
+                        Shutdown All
+                      </Button>
+                    </Popconfirm>
+                    <Popconfirm
+                      title="Reboot all online servers?"
+                      onConfirm={() => bulkControlServers('reboot')}
+                      okText="Yes"
+                      cancelText="No"
+                      overlayStyle={{ width: '220px' }}
+                      okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
+                      cancelButtonProps={{ style: { width: '70px' } }}
+                    >
+                      <Button
+                        color="primary"
+                        variant="outline"
+                        disabled={loading}
+                        style={{ marginLeft: 8 }}
+                      >
+                        Reboot All
+                      </Button>
+                    </Popconfirm>
                   </Space>
                   <Input.Search
                     placeholder="Search by Server ID / IP / Cloud / Status"
@@ -318,15 +394,15 @@ const Inventory = () => {
                     { title: 'Server ID', dataIndex: 'serverid', key: 'serverid', width: '15%' },
                     { title: 'Server IP', dataIndex: 'serverip', key: 'serverip', width: '15%' },
                     { title: 'Cloud Name', dataIndex: 'cloudname', key: 'cloudname', width: '15%' },
-                    { 
-                      title: 'Status', 
-                      dataIndex: 'status', 
+                    {
+                      title: 'Status',
+                      dataIndex: 'status',
                       key: 'status',
                       width: '10%',
                       render: (status) => (
-                        <Badge 
-                          status={status === 'online' ? 'success' : 'error'} 
-                          text={status === 'online' ? 'Online' : 'Offline'} 
+                        <Badge
+                          status={status === 'online' ? 'success' : 'error'}
+                          text={status === 'online' ? 'Online' : 'Offline'}
                         />
                       )
                     },
@@ -346,9 +422,9 @@ const Inventory = () => {
                             okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
                             cancelButtonProps={{ style: { width: '70px' } }}
                           >
-                            <Button 
-                              type="primary" 
-                              danger 
+                            <Button
+                              color="danger"
+                              variant="outline"
                               style={{ marginRight: '8px', width: '80px' }}
                               disabled={!record.isOnline}
                             >
@@ -365,8 +441,9 @@ const Inventory = () => {
                             okButtonProps={{ style: { marginRight: '8px', width: '70px' } }}
                             cancelButtonProps={{ style: { width: '70px' } }}
                           >
-                            <Button 
-                              type="primary"
+                            <Button
+                              color="primary"
+                              variant="outline"
                               disabled={!record.isOnline}
                               style={{ width: '75px' }}
                             >

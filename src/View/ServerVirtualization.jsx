@@ -48,7 +48,7 @@ const App = () => {
           navigate("?tab=6", { replace: true });
         }
       })
-    }, []);
+  }, []);
 
   // ... rest of your code ...
 
@@ -188,10 +188,10 @@ const App = () => {
 
   // Persist tables to sessionStorage when they change
   useEffect(() => {
-    try { sessionStorage.setItem('sv_validationTable', JSON.stringify(validationResults)); } catch(_) {}
+    try { sessionStorage.setItem('sv_validationTable', JSON.stringify(validationResults)); } catch (_) { }
   }, [validationResults]);
   useEffect(() => {
-    try { sessionStorage.setItem('sv_activateKeyTable', JSON.stringify(activateKeyResults)); } catch(_) {}
+    try { sessionStorage.setItem('sv_activateKeyTable', JSON.stringify(activateKeyResults)); } catch (_) { }
   }, [activateKeyResults]);
 
   // Keep Validation table aligned with selectedNodes (append new nodes, drop removed)
@@ -256,7 +256,7 @@ const App = () => {
         'sv_activateKeyTable',
       ];
       keysToClear.forEach(k => sessionStorage.removeItem(k));
-    } catch (_) {}
+    } catch (_) { }
 
     const nextDisabled = {
       "2": false, // Enable Discovery (tab 2)
@@ -387,7 +387,7 @@ const App = () => {
                   .map(n => ({ ip: n.ip, details: map[n.ip] || {} }));
                 const mergedArr = Array.isArray(prevArr) ? [...prevArr, ...newEntries] : newEntries;
                 sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(mergedArr));
-              } catch (_) {}
+              } catch (_) { }
               setDisabledTabs(prev => {
                 const updated = { ...prev, "5": false };
                 sessionStorage.setItem("serverVirtualization_disabledTabs", JSON.stringify(updated));
@@ -408,13 +408,13 @@ const App = () => {
               // Remove from validatedNodes (source for ActivateKey)
               setValidatedNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
-                try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch(_) {}
+                try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch (_) { }
                 return next;
               });
               // Also remove from selectedNodes so Validation tab reflects it
               setSelectedNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
-                try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch(_) {}
+                try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch (_) { }
                 return next;
               });
               // Remove from persisted tables
@@ -429,7 +429,7 @@ const App = () => {
                 // Avoid duplicates if already present
                 if (!arr.some(n => n.ip === ip)) {
                   arr.splice(idx, 0, { ip, ...(record || {}) });
-                  try { sessionStorage.setItem('validatedNodes', JSON.stringify(arr)); } catch(_) {}
+                  try { sessionStorage.setItem('validatedNodes', JSON.stringify(arr)); } catch (_) { }
                 }
                 return arr;
               });
@@ -439,7 +439,7 @@ const App = () => {
                 if (!arr.some(n => n.ip === ip)) {
                   const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
                   arr.splice(idx, 0, { ip, ...(record || {}) });
-                  try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                  try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch (_) { }
                 }
                 return arr;
               });
@@ -477,13 +477,13 @@ const App = () => {
               // Remove from validatedNodes (source for ActivateKey)
               setValidatedNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
-                try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch(_) {}
+                try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch (_) { }
                 return next;
               });
               // Also remove from selectedNodes so Validation tab reflects it
               setSelectedNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
-                try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch(_) {}
+                try { sessionStorage.setItem('selectedNodes', JSON.stringify(next)); } catch (_) { }
                 return next;
               });
               // Remove from persisted tables
@@ -498,7 +498,7 @@ const App = () => {
                 // Avoid duplicates if already present
                 if (!arr.some(n => n.ip === ip)) {
                   arr.splice(idx, 0, { ip, ...(record || {}) });
-                  try { sessionStorage.setItem('validatedNodes', JSON.stringify(arr)); } catch(_) {}
+                  try { sessionStorage.setItem('validatedNodes', JSON.stringify(arr)); } catch (_) { }
                 }
                 return arr;
               });
@@ -508,7 +508,7 @@ const App = () => {
                 if (!arr.some(n => n.ip === ip)) {
                   const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
                   arr.splice(idx, 0, { ip, ...(record || {}) });
-                  try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                  try { sessionStorage.setItem('selectedNodes', JSON.stringify(arr)); } catch (_) { }
                 }
                 return arr;
               });

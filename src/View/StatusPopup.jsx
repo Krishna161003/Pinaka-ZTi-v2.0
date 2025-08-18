@@ -14,7 +14,7 @@ const StatusPopup = ({ isVisible, statusMessages, onClose }) => {
                 <ul>
                     {statusMessages.map((msg, index) => (
                         <li key={index} className={styles[`${msg.type}-message`]}>
-                            <span className={msg.type === 'success' ? styles['tick'] : styles['error']}></span> 
+                            <span className={msg.type === 'success' ? styles['tick'] : styles['error']}></span>
                             {msg.text}
                         </li>
                     ))}

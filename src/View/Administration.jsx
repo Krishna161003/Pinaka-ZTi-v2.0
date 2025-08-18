@@ -195,44 +195,44 @@ const Administration = () => {
     }
   };
 
-const checkUsernameExists = async (username) => {
-  try {
-    const accessToken = await getAccessToken();
-    const response = await axios.get(
-      `https://${hostIP}:9090/admin/realms/zti-realm/users`,
-      {
-        params: { username },
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
+  const checkUsernameExists = async (username) => {
+    try {
+      const accessToken = await getAccessToken();
+      const response = await axios.get(
+        `https://${hostIP}:9090/admin/realms/zti-realm/users`,
+        {
+          params: { username },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
 
-    // If there's any response data, it means the username already exists
-    return response.data.length > 0;
-  } catch (error) {
-    console.error("Error checking username existence:", error);
-    return false; // In case of an error, we assume the username is available
-  }
-};
+      // If there's any response data, it means the username already exists
+      return response.data.length > 0;
+    } catch (error) {
+      console.error("Error checking username existence:", error);
+      return false; // In case of an error, we assume the username is available
+    }
+  };
 
 
-const checkEmailExists = async (email) => {
-  try {
-    const accessToken = await getAccessToken();
-    const response = await axios.get(
-      `https://${hostIP}:9090/admin/realms/zti-realm/users`,
-      {
-        params: { email },
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
+  const checkEmailExists = async (email) => {
+    try {
+      const accessToken = await getAccessToken();
+      const response = await axios.get(
+        `https://${hostIP}:9090/admin/realms/zti-realm/users`,
+        {
+          params: { email },
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
 
-    // If there's any response data, it means the email already exists
-    return response.data.length > 0;
-  } catch (error) {
-    console.error("Error checking email existence:", error);
-    return false; // In case of an error, we assume the email is available
-  }
-};
+      // If there's any response data, it means the email already exists
+      return response.data.length > 0;
+    } catch (error) {
+      console.error("Error checking email existence:", error);
+      return false; // In case of an error, we assume the email is available
+    }
+  };
 
 
   // Delete user handler
@@ -286,7 +286,7 @@ const checkEmailExists = async (email) => {
   };
 
   // Dropdown menu for actions
- const actionsMenu = (record) => (
+  const actionsMenu = (record) => (
     <Menu>
       <Menu.Item key="delete" danger onClick={() => deleteUser(record.email)}>
         Delete
@@ -296,17 +296,18 @@ const checkEmailExists = async (email) => {
 
   // Table columns definition
   const columns = [
-    { title: "Username", dataIndex: "username", key: "username", render: (username) => (
-          <span>
-        {username === "zti-admin" ? (
-          <>
-            {username}<b> <span style={{ color: "grey" }}>(admin)</span></b>
-          </>
-        ) : (
-          username
-        )}
-      </span>
-    ),
+    {
+      title: "Username", dataIndex: "username", key: "username", render: (username) => (
+        <span>
+          {username === "zti-admin" ? (
+            <>
+              {username}<b> <span style={{ color: "grey" }}>(admin)</span></b>
+            </>
+          ) : (
+            username
+          )}
+        </span>
+      ),
     },
     { title: "Email", dataIndex: "email", key: "email" },
     { title: "ID", dataIndex: "userId", key: "userId" }, // Use the built-in id as UserID
@@ -360,7 +361,7 @@ const checkEmailExists = async (email) => {
               ),
             });
           }}
-	       disabled={record.username === "zti-admin"}
+          disabled={record.username === "zti-admin"}
         >
           Delete
         </Button>
@@ -480,31 +481,31 @@ const checkEmailExists = async (email) => {
                 labelAlign="left"
                 id="userForm"
               >
-<Form.Item
-  name="name"
-  label="First Name/Username"
-  rules={[
-    { required: true, message: "Username is required!" },
-    {
-      min: 3,
-      message: "Username must be at least 3 characters long!",
-    },
-    {
-      async validator(_, value) {
-        if (value) {
-          const exists = await checkUsernameExists(value);
-          if (exists) {
-            return Promise.reject(new Error("Username already exists!"));
-          }
-        }
-        return Promise.resolve();
-      },
-    },
-  ]}
-  validateTrigger="submit"
->
-  <Input placeholder="Enter your first name or username" />
-</Form.Item>
+                <Form.Item
+                  name="name"
+                  label="First Name/Username"
+                  rules={[
+                    { required: true, message: "Username is required!" },
+                    {
+                      min: 3,
+                      message: "Username must be at least 3 characters long!",
+                    },
+                    {
+                      async validator(_, value) {
+                        if (value) {
+                          const exists = await checkUsernameExists(value);
+                          if (exists) {
+                            return Promise.reject(new Error("Username already exists!"));
+                          }
+                        }
+                        return Promise.resolve();
+                      },
+                    },
+                  ]}
+                  validateTrigger="submit"
+                >
+                  <Input placeholder="Enter your first name or username" />
+                </Form.Item>
 
 
                 <Form.Item
@@ -516,27 +517,27 @@ const checkEmailExists = async (email) => {
                   <Input placeholder="Enter your last name" />
                 </Form.Item>
 
- 		<Form.Item
-  name="email"
-  label="Email"
-  rules={[
-    { type: "email", required: true, message: "Please enter a valid email!" },
-    {
-      async validator(_, value) {
-        if (value) {
-          const exists = await checkEmailExists(value);
-          if (exists) {
-            return Promise.reject(new Error("Email already exists!"));
-          }
-        }
-        return Promise.resolve();
-      },
-    },
-  ]}
-  validateTrigger="submit"
->
-  <Input placeholder="Enter your email address" />
-</Form.Item>
+                <Form.Item
+                  name="email"
+                  label="Email"
+                  rules={[
+                    { type: "email", required: true, message: "Please enter a valid email!" },
+                    {
+                      async validator(_, value) {
+                        if (value) {
+                          const exists = await checkEmailExists(value);
+                          if (exists) {
+                            return Promise.reject(new Error("Email already exists!"));
+                          }
+                        }
+                        return Promise.resolve();
+                      },
+                    },
+                  ]}
+                  validateTrigger="submit"
+                >
+                  <Input placeholder="Enter your email address" />
+                </Form.Item>
 
 
                 <Form.Item

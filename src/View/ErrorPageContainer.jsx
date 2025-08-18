@@ -14,14 +14,14 @@ const App = () => {
       status="404"
       title="404"
       subTitle="Sorry, the page you visited does not exist."
-      extra={ <Button
+      extra={<Button
         size={'middle'}
         style={{ width: '85px' }}
         type="primary"
         onClick={handleBackHome}
-    > Back Home
-        
-    </Button>}
+      > Back Home
+
+      </Button>}
     />
   );
 };

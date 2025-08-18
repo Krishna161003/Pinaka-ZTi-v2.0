@@ -77,7 +77,7 @@ const Dashboard = () => {
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
   const [selectedHostIP, setSelectedHostIP] = useState(() => localStorage.getItem('dashboard_selectedHostIP') || window.location.hostname);
-  
+
   // Server details state
   const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', role: '' });
 
@@ -756,7 +756,7 @@ const Dashboard = () => {
                     filterOption={(input, option) => (option?.label || '').toLowerCase().includes((input || '').toLowerCase())}
                   />
                 </div>
-                
+
                 {/* Right side - Server Details */}
                 <div style={{ display: 'flex', gap: '30px', alignItems: 'center', marginRight: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>

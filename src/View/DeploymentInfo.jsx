@@ -42,16 +42,16 @@ const DeploymentInfo = () => {
             },
             body: JSON.stringify(selectedRow),
         })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Deployment response:', data);
-            // Handle response if needed
-            navigate('/DesignatedNode');
-        })
-        .catch(error => {
-            console.error('Error during deployment:', error);
-            // Handle error if needed
-        });
+            .then(response => response.json())
+            .then(data => {
+                console.log('Deployment response:', data);
+                // Handle response if needed
+                navigate('/DesignatedNode');
+            })
+            .catch(error => {
+                console.error('Error during deployment:', error);
+                // Handle error if needed
+            });
     };
 
     return (

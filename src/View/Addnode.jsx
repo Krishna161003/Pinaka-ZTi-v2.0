@@ -39,11 +39,11 @@ const App = () => {
     return savedTab || "1";
   }); // Only use cloud_activeTab for Cloud
   const [disabledTabs, setDisabledTabs] = useState(() => {
-  const saved = sessionStorage.getItem("cloud_disabledTabs");
-  const initial = saved ? JSON.parse(saved) : { "2": true, "3": true, "4": true };
-  // Always disable tab 5 (Report)
-  return { ...initial, "5": true };
-});
+    const saved = sessionStorage.getItem("cloud_disabledTabs");
+    const initial = saved ? JSON.parse(saved) : { "2": true, "3": true, "4": true };
+    // Always disable tab 5 (Report)
+    return { ...initial, "5": true };
+  });
 
   // Selected nodes for validation
   const [selectedNodes, setSelectedNodes] = useState(() => {
@@ -94,7 +94,7 @@ const App = () => {
           navigate("?tab=5", { replace: true });
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // When on Report tab (5), disable tabs 1-4
@@ -171,7 +171,7 @@ const App = () => {
           if (r && r.ip) map.set(r.ip, r);
         }
         const mergedRes = Array.from(map.values());
-        try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch(_) {}
+        try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch (_) { }
         return mergedRes;
       });
     }
@@ -191,7 +191,7 @@ const App = () => {
         if (r && r.ip) map.set(r.ip, r);
       }
       const merged = Array.from(map.values()).filter(r => allowed.has(r?.ip));
-      try { sessionStorage.setItem("cloud_licenseActivationResults", JSON.stringify(merged)); } catch (_) {}
+      try { sessionStorage.setItem("cloud_licenseActivationResults", JSON.stringify(merged)); } catch (_) { }
       return merged;
     });
   };
@@ -244,7 +244,7 @@ const App = () => {
                   if (r && r.ip) map.set(r.ip, r);
                 }
                 const mergedRes = Array.from(map.values());
-                try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch(_) {}
+                try { sessionStorage.setItem("cloud_validationResults", JSON.stringify(mergedRes)); } catch (_) { }
                 return mergedRes;
               });
             }}
@@ -274,13 +274,13 @@ const App = () => {
               // Remove from licenseNodes (source for LicenseActivation)
               setLicenseNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
-                try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch(_) {}
+                try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch (_) { }
                 return next;
               });
               // Also remove from selectedNodes so Validation input reflects it
               setSelectedNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
-                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch(_) {}
+                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch (_) { }
                 return next;
               });
             }}
@@ -291,7 +291,7 @@ const App = () => {
                 const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
                 if (!arr.some(n => n.ip === ip)) {
                   arr.splice(idx, 0, { ip, ...(record || {}) });
-                  try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch(_) {}
+                  try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch (_) { }
                 }
                 return arr;
               });
@@ -301,7 +301,7 @@ const App = () => {
                 const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
                 if (!arr.some(n => n.ip === ip)) {
                   arr.splice(idx, 0, { ip, ...(record || {}) });
-                  try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch(_) {}
+                  try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch (_) { }
                 }
                 return arr;
               });
@@ -317,42 +317,42 @@ const App = () => {
             params.set('tab', '5');
             navigate({ search: params.toString() }, { replace: true });
           }}
-          onRemoveNode={(ip, removedRecord, removedIndex) => {
-            // Remove from licenseNodes (source for LicenseActivation & NetworkApply)
-            setLicenseNodes(prev => {
-              const next = prev.filter(n => n.ip !== ip);
-              try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch(_) {}
-              return next;
-            });
-            // Also remove from selectedNodes so Validation input reflects it
-            setSelectedNodes(prev => {
-              const next = prev.filter(n => n.ip !== ip);
-              try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch(_) {}
-              return next;
-            });
-          }}
-          onUndoRemoveNode={(ip, record, index) => {
-            // Restore into licenseNodes at original index
-            setLicenseNodes(prev => {
-              const arr = [...prev];
-              const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
-              if (!arr.some(n => n.ip === ip)) {
-                arr.splice(idx, 0, { ip, ...(record || {}) });
-                try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch(_) {}
-              }
-              return arr;
-            });
-            // Restore into selectedNodes (Validation input)
-            setSelectedNodes(prev => {
-              const arr = [...prev];
-              const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
-              if (!arr.some(n => n.ip === ip)) {
-                arr.splice(idx, 0, { ip, ...(record || {}) });
-                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch(_) {}
-              }
-              return arr;
-            });
-          }}
+            onRemoveNode={(ip, removedRecord, removedIndex) => {
+              // Remove from licenseNodes (source for LicenseActivation & NetworkApply)
+              setLicenseNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(next)); } catch (_) { }
+                return next;
+              });
+              // Also remove from selectedNodes so Validation input reflects it
+              setSelectedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch (_) { }
+                return next;
+              });
+            }}
+            onUndoRemoveNode={(ip, record, index) => {
+              // Restore into licenseNodes at original index
+              setLicenseNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('cloud_licenseNodes', JSON.stringify(arr)); } catch (_) { }
+                }
+                return arr;
+              });
+              // Restore into selectedNodes (Validation input)
+              setSelectedNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch (_) { }
+                }
+                return arr;
+              });
+            }}
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Report" key="5" disabled={disabledTabs["5"]}>
