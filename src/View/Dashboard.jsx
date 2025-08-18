@@ -3,9 +3,10 @@ import Layout1 from "../Components/layout";
 import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import PasswordUpdateForm from "../Components/PasswordUpdateForm";
-import node from "../Images/database_666406.png";
+import node from "../Images/FlightDeck.jpeg";
 import cloud from "../Images/cloud-computing_660475.png";
-import squad from "../Images/database_2231963.png";
+import squad from "../Images/Squadron.png";
+import osd from "../Images/OSD.jpeg";
 import { Area, Line } from '@ant-design/plots';
 import axios from "axios";
 
@@ -687,26 +688,36 @@ const Dashboard = () => {
       <Layout>
         <Content>
           <div>
-            {/* First row: summary cards */}
-            <Row gutter={16} justify="space-between" style={{ marginLeft: "20px" }}>
-              <Col className="gutter-row" span={7} style={hoveredCard === 'cloud' ? hoverStyle : style}
+            {/* Cloud section - Full width */}
+            <Row gutter={16} style={{ margin: "0 18px 0 20px" }}>
+              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%' } : { ...style, width: '100%' }}
                 onClick={() => navigateToIaasTab("1")}
                 onMouseEnter={() => setHoveredCard('cloud')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                {/* ...Cloud card content... */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
                     <img src={cloud} alt="cloud--v1" style={{ width: "64px", height: "64px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Cloud</span>
                   </div>
-                  <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>{counts.cloudCount}</span>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                    <span style={{ 
+                      fontSize: "24px", 
+                      fontWeight: "600", 
+                      color: "#1890ff", 
+                      userSelect: "none",
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>Cloud</span>
+                  </div>
                 </div>
               </Col>
+            </Row>
+
+            {/* Second row: Flight Deck, Squadron, and OSD */}
+            <Row gutter={16} justify="space-between" style={{ marginLeft: "20px", marginTop: "5px" }}>
               <Col className="gutter-row" span={7} style={hoveredCard === 'flightDeck' ? hoverStyle : style}
-                // onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('flightDeck')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                {/* ...Flight Deck card content... */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
                     <img src={node} alt="server" style={{ width: "64px", height: "64px", userSelect: "none" }} />
@@ -715,17 +726,68 @@ const Dashboard = () => {
                   <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>1</span>
                 </div>
               </Col>
+              
               <Col className="gutter-row" span={7} style={hoveredCard === 'squadron' ? hoverStyle : style}
                 onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('squadron')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                {/* ...Squadron card content... */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="cloud-development--v3" style={{ width: "64px", height: "64px", userSelect: "none" }} />
+                    <img src={squad} alt="squadron" style={{ width: "64px", height: "64px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
-                  <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>{counts.squadronCount}</span>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
+                    <div style={{ 
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #e8eef7',
+                      marginTop: '2px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#2c3e50',
+                      textAlign: 'right'
+                    }}>
+                      <span style={{ color: '#4caf50' }}>Up <strong>0</strong></span>
+                      <span style={{ color: '#e0e0e0' }}>|</span>
+                      <span style={{ color: '#f44336' }}>Down <strong>0</strong></span>
+                    </div>
+                  </div>
+                </div>
+              </Col>
+              
+              <Col className="gutter-row" span={7} style={hoveredCard === 'osd' ? hoverStyle : style}
+                onMouseEnter={() => setHoveredCard('osd')}
+                onMouseLeave={() => setHoveredCard(null)}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
+                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", transform: 'rotate(90deg)' }} />
+                    <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>0</span>
+                    <div style={{ 
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      // background: '#f5f7fa',
+                      border: '1px solid #e8eef7',
+                      marginTop: '2px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#2c3e50',
+                      textAlign: 'right'
+                    }}>
+                      <span style={{ color: '#4caf50' }}>In <strong>0</strong></span>
+                      <span style={{ color: '#e0e0e0' }}>|</span>
+                      <span style={{ color: '#2196f3' }}>Up <strong>0</strong></span>
+                    </div>
+                  </div>
                 </div>
               </Col>
             </Row>
