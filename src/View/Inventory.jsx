@@ -350,8 +350,9 @@ const Inventory = () => {
                       cancelButtonProps={{ style: { width: '70px' } }}
                     >
                       <Button
-                        color="danger"
-                        variant="outline"
+                        type="primary"
+                        danger 
+                        ghost
                         disabled={loading}
                         style={{ marginLeft: 8 }}
                       >
@@ -368,8 +369,8 @@ const Inventory = () => {
                       cancelButtonProps={{ style: { width: '70px' } }}
                     >
                       <Button
-                        color="primary"
-                        variant="outline"
+                        type="primary"
+                        ghost
                         disabled={loading}
                         style={{ marginLeft: 8 }}
                       >
@@ -423,8 +424,9 @@ const Inventory = () => {
                             cancelButtonProps={{ style: { width: '70px' } }}
                           >
                             <Button
-                              color="danger"
-                              variant="outline"
+                              type="primary"
+                              danger 
+                              ghost
                               style={{ marginRight: '8px', width: '80px' }}
                               disabled={!record.isOnline}
                             >
@@ -442,8 +444,8 @@ const Inventory = () => {
                             cancelButtonProps={{ style: { width: '70px' } }}
                           >
                             <Button
-                              color="primary"
-                              variant="outline"
+                              type="primary"
+                              ghost
                               disabled={!record.isOnline}
                               style={{ width: '75px' }}
                             >
