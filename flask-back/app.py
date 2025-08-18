@@ -16,6 +16,7 @@ import socket
 import pathlib
 from collections import deque
 
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
@@ -498,6 +499,96 @@ def check_license_used(file_path, license_code):
 
 
 # ------------------------------------------------- Save and validate deploy config start----------------------------
+@app.route("/apply-license", methods=["POST"])
+def apply_license():
+    """
+    Accepts license details and SSHes to the target server to persist them.
+    This endpoint ONLY performs the SSH write; DB updates are handled by the frontend.
+    If SSH write fails, returns error.
+
+    Expected JSON:
+    {
+      server_ip,
+      license_code, license_type, license_period,
+      ssh_username? (default: pinakasupport),
+      ssh_key_path? (default: /home/pinaka/ps_key.pem),
+      remote_path? (default: /opt/pinaka/license/license.json)
+    }
+    """
+    try:
+        data = request.get_json(force=True) or {}
+
+        server_ip = data.get("server_ip")
+        license_code = data.get("license_code")
+        license_type = data.get("license_type")
+        license_period = data.get("license_period")
+
+        ssh_username = data.get("ssh_username", "pinakasupport")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/ps_key.pem")
+        remote_path = data.get("remote_path", "/opt/pinaka/license/license.json")
+
+        missing = [k for k, v in {
+            "server_ip": server_ip,
+            "license_code": license_code,
+            "license_type": license_type,
+            "license_period": license_period,
+        }.items() if not v and v != 0]
+        if missing:
+            return jsonify({"success": False, "message": f"Missing required fields: {', '.join(missing)}"}), 400
+
+        # 1) SSH to target and store license file
+        try:
+            key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(hostname=server_ip, username=ssh_username, pkey=key, timeout=30)
+
+            remote_dir = os.path.dirname(remote_path)
+            # Ensure directory exists and is writable
+            stdin, stdout, stderr = ssh.exec_command(f"sudo mkdir -p {remote_dir}")
+            exit_code = stdout.channel.recv_exit_status()
+            if exit_code != 0:
+                raise RuntimeError(f"mkdir failed: {stderr.read().decode().strip()}")
+
+            sftp = ssh.open_sftp()
+            tmp_path = f"/tmp/license-{int(time.time())}.json"
+            payload = {
+                "license_code": license_code,
+                "license_type": license_type,
+                "license_period": license_period,
+                "updated_at": datetime.utcnow().isoformat() + "Z",
+            }
+            data_bytes = json.dumps(payload, indent=2).encode("utf-8")
+            f = sftp.file(tmp_path, "w")
+            f.write(data_bytes)
+            f.flush()
+            f.close()
+            sftp.chmod(tmp_path, 0o644)
+            # Move into place atomically (may require sudo)
+            stdin, stdout, stderr = ssh.exec_command(
+                f"sudo mv {tmp_path} {remote_path} && sudo chmod 644 {remote_path}"
+            )
+            exit_code = stdout.channel.recv_exit_status()
+            if exit_code != 0:
+                raise RuntimeError(f"move/chmod failed: {stderr.read().decode().strip()}")
+            sftp.close()
+            ssh.close()
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Failed to store license on server {server_ip}: {str(e)}"
+            }), 500
+        # DB update is handled by the frontend after a successful SSH apply.
+
+        return jsonify({
+            "success": True,
+            "message": "License stored on server"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Bad Request: {str(e)}"}), 400
+
+    
 @app.route("/submit-network-config", methods=["POST"])
 def submit_network_config():
     try:

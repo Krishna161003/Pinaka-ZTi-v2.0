@@ -35,10 +35,10 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
       setNewLicenseDetails(null);
       return;
     }
-    
+
     setCheckingLicense(true);
     setNewLicenseDetails(null);
-    
+
     try {
       // First check if license exists in the database
       let checkResponse;
@@ -50,27 +50,27 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
         });
       } catch (networkError) {
         console.error('Network error:', networkError);
-        message.error('Unable to connect to the license server. Please check your network connection.');
+        message.error('Unable to connect to the Database service. Please check your network connection.');
         return;
       }
-      
+
       if (!checkResponse.ok) {
         const errorData = await checkResponse.json().catch(() => ({}));
         const errorMessage = errorData.message || 'Failed to verify license status';
         message.error(`Error: ${errorMessage}`);
         return;
       }
-      
+
       const checkResult = await checkResponse.json();
-      
+
       if (checkResult.exists) {
         message.error('This license code is already in use');
         return;
       }
-      
+
       // If license not found in DB, verify with Python backend using server_ip
       const pythonBackendUrl = `https://${server_ip}:2020/decrypt-code`;
-      
+
       let verifyResponse;
       try {
         verifyResponse = await fetch(pythonBackendUrl, {
@@ -83,7 +83,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
         message.error('Unable to connect to the license verification service. Please try again later.');
         return;
       }
-      
+
       let verifyResult;
       try {
         verifyResult = await verifyResponse.json();
@@ -92,13 +92,13 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
         message.error('Invalid response from license verification service');
         return;
       }
-      
+
       if (!verifyResponse.ok || !verifyResult.success) {
         const errorMsg = verifyResult.message || 'Invalid license code';
         message.error(`Verification failed: ${errorMsg}`);
         return;
       }
-      
+
       // If license is valid, set the license details from backend
       setNewLicenseDetails({
         license_code: licenseCode,
@@ -109,9 +109,9 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
         socket_count: verifyResult.socket_count,
         license_verified: true
       });
-      
+
       message.success('License verified successfully');
-      
+
     } catch (error) {
       console.error('Unexpected error during license verification:', error);
       message.error('An unexpected error occurred. Please try again.');
@@ -122,21 +122,43 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 
   const handleUpdateLicense = async () => {
     if (!newLicenseCode.trim() || !newLicenseDetails) return;
-    
+
     setUpdateLoading(true);
     try {
-      const response = await fetch(`https://${hostIP}:5000/api/update-license/${serverid}`, {
-        method: 'PUT',
+      // Call Python backend to SSH into the server and persist license first
+      const response = await fetch(`https://${hostIP}:2020/apply-license`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
+          server_ip: server_ip,
           license_code: newLicenseCode,
           license_type: newLicenseDetails.license_type,
-          license_period: newLicenseDetails.license_period,
-          status: 'activated'
+          license_period: newLicenseDetails.license_period
         })
       });
-      
-      if (response.ok) {
+
+      const respJson = await response.json().catch(() => ({}));
+
+      if (response.ok && respJson?.success) {
+        // Step 2: Update central DB from frontend
+        const dbRes = await fetch(`https://${hostIP}:5000/api/update-license/${serverid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            license_code: newLicenseCode,
+            license_type: newLicenseDetails.license_type,
+            license_period: newLicenseDetails.license_period,
+            status: 'activated'
+          })
+        });
+
+        if (!dbRes.ok) {
+          const dbErr = await dbRes.json().catch(() => ({}));
+          const msg = dbErr?.message || 'Failed to update license in database';
+          alert(msg);
+          return;
+        }
+
         // Refresh license details
         const updatedResponse = await fetch(`https://${hostIP}:5000/api/license-details/${serverid}`);
         if (updatedResponse.ok) {
@@ -148,8 +170,8 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
         setNewLicenseDetails(null);
         if (onLicenseUpdate) onLicenseUpdate();
       } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Failed to update license');
+        const msg = respJson?.message || 'Failed to apply license on target machine';
+        alert(msg);
       }
     } catch (error) {
       console.error('Error updating license:', error);
@@ -186,8 +208,8 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
             Back
           </Button>
         </div> */}
-        
-        <div style={{ 
+
+        <div style={{
           marginBottom: '24px',
           backgroundColor: '#fff',
           padding: '24px',
@@ -203,11 +225,11 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
           }}>
             Update License
           </h3> */}
-          
+
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '8px', 
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
               fontWeight: 500,
               color: '#1f1f1f'
             }}>
@@ -222,7 +244,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
                 }}
                 placeholder="Enter 12-character license code"
                 maxLength={12}
-                style={{ 
+                style={{
                   flex: 1,
                   height: '40px',
                   borderRadius: '6px'
@@ -247,9 +269,9 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
           </div>
 
           {checkingLicense && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'center',
               padding: '16px 0',
               marginBottom: '16px',
@@ -263,9 +285,9 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 
           {newLicenseCode.length === 12 && !checkingLicense && !newLicenseDetails && (
             <div style={{ marginBottom: '16px' }}>
-              <Alert 
-                message="Please click 'Verify' to check the license code" 
-                type="info" 
+              <Alert
+                message="Please click 'Verify' to check the license code"
+                type="info"
                 showIcon
                 style={{ borderRadius: '6px' }}
               />
@@ -273,15 +295,15 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
           )}
 
           {newLicenseDetails && (
-            <div style={{ 
+            <div style={{
               border: '1px solid #e8e8e8',
-              borderRadius: '8px', 
-              padding: '16px', 
+              borderRadius: '8px',
+              padding: '16px',
               marginBottom: '24px',
               backgroundColor: '#fafafa'
             }}>
-              <h4 style={{ 
-                marginTop: 0, 
+              <h4 style={{
+                marginTop: 0,
                 marginBottom: '16px',
                 color: '#1f1f1f',
                 fontSize: '15px',
@@ -289,7 +311,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
               }}>
                 License Information
               </h4>
-              <div style={{ 
+              <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
                 gap: '12px 24px'
@@ -297,16 +319,16 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
                 <div><b>License Code:</b> <span style={{ color: '#262626' }}>{newLicenseDetails.license_code}</span></div>
                 <div><b>Type:</b> <span style={{ color: '#262626' }}>{newLicenseDetails.license_type || '-'}</span></div>
                 <div><b>Period:</b> <span style={{ color: '#262626' }}>{newLicenseDetails.license_period ? `${newLicenseDetails.license_period} days` : '-'}</span></div>
-                <div><b>Status:</b> <span style={{ 
-                  color: newLicenseDetails.license_status === 'activated' ? '#52c41a' : 
-                         newLicenseDetails.license_status === 'expired' ? '#ff4d4f' : '#faad14'
+                <div><b>Status:</b> <span style={{
+                  color: newLicenseDetails.license_status === 'activated' ? '#52c41a' :
+                    newLicenseDetails.license_status === 'expired' ? '#ff4d4f' : '#faad14'
                 }}>{newLicenseDetails.license_status || '-'}</span></div>
               </div>
             </div>
           )}
 
-          <div style={{ 
-            display: 'flex', 
+          <div style={{
+            display: 'flex',
             justifyContent: 'flex-end',
             paddingTop: '16px',
             borderTop: '1px solid #f0f0f0',
@@ -314,7 +336,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
           }}>
             <Button
               onClick={() => setShowUpdateForm(false)}
-              style={{ 
+              style={{
                 marginRight: '12px',
                 height: '40px',
                 padding: '0 16px',
@@ -360,7 +382,7 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
       )}</div>
       <div><b>Start Date:</b> {license.start_date ? new Date(license.start_date).toLocaleDateString() : <span style={{ color: '#aaa' }}>-</span>}</div>
       <div><b>End Date:</b> {license.end_date ? (
-        <span style={{ 
+        <span style={{
           color: new Date(license.end_date) < new Date() ? 'red' : 'inherit',
           fontWeight: new Date(license.end_date) < new Date() ? 'bold' : 'normal'
         }}>
@@ -368,12 +390,12 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
           {new Date(license.end_date) < new Date() && ' (Expired)'}
         </span>
       ) : <span style={{ color: '#aaa' }}>-</span>}</div>
-      
+
       {/* Temporarily enabled for testing - remove license status check */}
       {license.license_status && license.license_status.toLowerCase() === 'expired' && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #d9d9d9' }}>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={() => setShowUpdateForm(true)}
             style={{ width: '110px' }}
           >
@@ -541,14 +563,14 @@ const SquadronNodesTable = () => {
             {record.licensecode ? 'View' : <span style={{ color: '#999' }}>N/A</span>}
           </Button>
           {record.license_status ? (
-            <span style={{ 
-              color: record.license_status.toLowerCase() === 'activated' ? 'green' : 
-                     record.license_status.toLowerCase() === 'expired' ? 'red' : 'orange', 
-              fontSize: 12 
+            <span style={{
+              color: record.license_status.toLowerCase() === 'activated' ? 'green' :
+                record.license_status.toLowerCase() === 'expired' ? 'red' : 'orange',
+              fontSize: 12
             }}>
-              {record.license_status.toLowerCase() === 'activated' ? 'Active' : 
-               record.license_status.toLowerCase() === 'expired' ? 'Expired' : 
-               record.license_status}
+              {record.license_status.toLowerCase() === 'activated' ? 'Active' :
+                record.license_status.toLowerCase() === 'expired' ? 'Expired' :
+                  record.license_status}
             </span>
           ) : (
             <span style={{ color: '#999', fontSize: 12 }}>-</span>
@@ -709,7 +731,7 @@ const SquadronNodesTable = () => {
         footer={<Button onClick={() => setModalVisible(null)} style={{ width: '95px' }}>Close</Button>}
         width={400}
       >
-        <LicenseDetailsModalContent 
+        <LicenseDetailsModalContent
           serverid={modalRecord?.serverid}
           server_ip={modalRecord?.serverip}
           onLicenseUpdate={() => {
@@ -732,7 +754,7 @@ const CloudDeploymentsTable = () => {
   const [cloudPageSize, setCloudPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('cloud_page_size'));
     return Number.isFinite(saved) && saved > 0 ? saved : 10;
-    
+
   });
   const [cloudCurrentPage, setCloudCurrentPage] = useState(1);
 
