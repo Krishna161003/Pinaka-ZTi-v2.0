@@ -147,7 +147,7 @@ const ServiceStatus = () => {
   // Reconfigure modal state
   const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
   const [selectedNodes, setSelectedNodes] = React.useState(['All']);
-  const [selectedService, setSelectedService] = React.useState('All');
+  const [selectedServices, setSelectedServices] = React.useState(['All']);
   // Database recovery modal state
   const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
 
@@ -156,6 +156,25 @@ const ServiceStatus = () => {
   const [nodeLoading, setNodeLoading] = React.useState(false);
   const DUMMY_SERVICE_OPTIONS = ['All', 'nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
   const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
+  const nodeSelectOptions = React.useMemo(() => (
+    nodeOptions.map(v => ({ label: v, value: v, disabled: selectedNodes.includes('All') && v !== 'All' }))
+  ), [nodeOptions, selectedNodes]);
+  const serviceSelectOptions = React.useMemo(() => (
+    serviceOptions.map(v => ({ label: v, value: v, disabled: selectedServices.includes('All') && v !== 'All' }))
+  ), [serviceOptions, selectedServices]);
+
+  // Handle multiselect semantics for services: 'All' is exclusive/default
+  const handleServicesChange = (vals) => {
+    if (!Array.isArray(vals) || vals.length === 0) {
+      setSelectedServices(['All']);
+      return;
+    }
+    if (vals.includes('All')) {
+      setSelectedServices(['All']);
+    } else {
+      setSelectedServices(vals);
+    }
+  };
 
   // Handle multiselect semantics for nodes: 'All' is exclusive/default
   const handleNodesChange = (vals) => {
@@ -219,7 +238,7 @@ const ServiceStatus = () => {
   // Operations actions
   const reconfigureService = () => {
     setSelectedNodes(['All']);
-    setSelectedService('All');
+    setSelectedServices(['All']);
     setReconfigureOpen(true);
   };
 
@@ -230,7 +249,7 @@ const ServiceStatus = () => {
   const handleReconfigureConfirm = () => {
     setOperationLogs((prev) => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered. Nodes: ${Array.isArray(selectedNodes) ? selectedNodes.join(', ') : String(selectedNodes)}, Service: ${selectedService}`
+      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered. Nodes: ${Array.isArray(selectedNodes) ? selectedNodes.join(', ') : String(selectedNodes)}, Services: ${Array.isArray(selectedServices) ? selectedServices.join(', ') : String(selectedServices)}`
     ]);
     setReconfigureOpen(false);
   };
@@ -463,16 +482,19 @@ const ServiceStatus = () => {
                         onChange={handleNodesChange}
                         style={{ width: '100%' }}
                         loading={nodeLoading}
-                        options={nodeOptions.map((v) => ({ label: v, value: v }))}
+                        maxTagCount="responsive"
+                        options={nodeSelectOptions}
                       />
                     </div>
                     <div>
                       <div style={{ marginBottom: 6, fontWeight: 500 }}>Select OpenStack Service</div>
                       <Select
-                        value={selectedService}
-                        onChange={setSelectedService}
+                        mode="multiple"
+                        value={selectedServices}
+                        onChange={handleServicesChange}
                         style={{ width: '100%' }}
-                        options={serviceOptions.map((v) => ({ label: v, value: v }))}
+                        maxTagCount="responsive"
+                        options={serviceSelectOptions}
                       />
                     </div>
                   </div>
