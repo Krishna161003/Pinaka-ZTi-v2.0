@@ -785,7 +785,7 @@ const Dashboard = () => {
                     <img src={squad} alt="squadron" style={{ width: "64px", height: "64px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "50px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
                     <div style={{ 
                       display: 'inline-flex',
@@ -816,7 +816,7 @@ const Dashboard = () => {
                     <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", transform: 'rotate(90deg)' }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "50px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>0</span>
                     <div style={{ 
                       display: 'inline-flex',
