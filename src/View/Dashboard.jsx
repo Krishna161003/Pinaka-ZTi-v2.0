@@ -769,7 +769,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none" }} />
+                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
                   </div>
                   <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>1</span>
@@ -782,7 +782,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none",zoom: "1.2" }} />
+                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
@@ -813,7 +813,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", }} />
+                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
