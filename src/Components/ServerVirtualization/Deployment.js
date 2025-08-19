@@ -1753,12 +1753,12 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         {/* Optional Provider network fields (all-or-none) */}
         <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 12, flexWrap: 'nowrap', overflowX: 'auto' }}>
-            <span style={{ whiteSpace: 'nowrap' }}>Provider Network:&nbsp;<Tooltip placement="right" title="Virtual IP Address" >
+            <span style={{ whiteSpace: 'nowrap' }}>Provider Network&nbsp;<Tooltip placement="right" title="Virtual IP Address" >
               <InfoCircleOutlined style={{
                 color: "#1890ff", fontSize: "14px", height: "12px",
                 width: "12px"
               }} />
-            </Tooltip></span>
+            </Tooltip>:</span>
             <Form.Item
               name="cidr"
               style={{ marginBottom: 0 }}
