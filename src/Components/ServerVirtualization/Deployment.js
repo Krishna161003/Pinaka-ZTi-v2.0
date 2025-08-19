@@ -29,7 +29,7 @@ function navigateToDeploymentTab() {
     sessionStorage.setItem('lastServerVirtualizationPath', pathWithTab);
     sessionStorage.setItem('lastMenuPath', pathWithTab);
     sessionStorage.setItem('lastZtiPath', pathWithTab);
-  } catch (_) {}
+  } catch (_) { }
   try {
     const url = new URL(window.location.origin + '/servervirtualization');
     url.searchParams.set('tab', '5');
@@ -100,7 +100,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   };
 
   const saveHostnameMap = (map) => {
-    try { sessionStorage.setItem(HOSTNAME_MAP_KEY, JSON.stringify(map)); } catch (_) {}
+    try { sessionStorage.setItem(HOSTNAME_MAP_KEY, JSON.stringify(map)); } catch (_) { }
   };
 
   const setHostnameForIp = (ip, hostname) => {
@@ -189,7 +189,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       const nextStatusArr = [...statusArr];
       nextStatusArr[idx] = merged;
       sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(nextStatusArr));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   // Dynamic per-node disks and interfaces
@@ -378,7 +378,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   const active = sessionStorage.getItem('serverVirtualization_activeTab');
                   if (active === '5') suppress = true;
                 }
-              } catch (_) {}
+              } catch (_) { }
               if (!suppress) {
                 notification.warning({
                   key: `sv-ssh-timeout-${ip}`,
@@ -413,7 +413,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       const active = sessionStorage.getItem('serverVirtualization_activeTab');
                       if (active === '5') suppress = true;
                     }
-                  } catch (_) {}
+                  } catch (_) { }
                   if (!suppress) {
                     notification.open({
                       key: `sv-ssh-success-${ip}`,
@@ -562,7 +562,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             bootArr.splice(idx, 1);
             sessionStorage.setItem('sv_networkApplyBootEndTimes', JSON.stringify(bootArr));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_networkApplyResult per-IP
         try {
@@ -573,7 +573,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             delete resultObj[ip];
             sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_networkApplyPollingDelayStart per-IP
         try {
@@ -584,7 +584,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             delete map[ip];
             sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_licenseActivationResults array
         try {
@@ -599,7 +599,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
             }
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_licenseStatus map
         try {
@@ -610,7 +610,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             delete map[ip];
             sessionStorage.setItem('sv_licenseStatus', JSON.stringify(map));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_hostnameMap
         try {
@@ -621,7 +621,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             delete map[ip];
             sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_networkApplyForms and sv_networkApplyCardStatus (aligned to index)
         try {
@@ -639,7 +639,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             statusArr.splice(idx, 1);
             sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(statusArr));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // sv_licenseNodes (source for this page)
         try {
@@ -649,7 +649,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             nodesArr.splice(idx, 1);
             sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // Clear UI/polling timers for this IP and index
         try {
@@ -669,8 +669,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           try {
             notification.close(`sv-ssh-success-${ip}`);
             notification.close(`sv-ssh-timeout-${ip}`);
-          } catch (_) {}
-        } catch (_) {}
+          } catch (_) { }
+        } catch (_) { }
 
         // Update local states
         setLicenseNodes(prev => prev.filter((_, i) => i !== idx));
@@ -696,7 +696,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         // Inform parent to remove from earlier tabs as well
         try {
           if (onRemoveNode) onRemoveNode(ip, { ip }, idx);
-        } catch (_) {}
+        } catch (_) { }
 
         const key = `sv-deploy-remove-${ip}`;
         notification.open({
@@ -717,7 +717,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   nodesArr.splice(insIdx, 0, snapshot.licenseNodesEntry);
                   sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
                 }
-              } catch (_) {}
+              } catch (_) { }
               try {
                 // restore delay-start timestamp for polling recovery
                 if (snapshot.delayStartTs && snapshot.ip) {
@@ -726,7 +726,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   map[snapshot.ip] = snapshot.delayStartTs;
                   sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
                 }
-              } catch (_) {}
+              } catch (_) { }
               try {
                 // networkApply forms/status
                 const formsRaw = sessionStorage.getItem('sv_networkApplyForms');
@@ -742,7 +742,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   statusArr.splice(insIdx, 0, snapshot.cardStatusEntry);
                   sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(statusArr));
                 }
-              } catch (_) {}
+              } catch (_) { }
               try {
                 // timers arrays
                 const restartRaw = sessionStorage.getItem('sv_networkApplyRestartEndTimes');
@@ -758,7 +758,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   bootArr.splice(insIdx, 0, snapshot.bootEndTime);
                   sessionStorage.setItem('sv_networkApplyBootEndTimes', JSON.stringify(bootArr));
                 }
-              } catch (_) {}
+              } catch (_) { }
               try {
                 // networkApplyResult per-IP
                 if (snapshot.ip && snapshot.networkApplyResultEntry) {
@@ -767,7 +767,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   resultObj[snapshot.ip] = snapshot.networkApplyResultEntry;
                   sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
                 }
-              } catch (_) {}
+              } catch (_) { }
               try {
                 // licenseActivationResults array and licenseStatus map
                 const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
@@ -783,7 +783,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   statusMap[snapshot.ip] = snapshot.licenseStatusEntry;
                   sessionStorage.setItem('sv_licenseStatus', JSON.stringify(statusMap));
                 }
-              } catch (_) {}
+              } catch (_) { }
               try {
                 // hostname map
                 if (snapshot.hostnameEntry && snapshot.ip) {
@@ -792,7 +792,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   map[snapshot.ip] = snapshot.hostnameEntry;
                   sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
                 }
-              } catch (_) {}
+              } catch (_) { }
 
               // Restore local states at original index
               setLicenseNodes(prev => {
@@ -824,7 +824,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               // Inform parent to restore into earlier tabs
               try {
                 if (onUndoRemoveNode) onUndoRemoveNode(snapshot.ip, { ip: snapshot.ip }, snapshot.idx);
-              } catch (_) {}
+              } catch (_) { }
             }}>
               Undo
             </Button>
@@ -1292,11 +1292,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             if (!window.__cloudPolling) window.__cloudPolling = {};
             if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
             if (window.__cloudPolling[node_ip]) {
-              try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) {}
+              try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) { }
               delete window.__cloudPolling[node_ip];
             }
             if (window.__cloudPollingStart[node_ip]) {
-              try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) {}
+              try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) { }
               delete window.__cloudPollingStart[node_ip];
             }
             // Persist delay start time for recovery
@@ -1305,7 +1305,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               const map = raw ? JSON.parse(raw) : {};
               map[node_ip] = Date.now();
               sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-            } catch (_) {}
+            } catch (_) { }
 
             // Delay starting the frontend polling until 90 seconds (to match backend delay)
             const startPollingTimeout = setTimeout(() => {
@@ -1334,7 +1334,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       delete map[node_ip];
                       sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
                     }
-                  } catch (_) {}
+                  } catch (_) { }
                   // Cross-menu notification on timeout
                   {
                     let suppress = false;
@@ -1344,7 +1344,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                         const active = sessionStorage.getItem('serverVirtualization_activeTab');
                         if (active === '5') suppress = true;
                       }
-                    } catch (_) {}
+                    } catch (_) { }
                     if (!suppress) {
                       notification.warning({
                         key: `sv-ssh-timeout-${node_ip}`,
@@ -1383,7 +1383,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                             const active = sessionStorage.getItem('serverVirtualization_activeTab');
                             if (active === '5') suppress = true;
                           }
-                        } catch (_) {}
+                        } catch (_) { }
                         if (!suppress) {
                           notification.open({
                             key: `sv-ssh-success-${node_ip}`,
@@ -1409,7 +1409,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                           delete map[node_ip];
                           sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
                         }
-                      } catch (_) {}
+                      } catch (_) { }
                       // Store the form data for this node in sessionStorage
                       const nodeIp = form.ip || `node${nodeIdx + 1}`;
                       storeFormData(nodeIp, form);
@@ -1671,7 +1671,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           disabledTabs['5'] = false;
           sessionStorage.setItem('sv_disabledTabs', JSON.stringify(disabledTabs));
           sessionStorage.setItem('sv_activeTab', '5');
-        } catch (_) {}
+        } catch (_) { }
         setDeployLoading(false);
         const url = new URL(window.location.href);
         url.searchParams.set('tab', '5');
@@ -1753,7 +1753,12 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         {/* Optional Provider network fields (all-or-none) */}
         <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 12, flexWrap: 'nowrap', overflowX: 'auto' }}>
-          <span style={{ whiteSpace: 'nowrap' }}>Provider Network:</span>
+            <span style={{ whiteSpace: 'nowrap' }}>Provider Network:&nbsp;<Tooltip placement="right" title="Virtual IP Address" >
+              <InfoCircleOutlined style={{
+                color: "#1890ff", fontSize: "14px", height: "12px",
+                width: "12px"
+              }} />
+            </Tooltip></span>
             <Form.Item
               name="cidr"
               style={{ marginBottom: 0 }}
@@ -1840,113 +1845,113 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     Refetch Data
                   </Button>
                 </div>
-              <Table
-                columns={getColumns(form, idx)}
-                dataSource={form.tableData}
-                pagination={false}
-                bordered
-                size="small"
-                scroll={{ x: true }}
-                rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
-              />
+                <Table
+                  columns={getColumns(form, idx)}
+                  dataSource={form.tableData}
+                  pagination={false}
+                  bordered
+                  size="small"
+                  scroll={{ x: true }}
+                  rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
+                />
 
-              {/* Default Gateway Field */}
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
-                <Form.Item
-                  label="Default Gateway"
-                  validateStatus={form.defaultGatewayError ? 'error' : ''}
-                  help={form.defaultGatewayError}
-                  required
-                  style={{ minWidth: 220 }}
-                >
-                  <Input
-                    value={form.defaultGateway}
-                    placeholder="Enter Default Gateway"
-                    onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Select Disk"
-                  required
-                  validateStatus={form.diskError ? 'error' : ''}
-                  help={form.diskError}
-                  style={{ minWidth: 220 }}
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select disk(s)"
-                    value={form.selectedDisks || []}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                    onChange={value => handleDiskChange(idx, value)}
-                    optionLabelProp="label"
+                {/* Default Gateway Field */}
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
+                  <Form.Item
+                    label="Default Gateway"
+                    validateStatus={form.defaultGatewayError ? 'error' : ''}
+                    help={form.defaultGatewayError}
+                    required
+                    style={{ minWidth: 220 }}
                   >
-                    {(nodeDisks[form.ip] || []).map(disk => (
-                      <Option
-                        key={disk.wwn || disk}
-                        value={disk.wwn || disk}
-                        label={disk.display || disk}
-                      >
-                        {disk.display || disk}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-                <Form.Item
-                  label="Select Role"
-                  required
-                  validateStatus={form.roleError ? 'error' : ''}
-                  help={form.roleError}
-                  style={{ minWidth: 220 }}
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select role(s)"
-                    value={form.selectedRoles || []}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
-                    onChange={value => handleRoleChange(idx, value)}
+                    <Input
+                      value={form.defaultGateway}
+                      placeholder="Enter Default Gateway"
+                      onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
+                      style={{ width: 200 }}
+                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label="Select Disk"
+                    required
+                    validateStatus={form.diskError ? 'error' : ''}
+                    help={form.diskError}
+                    style={{ minWidth: 220 }}
                   >
-                    <Option value="Control">Control</Option>
-                    <Option value="Compute">Compute</Option>
-                    <Option value="Storage">Storage</Option>
-                    <Option value="Monitoring">Monitoring</Option>
-                  </Select>
-                </Form.Item>
-              </div>
-              {/* License Details Display - all in one line */}
-              <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
-                <span>{form.licenseType || '-'}</span>
-                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
-                <span>{form.licensePeriod || '-'}</span>
-                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
-                <span>{form.licenseCode || '-'}</span>
-              </div>
-              <Divider />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
-                {!cardStatus[idx]?.applied && (
-                  <Button danger onClick={() => handleRemoveNode(idx)} style={{ width: '130px', display: 'flex' }} disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}>
-                    Remove Node
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      placeholder="Select disk(s)"
+                      value={form.selectedDisks || []}
+                      style={{ width: 200 }}
+                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                      onChange={value => handleDiskChange(idx, value)}
+                      optionLabelProp="label"
+                    >
+                      {(nodeDisks[form.ip] || []).map(disk => (
+                        <Option
+                          key={disk.wwn || disk}
+                          value={disk.wwn || disk}
+                          label={disk.display || disk}
+                        >
+                          {disk.display || disk}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    label="Select Role"
+                    required
+                    validateStatus={form.roleError ? 'error' : ''}
+                    help={form.roleError}
+                    style={{ minWidth: 220 }}
+                  >
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      placeholder="Select role(s)"
+                      value={form.selectedRoles || []}
+                      style={{ width: 200 }}
+                      disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
+                      onChange={value => handleRoleChange(idx, value)}
+                    >
+                      <Option value="Control">Control</Option>
+                      <Option value="Compute">Compute</Option>
+                      <Option value="Storage">Storage</Option>
+                      <Option value="Monitoring">Monitoring</Option>
+                    </Select>
+                  </Form.Item>
+                </div>
+                {/* License Details Display - all in one line */}
+                <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
+                  <span>{form.licenseType || '-'}</span>
+                  <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
+                  <span>{form.licensePeriod || '-'}</span>
+                  <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
+                  <span>{form.licenseCode || '-'}</span>
+                </div>
+                <Divider />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
+                  {!cardStatus[idx]?.applied && (
+                    <Button danger onClick={() => handleRemoveNode(idx)} style={{ width: '130px', display: 'flex' }} disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}>
+                      Remove Node
+                    </Button>
+                  )}
+                  <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
+                    Reset Value
                   </Button>
-                )}
-                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
-                  Reset Value
-                </Button>
-                <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '120px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
-                  Apply Change
-                </Button>
-              </div>
-            </Card>
-          </Spin>
-        ))}
-      </Space>
+                  <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '120px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                    Apply Change
+                  </Button>
+                </div>
+              </Card>
+            </Spin>
+          ))}
+        </Space>
+      </div>
     </div>
-  </div>
   );
 };
 
