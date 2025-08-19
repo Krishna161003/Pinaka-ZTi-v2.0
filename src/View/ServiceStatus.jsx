@@ -160,9 +160,7 @@ const ServiceStatus = () => {
   const fetchNodeOptions = React.useCallback(async () => {
     try {
       setNodeLoading(true);
-      const userId = (() => {
-        try { return localStorage.getItem('userId'); } catch (_) { return null; }
-      })();
+      const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
       const res = await axios.get(`https://${hostIP}:5000/api/deployed-server-ips-dropdown`, {
         params: { userId }
       });
