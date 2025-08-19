@@ -12,6 +12,7 @@ const ServiceStatus = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+  const [activeSection, setActiveSection] = React.useState('status'); // 'status' | 'operations'
 
   // Columns: Compute/Storage
   const columnsCompute = [
@@ -141,23 +142,37 @@ const ServiceStatus = () => {
         <Content style={{ margin: "16px 16px" }}>
           <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'nowrap' }}>
             <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setActiveSection('status')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveSection('status'); }}
               style={{
                 padding: 30,
                 minHeight: 'auto',
                 background: colorBgContainer,
                 // borderRadius: borderRadiusLG,
                 flex: 1,
+                cursor: 'pointer',
+                border: activeSection === 'status' ? '1px solid #1677ff' : '1px solid transparent',
+                boxShadow: activeSection === 'status' ? '0 0 0 2px rgba(22,119,255,0.2) inset' : 'none',
               }}
             >
               <h2 style={{ marginTop: '0px' }}>Services Status </h2>
             </div>
             <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setActiveSection('operations')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveSection('operations'); }}
               style={{
                 padding: 30,
                 minHeight: 'auto',
                 background: colorBgContainer,
                 // borderRadius: borderRadiusLG,
                 flex: 1,
+                cursor: 'pointer',
+                border: activeSection === 'operations' ? '1px solid #1677ff' : '1px solid transparent',
+                boxShadow: activeSection === 'operations' ? '0 0 0 2px rgba(22,119,255,0.2) inset' : 'none',
               }}
             >
               <h2 style={{ marginTop: '0px' }}>Service operations </h2>
@@ -170,91 +185,99 @@ const ServiceStatus = () => {
             background: colorBgContainer,
             // borderRadius: borderRadiusLG,
           }}>
-            {/* Removed header and action icons as requested */}
-
-            <Tabs
-              defaultActiveKey="compute"
-              tabBarExtraContent={{
-                right: (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Button
-                      aria-label="Refresh"
-                      onClick={handleRefresh}
-                      icon={<SyncOutlined spin={tableLoading} />}
-                      style={{
-                        borderColor: '#1677ff',
-                        color: '#1677ff',
-                        borderRadius: 8,
-                      }}
-                    />
-                    <Input.Search
-                      allowClear
-                      placeholder="Search..."
-                      style={{ width: 280 }}
-                      value={searchText}
-                      onSearch={(val) => setSearchText(val)}
-                      onChange={(e) => setSearchText(e.target.value)}
-                    />
-                  </div>
-                )
-              }}
-              items={[
-                {
-                  key: 'compute',
-                  label: 'Compute',
-                  children: (
-                    <Table
-                      rowKey="key"
-                      columns={columnsCompute}
-                      dataSource={computeData.filter(row => {
-                        if (!searchText) return true;
-                        const q = searchText.toLowerCase();
-                        return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
-                          .some(v => (v || '').toLowerCase().includes(q));
-                      })}
-                      loading={tableLoading}
-                      pagination={{ pageSize: 10 }}
-                    />
-                  ),
-                },
-                {
-                  key: 'neutron',
-                  label: 'Network',
-                  children: (
-                    <Table
-                      rowKey="key"
-                      columns={columnsNetwork}
-                      dataSource={neutronData.filter(row => {
-                        if (!searchText) return true;
-                        const q = searchText.toLowerCase();
-                        return [row.name, row.agentType, row.host, row.az, row.serviceStatus, row.serviceState]
-                          .some(v => (v || '').toLowerCase().includes(q));
-                      })}
-                      loading={tableLoading}
-                      pagination={{ pageSize: 10 }}
-                    />
-                  ),
-                },
-                {
-                  key: 'block',
-                  label: 'Storage',
-                  children: (
-                    <Table
-                      rowKey="key"
-                      columns={columnsCompute}
-                      dataSource={blockData.filter(row => {
-                        if (!searchText) return true;
-                        const q = searchText.toLowerCase();
-                        return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
-                          .some(v => (v || '').toLowerCase().includes(q));
-                      })}
-                      loading={tableLoading}
-                      pagination={{ pageSize: 10 }}
-                    />
-                  ),
-                },
-              ]}
-            />
+            {activeSection === 'status' ? (
+              <>
+                {/* Removed header and action icons as requested */}
+                <Tabs
+                  defaultActiveKey="compute"
+                  tabBarExtraContent={{
+                    right: (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Button
+                          aria-label="Refresh"
+                          onClick={handleRefresh}
+                          icon={<SyncOutlined spin={tableLoading} />}
+                          style={{
+                            borderColor: '#1677ff',
+                            color: '#1677ff',
+                            borderRadius: 8,
+                          }}
+                        />
+                        <Input.Search
+                          allowClear
+                          placeholder="Search..."
+                          style={{ width: 280 }}
+                          value={searchText}
+                          onSearch={(val) => setSearchText(val)}
+                          onChange={(e) => setSearchText(e.target.value)}
+                        />
+                      </div>
+                    )
+                  }}
+                  items={[
+                    {
+                      key: 'compute',
+                      label: 'Compute',
+                      children: (
+                        <Table
+                          rowKey="key"
+                          columns={columnsCompute}
+                          dataSource={computeData.filter(row => {
+                            if (!searchText) return true;
+                            const q = searchText.toLowerCase();
+                            return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
+                              .some(v => (v || '').toLowerCase().includes(q));
+                          })}
+                          loading={tableLoading}
+                          pagination={{ pageSize: 10 }}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'neutron',
+                      label: 'Network',
+                      children: (
+                        <Table
+                          rowKey="key"
+                          columns={columnsNetwork}
+                          dataSource={neutronData.filter(row => {
+                            if (!searchText) return true;
+                            const q = searchText.toLowerCase();
+                            return [row.name, row.agentType, row.host, row.az, row.serviceStatus, row.serviceState]
+                              .some(v => (v || '').toLowerCase().includes(q));
+                          })}
+                          loading={tableLoading}
+                          pagination={{ pageSize: 10 }}
+                        />
+                      ),
+                    },
+                    {
+                      key: 'block',
+                      label: 'Storage',
+                      children: (
+                        <Table
+                          rowKey="key"
+                          columns={columnsCompute}
+                          dataSource={blockData.filter(row => {
+                            if (!searchText) return true;
+                            const q = searchText.toLowerCase();
+                            return [row.name, row.host, row.az, row.serviceStatus, row.serviceState, row.lastUpdated]
+                              .some(v => (v || '').toLowerCase().includes(q));
+                          })}
+                          loading={tableLoading}
+                          pagination={{ pageSize: 10 }}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </>
+            ) : (
+              <div>
+                <h3 style={{ marginTop: 0 }}>Service operations</h3>
+                <p>Service operations content goes here.</p>
+              </div>
+            )}
           </div>
         </Content>
       </Layout>
