@@ -785,7 +785,7 @@ const Dashboard = () => {
                     <img src={squad} alt="squadron" style={{ width: "64px", height: "64px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "50px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
                     <div style={{ 
                       display: 'inline-flex',
@@ -798,7 +798,7 @@ const Dashboard = () => {
                       fontSize: '13px',
                       fontWeight: '500',
                       color: '#2c3e50',
-                      textAlign: 'right'
+                      textAlign: 'center'
                     }}>
                       <span style={{ color: '#4caf50' }}>Up <strong>{serverCounts.online_count}</strong></span>
                       <span style={{ color: '#e0e0e0' }}>|</span>
@@ -816,7 +816,7 @@ const Dashboard = () => {
                     <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", transform: 'rotate(90deg)' }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "50px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>0</span>
                     <div style={{ 
                       display: 'inline-flex',
@@ -830,7 +830,7 @@ const Dashboard = () => {
                       fontSize: '13px',
                       fontWeight: '500',
                       color: '#2c3e50',
-                      textAlign: 'right'
+                      textAlign: 'center'
                     }}>
                       <span style={{ color: '#4caf50' }}>In <strong>0</strong></span>
                       <span style={{ color: '#e0e0e0' }}>|</span>
