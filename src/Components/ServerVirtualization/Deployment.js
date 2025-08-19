@@ -1708,7 +1708,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       </div>
       {/* VIP input below Cloud Name */}
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
-        <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-start', alignItems: 'center' }}>
           <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Enter VIP:</span>
           <Form.Item
             validateStatus={vipError ? 'error' : ''}
