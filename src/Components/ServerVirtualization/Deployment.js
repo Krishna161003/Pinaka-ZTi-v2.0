@@ -1737,6 +1737,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         {/* Optional Provider network fields (all-or-none) */}
         <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Provider Network:</span>
             <Form.Item
               name="cidr"
               style={{ marginBottom: 0 }}
@@ -1747,7 +1748,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 },
               ]}
             >
-              <Input placeholder="Enter CIDR" style={{ width: 200 }} />
+              <Input placeholder="Enter CIDR (optional)" style={{ width: 200 }} />
             </Form.Item>
 
             <Form.Item
@@ -1760,7 +1761,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 },
               ]}
             >
-              <Input placeholder="Enter Gateway" style={{ width: 200 }} />
+              <Input placeholder="Enter Gateway (optional)" style={{ width: 200 }} />
             </Form.Item>
 
             <Form.Item
@@ -1773,7 +1774,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 },
               ]}
             >
-              <Input placeholder="Enter Starting IP" style={{ width: 200 }} />
+              <Input placeholder="Enter Starting IP (optional)" style={{ width: 200 }} />
             </Form.Item>
 
             <Form.Item
@@ -1786,7 +1787,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 },
               ]}
             >
-              <Input placeholder="Enter Ending IP" style={{ width: 200 }} />
+              <Input placeholder="Enter Ending IP (optional)" style={{ width: 200 }} />
             </Form.Item>
           </div>
         </Form>
