@@ -152,22 +152,18 @@ const ServiceStatus = () => {
   // Database recovery modal state
   const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
 
+  // Dummy dropdown data (first item must be 'All')
+  const DUMMY_NODE_OPTIONS = ['All', 'controller-01', 'controller-02', 'compute-01', 'compute-02'];
+  const DUMMY_SERVICE_OPTIONS = ['All', 'nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
+
   // Build dropdown options (include 'All' first)
   const nodeOptions = React.useMemo(() => {
-    const hosts = new Set();
-    [...computeData, ...neutronData, ...blockData].forEach((r) => {
-      if (r.host) hosts.add(r.host);
-    });
-    return ['All', ...Array.from(hosts).sort()];
-  }, [computeData, neutronData, blockData]);
+    return DUMMY_NODE_OPTIONS;
+  }, [DUMMY_NODE_OPTIONS]);
 
   const serviceOptions = React.useMemo(() => {
-    const svcs = new Set();
-    computeData.forEach((r) => r.name && svcs.add(r.name));
-    neutronData.forEach((r) => r.name && svcs.add(r.name));
-    blockData.forEach((r) => r.name && svcs.add(r.name));
-    return ['All', ...Array.from(svcs).sort()];
-  }, [computeData, neutronData, blockData]);
+    return DUMMY_SERVICE_OPTIONS;
+  }, [DUMMY_SERVICE_OPTIONS]);
 
   const normalizeLogs = (payload) => Array.isArray(payload)
     ? payload
