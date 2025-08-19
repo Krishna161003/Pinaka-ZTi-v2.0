@@ -126,13 +126,10 @@ const ServiceStatus = () => {
   // Refresh handling (UI-only)
   const [tableLoading, setTableLoading] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
-  const handleRefresh = () => {
-    fetchOpenstackData();
-  };
+  // removed manual refresh handler per request
 
   // Operations logs terminal
   const [operationLogs, setOperationLogs] = React.useState([]);
-  const [logsLoading, setLogsLoading] = React.useState(false);
   const logEndRef = React.useRef(null);
 
   const normalizeLogs = (payload) => Array.isArray(payload)
@@ -141,7 +138,6 @@ const ServiceStatus = () => {
 
   const fetchOperationLogs = async () => {
     try {
-      setLogsLoading(true);
       const res = await axios.get(`https://${hostIP}:2020/api/operation_logs`, {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -152,8 +148,6 @@ const ServiceStatus = () => {
         ...prev,
         `[${new Date().toLocaleTimeString()}] Failed to fetch operation logs.`
       ]);
-    } finally {
-      setLogsLoading(false);
     }
   };
 
@@ -242,18 +236,6 @@ const ServiceStatus = () => {
                   tabBarExtraContent={{
                     right: (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Button
-                          aria-label="Refresh"
-                          onClick={handleRefresh}
-                          loading={tableLoading}
-                          style={{
-                            borderColor: '#1677ff',
-                            color: '#1677ff',
-                            borderRadius: 8,
-                          }}
-                        >
-                          Refresh
-                        </Button>
                         <Input.Search
                           allowClear
                           placeholder="Search..."
@@ -331,11 +313,9 @@ const ServiceStatus = () => {
                     <Button
                       aria-label="Refresh"
                       onClick={fetchOperationLogs}
-                      loading={logsLoading}
+                      icon={<SyncOutlined spin={logsLoading} />}
                       style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
-                    >
-                      Refresh
-                    </Button>
+                    />
                     <Button onClick={clearOperationLogs}>Clear</Button>
                   </div>
                 </div>
