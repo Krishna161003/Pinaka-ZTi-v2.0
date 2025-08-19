@@ -1,6 +1,6 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, Tabs, Table, Badge, Button, Input, Modal } from 'antd';
+import { theme, Layout, Tabs, Table, Badge, Button, Input, Modal, Select } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -147,6 +147,27 @@ const ServiceStatus = () => {
   const logEndRef = React.useRef(null);
   // Reconfigure modal state
   const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
+  const [selectedNode, setSelectedNode] = React.useState('All');
+  const [selectedService, setSelectedService] = React.useState('All');
+  // Database recovery modal state
+  const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
+
+  // Build dropdown options (include 'All' first)
+  const nodeOptions = React.useMemo(() => {
+    const hosts = new Set();
+    [...computeData, ...neutronData, ...blockData].forEach((r) => {
+      if (r.host) hosts.add(r.host);
+    });
+    return ['All', ...Array.from(hosts).sort()];
+  }, [computeData, neutronData, blockData]);
+
+  const serviceOptions = React.useMemo(() => {
+    const svcs = new Set();
+    computeData.forEach((r) => r.name && svcs.add(r.name));
+    neutronData.forEach((r) => r.name && svcs.add(r.name));
+    blockData.forEach((r) => r.name && svcs.add(r.name));
+    return ['All', ...Array.from(svcs).sort()];
+  }, [computeData, neutronData, blockData]);
 
   const normalizeLogs = (payload) => Array.isArray(payload)
     ? payload
@@ -169,23 +190,29 @@ const ServiceStatus = () => {
 
   // Operations actions
   const reconfigureService = () => {
+    setSelectedNode('All');
+    setSelectedService('All');
     setReconfigureOpen(true);
   };
 
   const databaseRecovery = () => {
-    setOperationLogs((prev) => [
-      ...prev,
-      `[${new Date().toLocaleTimeString()}] Database Recovery triggered.`
-    ]);
-    // TODO: Hook backend action if available
+    setDbRecoveryOpen(true);
   };
 
   const handleReconfigureConfirm = () => {
     setOperationLogs((prev) => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered.`
+      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered. Node: ${selectedNode}, Service: ${selectedService}`
     ]);
     setReconfigureOpen(false);
+  };
+
+  const handleDbRecoveryConfirm = () => {
+    setOperationLogs((prev) => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] MariaDB Recovery confirmed. Starting recovery...`
+    ]);
+    setDbRecoveryOpen(false);
   };
 
   const clearOperationLogs = () => setOperationLogs([]);
@@ -399,7 +426,38 @@ const ServiceStatus = () => {
                   okButtonProps={{ style: { width: 160 } }}
                   cancelButtonProps={{ style: { width: 100 } }}
                 >
-                  <p>Are you sure you want to reconfigure the service? This will apply configuration changes.</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ marginBottom: 6, fontWeight: 500 }}>Select Node</div>
+                      <Select
+                        value={selectedNode}
+                        onChange={setSelectedNode}
+                        style={{ width: '100%' }}
+                        options={nodeOptions.map((v) => ({ label: v, value: v }))}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ marginBottom: 6, fontWeight: 500 }}>Select OpenStack Service</div>
+                      <Select
+                        value={selectedService}
+                        onChange={setSelectedService}
+                        style={{ width: '100%' }}
+                        options={serviceOptions.map((v) => ({ label: v, value: v }))}
+                      />
+                    </div>
+                  </div>
+                </Modal>
+                <Modal
+                  title="Database Recovery"
+                  open={dbRecoveryOpen}
+                  onOk={handleDbRecoveryConfirm}
+                  onCancel={() => setDbRecoveryOpen(false)}
+                  okText="Run Recovery"
+                  cancelText="Cancel"
+                  okButtonProps={{ style: { width: 160 } }}
+                  cancelButtonProps={{ style: { width: 100 } }}
+                >
+                  <p>Are you sure you want to run MariaDB recovery? This may restart database services and attempt to repair the cluster.</p>
                 </Modal>
                 <div
                   style={{
