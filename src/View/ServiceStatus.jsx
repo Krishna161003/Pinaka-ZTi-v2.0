@@ -375,7 +375,7 @@ const ServiceStatus = () => {
               <div>
                 <div style={{ marginBottom: 8 }}>
                   <h3 style={{ marginTop: 0, marginBottom: 8 }}>Service operations</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '10px 0px 10px 0px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService}>Reconfigure Service</Button>
                       <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery}>Database Recovery</Button>
