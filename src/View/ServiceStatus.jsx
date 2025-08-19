@@ -260,7 +260,7 @@ const ServiceStatus = () => {
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
-              <h2 style={{ marginTop: '0px' }}>Services Status </h2>
+              <h2 style={{ marginTop: '0px' }}>Service Status </h2>
             </div>
             <div
               role="button"
@@ -292,7 +292,7 @@ const ServiceStatus = () => {
           }}>
             {activeSection === 'status' ? (
               <>
-                <h3 style={{ marginTop: 0 }}>Services Status</h3>
+                <h3 style={{ marginTop: 0 }}>Service Status</h3>
                 <Tabs
                   defaultActiveKey="compute"
                   tabBarExtraContent={{
@@ -396,6 +396,8 @@ const ServiceStatus = () => {
                   onCancel={() => setReconfigureOpen(false)}
                   okText="Run Reconfigure"
                   cancelText="Cancel"
+                  okButtonProps={{ style: { width: 160 } }}
+                  cancelButtonProps={{ style: { width: 100 } }}
                 >
                   <p>Are you sure you want to reconfigure the service? This will apply configuration changes.</p>
                 </Modal>
