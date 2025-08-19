@@ -1708,11 +1708,12 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       </div>
       {/* VIP input below Cloud Name */}
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
-        <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-end' }}>
+        <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Enter VIP:</span>
           <Form.Item
-            label="Enter VIP"
             validateStatus={vipError ? 'error' : ''}
             help={vipError}
+            style={{ marginBottom: 0 }}
           >
             <Input
               style={{ width: 260 }}
@@ -1734,10 +1735,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           </Form.Item>
         </Form>
         {/* Optional Provider network fields (all-or-none) */}
-        <Form form={Providerform} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+        <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <Form.Item
               name="cidr"
+              style={{ marginBottom: 0 }}
               rules={[
                 {
                   pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
@@ -1750,6 +1752,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
             <Form.Item
               name="gateway"
+              style={{ marginBottom: 0 }}
               rules={[
                 {
                   pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
@@ -1762,6 +1765,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
             <Form.Item
               name="startingIp"
+              style={{ marginBottom: 0 }}
               rules={[
                 {
                   pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
@@ -1774,6 +1778,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
             <Form.Item
               name="endingIp"
+              style={{ marginBottom: 0 }}
               rules={[
                 {
                   pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
