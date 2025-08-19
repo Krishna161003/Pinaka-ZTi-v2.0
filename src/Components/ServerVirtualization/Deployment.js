@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin, Modal, notification } from 'antd';
-// (removed unused InfoCircleOutlined import)
+import { InfoCircleOutlined } from '@ant-design/icons';
 import { buildNetworkConfigPayload } from './networkapply.format';
 import { buildDeployConfigPayload } from './networkapply.deployformat';
 
@@ -1710,11 +1710,22 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       {/* VIP input below Cloud Name */}
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
         <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-start', alignItems: 'center' }}>
-          <span style={{ whiteSpace: 'nowrap' }}>Enter VIP:</span>
+          {/* <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Enter VIP:</span> */}
           <Form.Item
             validateStatus={vipError ? 'error' : ''}
             help={vipError}
             style={{ marginBottom: 0 }}
+            label={
+              <span>
+                Enter VIP&nbsp;
+                <Tooltip placement="right" title="Virtual IP Address" >
+                  <InfoCircleOutlined style={{
+                    color: "#1890ff", fontSize: "14px", height: "12px",
+                    width: "12px"
+                  }} />
+                </Tooltip>
+              </span>
+            }
             rules={[
               { required: true, message: 'VIP is required' },
             ]}
