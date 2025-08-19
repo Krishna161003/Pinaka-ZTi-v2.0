@@ -1719,7 +1719,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             label={
               <span>
                 Enter VIP&nbsp;
-                <Tooltip placement="right" title="Virtual IP Address" >
+                <Tooltip placement="top" title="Virtual IP Address" >
                   <InfoCircleOutlined style={{
                     color: "#1890ff", fontSize: "14px", height: "12px",
                     width: "12px"
@@ -1753,7 +1753,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         {/* Optional Provider network fields (all-or-none) */}
         <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 12, flexWrap: 'nowrap', overflowX: 'auto' }}>
-            <span style={{ whiteSpace: 'nowrap' }}>Provider Network&nbsp;<Tooltip placement="right" title="Virtual IP Address" >
+            <span style={{ whiteSpace: 'nowrap' }}>Provider Network&nbsp;<Tooltip placement="bottom" title="Provider Network" >
               <InfoCircleOutlined style={{
                 color: "#1890ff", fontSize: "14px", height: "12px",
                 width: "12px"
