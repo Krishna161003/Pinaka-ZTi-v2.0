@@ -144,17 +144,21 @@ const ServiceStatus = () => {
             <div
               role="button"
               tabIndex={0}
+              aria-pressed={activeSection === 'status'}
               onClick={() => setActiveSection('status')}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveSection('status'); }}
               style={{
                 padding: 30,
                 minHeight: 'auto',
-                background: colorBgContainer,
-                // borderRadius: borderRadiusLG,
+                background: activeSection === 'status'
+                  ? `linear-gradient(0deg, rgba(22,119,255,0.03), rgba(22,119,255,0.03)), ${colorBgContainer}`
+                  : colorBgContainer,
+                borderRadius: borderRadiusLG,
                 flex: 1,
                 cursor: 'pointer',
-                border: activeSection === 'status' ? '1px solid #1677ff' : '1px solid transparent',
-                boxShadow: activeSection === 'status' ? '0 0 0 2px rgba(22,119,255,0.2) inset' : 'none',
+                border: activeSection === 'status' ? '1px solid rgba(22,119,255,0.20)' : '1px solid rgba(0,0,0,0.06)',
+                boxShadow: activeSection === 'status' ? '0 4px 14px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
               <h2 style={{ marginTop: '0px' }}>Services Status </h2>
@@ -162,17 +166,21 @@ const ServiceStatus = () => {
             <div
               role="button"
               tabIndex={0}
+              aria-pressed={activeSection === 'operations'}
               onClick={() => setActiveSection('operations')}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveSection('operations'); }}
               style={{
                 padding: 30,
                 minHeight: 'auto',
-                background: colorBgContainer,
-                // borderRadius: borderRadiusLG,
+                background: activeSection === 'operations'
+                  ? `linear-gradient(0deg, rgba(22,119,255,0.03), rgba(22,119,255,0.03)), ${colorBgContainer}`
+                  : colorBgContainer,
+                borderRadius: borderRadiusLG,
                 flex: 1,
                 cursor: 'pointer',
-                border: activeSection === 'operations' ? '1px solid #1677ff' : '1px solid transparent',
-                boxShadow: activeSection === 'operations' ? '0 0 0 2px rgba(22,119,255,0.2) inset' : 'none',
+                border: activeSection === 'operations' ? '1px solid rgba(22,119,255,0.20)' : '1px solid rgba(0,0,0,0.06)',
+                boxShadow: activeSection === 'operations' ? '0 4px 14px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
               <h2 style={{ marginTop: '0px' }}>Service operations </h2>
