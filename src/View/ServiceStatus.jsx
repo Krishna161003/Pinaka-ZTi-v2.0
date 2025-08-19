@@ -146,7 +146,7 @@ const ServiceStatus = () => {
   const logEndRef = React.useRef(null);
   // Reconfigure modal state
   const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
-  const [selectedNode, setSelectedNode] = React.useState('All');
+  const [selectedNodes, setSelectedNodes] = React.useState(['All']);
   const [selectedService, setSelectedService] = React.useState('All');
   // Database recovery modal state
   const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
@@ -157,10 +157,25 @@ const ServiceStatus = () => {
   const DUMMY_SERVICE_OPTIONS = ['All', 'nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
   const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
 
+  // Handle multiselect semantics for nodes: 'All' is exclusive/default
+  const handleNodesChange = (vals) => {
+    if (!Array.isArray(vals) || vals.length === 0) {
+      setSelectedNodes(['All']);
+      return;
+    }
+    if (vals.includes('All')) {
+      setSelectedNodes(['All']);
+    } else {
+      setSelectedNodes(vals);
+    }
+  };
+
   const fetchNodeOptions = React.useCallback(async () => {
     try {
       setNodeLoading(true);
-      const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
+      const userId = (() => {
+        try { return localStorage.getItem('userId'); } catch (_) { return null; }
+      })();
       const res = await axios.get(`https://${hostIP}:5000/api/deployed-server-ips-dropdown`, {
         params: { userId }
       });
@@ -203,7 +218,7 @@ const ServiceStatus = () => {
 
   // Operations actions
   const reconfigureService = () => {
-    setSelectedNode('All');
+    setSelectedNodes(['All']);
     setSelectedService('All');
     setReconfigureOpen(true);
   };
@@ -215,7 +230,7 @@ const ServiceStatus = () => {
   const handleReconfigureConfirm = () => {
     setOperationLogs((prev) => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered. Node: ${selectedNode}, Service: ${selectedService}`
+      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered. Nodes: ${Array.isArray(selectedNodes) ? selectedNodes.join(', ') : String(selectedNodes)}, Service: ${selectedService}`
     ]);
     setReconfigureOpen(false);
   };
@@ -443,8 +458,9 @@ const ServiceStatus = () => {
                     <div>
                       <div style={{ marginBottom: 6, fontWeight: 500 }}>Select Node</div>
                       <Select
-                        value={selectedNode}
-                        onChange={setSelectedNode}
+                        mode="multiple"
+                        value={selectedNodes}
+                        onChange={handleNodesChange}
                         style={{ width: '100%' }}
                         loading={nodeLoading}
                         options={nodeOptions.map((v) => ({ label: v, value: v }))}
