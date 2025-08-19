@@ -21,6 +21,7 @@ import {
   ProfileOutlined,
   // FundOutlined,
   // InteractionOutlined
+  FileProtectOutlined,
 
 } from "@ant-design/icons";
 import { Button, Layout, Menu, theme, Dropdown, Modal } from "antd";
@@ -103,6 +104,7 @@ const AppLayout = ({ children }) => {
     {
       key: "support",
       label: "Support",
+      icon: <FileProtectOutlined />,
     },
     {
       key: "4",

@@ -1,5 +1,5 @@
 import React from "react";
-import { Typography, Card, Table, List, Space, Divider, Descriptions, Tag } from "antd";
+import { Typography, Card, Table, List, Space, Divider, Tag } from "antd";
 import { CheckOutlined, CloseOutlined, PhoneOutlined, MailOutlined, LinkOutlined } from "@ant-design/icons";
 
 const Support = () => {
@@ -14,6 +14,74 @@ const Support = () => {
     { title: "Description", dataIndex: "description", key: "description", width: 180 },
     { title: "Example", dataIndex: "example", key: "example" },
     { title: "Response Time", dataIndex: "response", key: "response", width: 200 },
+  ];
+
+  // Hardware/RMA replacement SLAs table (to match screenshot)
+  const hardwareColumns = [
+    {
+      dataIndex: "label",
+      key: "label",
+      width: 320,
+      render: (value, row, index) => {
+        if (index === 2) {
+          // Hide left cell for the full-width final row
+          return { children: null, props: { colSpan: 0 } };
+        }
+        return value;
+      },
+    },
+    {
+      dataIndex: "content",
+      key: "content",
+      render: (value, row, index) => {
+        if (index === 2) {
+          return {
+            children: (
+              <Text strong>
+                Any one of the below valid AMC packages can be opted for including the hardware support.
+              </Text>
+            ),
+            props: { colSpan: 2 },
+          };
+        }
+        return value;
+      },
+    },
+  ];
+
+  const hardwareData = [
+    {
+      key: "hw-1",
+      label: (
+        <Text strong>
+          Description — OEM warranty applicable and hardware replacement terms
+        </Text>
+      ),
+      content: (
+        <>
+          <Text strong>E.g. memory failure, cable failures, connection failures</Text>
+          <br />Response time: 7–10 business days
+        </>
+      ),
+    },
+    {
+      key: "hw-2",
+      label: "",
+      content: (
+        <ul style={{ paddingLeft: 16, margin: 0 }}>
+          <li>1st year support & warranty without additional charges.</li>
+          <li>
+            2nd year onwards, hardware support will be applicable only if a valid AMC contract is in place and the
+            hardware was supplied by Pinakastra.
+          </li>
+        </ul>
+      ),
+    },
+    {
+      key: "hw-3",
+      label: "",
+      content: null, // content rendered via colSpan in columns render
+    },
   ];
 
   const levelTag = (label, bg, color = "#fff") => (
@@ -273,27 +341,14 @@ const Support = () => {
         </Paragraph>
 
         <Divider orientation="left">Hardware/RMA replacement SLAs</Divider>
-        <Descriptions bordered column={1} size="small">
-          <Descriptions.Item label={
-            <Text strong>
-              Description — OEM warranty applicable and hardware replacement terms
-            </Text>
-          }>
-            <Text strong>E.g. memory failure, cable failures, connection failures</Text>
-            <br />Response time: 7–10 business days
-          </Descriptions.Item>
-          <Descriptions.Item label={<Text strong>Notes</Text>}>
-            <ul style={{ paddingLeft: 16 }}>
-              <li>1st year support & warranty without additional charges.</li>
-              <li>
-                2nd year onwards, hardware support will be applicable only if a valid AMC contract is in place and the hardware was supplied by Pinakastra.
-              </li>
-            </ul>
-            <Text strong>
-              Any one of the below valid AMC packages can be opted for including the hardware support.
-            </Text>
-          </Descriptions.Item>
-        </Descriptions>
+        <Table
+          columns={hardwareColumns}
+          dataSource={hardwareData}
+          pagination={false}
+          bordered
+          size="middle"
+          showHeader={false}
+        />
 
         <Divider orientation="left">Table 2: AMC Packages</Divider>
         <Table
