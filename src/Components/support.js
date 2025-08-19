@@ -21,12 +21,28 @@ const Support = () => {
     {
       dataIndex: "label",
       key: "label",
-      width: 320,
-      onCell: () => ({ style: { verticalAlign: "top" } }),
+      width: "33%",
+      onCell: () => ({
+        style: {
+          verticalAlign: "top",
+          padding: "12px 16px",
+          backgroundColor: "#fafafa",
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+        },
+      }),
       render: (value, row, index) => {
         if (index === 2) {
           // Hide left cell for the full-width final row
           return { children: null, props: { colSpan: 0 } };
+        }
+        if (index === 0) {
+          // Merge the label cell across the first two rows
+          return { children: value, props: { rowSpan: 2 } };
+        }
+        if (index === 1) {
+          // Hide the second row's label cell because it's merged with the first
+          return { children: null, props: { rowSpan: 0 } };
         }
         return value;
       },
@@ -34,12 +50,20 @@ const Support = () => {
     {
       dataIndex: "content",
       key: "content",
-      onCell: () => ({ style: { verticalAlign: "top" } }),
+      width: "67%",
+      onCell: () => ({
+        style: {
+          verticalAlign: "top",
+          padding: "12px 16px",
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+        },
+      }),
       render: (value, row, index) => {
         if (index === 2) {
           return {
             children: (
-              <Text strong>
+              <Text>
                 Any one of the below valid AMC packages can be opted for including the hardware support.
               </Text>
             ),
@@ -55,11 +79,17 @@ const Support = () => {
     {
       key: "hw-1",
       label: (
-        <>
-          <Text>Description</Text>
-          <br />
-          <Text>OEM warranty applicable and hardware replacement terms</Text>
-        </>
+        <div>
+          <Typography.Text style={{ margin: 0, display: "block", lineHeight: 1.2, fontWeight: 400 }}>
+            Description
+          </Typography.Text>
+          <Typography.Text
+            type="secondary"
+            style={{ margin: 0, display: "block", lineHeight: 1.2, fontSize: 12 }}
+          >
+            OEM warranty applicable and hardware replacement terms
+          </Typography.Text>
+        </div>
       ),
       content: (
         <>
@@ -350,8 +380,9 @@ const Support = () => {
           dataSource={hardwareData}
           pagination={false}
           bordered
-          size="middle"
+          size="small"
           showHeader={false}
+          tableLayout="fixed"
         />
 
         <Divider orientation="left">Table 2: AMC Packages</Divider>
