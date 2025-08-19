@@ -139,25 +139,29 @@ const ServiceStatus = () => {
     <Layout1>
       <Layout>
         <Content style={{ margin: "16px 16px" }}>
-          <div
-            style={{
-              padding: 30,
-              minHeight: "auto",
-              background: colorBgContainer,
-              // borderRadius: borderRadiusLG,
-            }}
-          >
-            <h2 style={{ marginTop: '0px' }}>Services Status </h2>
-          </div>
-          <div
-            style={{
-              padding: 30,
-              minHeight: "auto",
-              background: colorBgContainer,
-              // borderRadius: borderRadiusLG,
-            }}
-          >
-            <h2 style={{ marginTop: '0px' }}>Service operations </h2>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'nowrap' }}>
+            <div
+              style={{
+                padding: 30,
+                minHeight: 'auto',
+                background: colorBgContainer,
+                // borderRadius: borderRadiusLG,
+                flex: 1,
+              }}
+            >
+              <h2 style={{ marginTop: '0px' }}>Services Status </h2>
+            </div>
+            <div
+              style={{
+                padding: 30,
+                minHeight: 'auto',
+                background: colorBgContainer,
+                // borderRadius: borderRadiusLG,
+                flex: 1,
+              }}
+            >
+              <h2 style={{ marginTop: '0px' }}>Service operations </h2>
+            </div>
           </div>
           <div style={{
             marginTop: 10,
