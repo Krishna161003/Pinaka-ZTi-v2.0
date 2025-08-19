@@ -767,7 +767,7 @@ const Dashboard = () => {
               <Col className="gutter-row" span={7} style={hoveredCard === 'flightDeck' ? hoverStyle : style}
                 onMouseEnter={() => setHoveredCard('flightDeck')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "5px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
                     <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
@@ -811,13 +811,13 @@ const Dashboard = () => {
               <Col className="gutter-row" span={7} style={hoveredCard === 'osd' ? hoverStyle : style}
                 onMouseEnter={() => setHoveredCard('osd')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "5px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
                     <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
-                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>0</span>
+                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>0</span>
                     <div style={{ 
                       display: 'inline-flex',
                       alignItems: 'center',
