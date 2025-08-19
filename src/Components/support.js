@@ -84,7 +84,7 @@ const Support = () => {
             Description
           </Typography.Text>
           <Typography.Text
-            type="secondary"
+            type="secondary"    
             style={{ margin: 0, display: "block", lineHeight: 1.2, fontSize: 12 }}
           >
             OEM warranty applicable and hardware replacement terms

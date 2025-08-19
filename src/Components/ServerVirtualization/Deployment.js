@@ -119,6 +119,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   // Global VIP for this cloud deployment
   const [vip, setVip] = useState(() => sessionStorage.getItem('sv_vip') || '');
   const [vipError, setVipError] = useState('');
+  // Provider network optional form (CIDR/Gateway/Starting IP/Ending IP)
+  const [Providerform] = Form.useForm();
 
   // Helper function to get network apply result from sessionStorage
   const getNetworkApplyResult = () => {
@@ -1533,6 +1535,26 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       return;
     }
 
+    // After VIP validation: optional Provider fields validation
+    try {
+      const { cidr, gateway, startingIp, endingIp } = Providerform.getFieldsValue(['cidr', 'gateway', 'startingIp', 'endingIp']);
+      const values = [cidr, gateway, startingIp, endingIp];
+      const providedCount = values.filter(v => v && String(v).trim() !== '').length;
+      if (providedCount > 0 && providedCount < 4) {
+        message.error('Please fill all Provider fields (CIDR, Gateway, Starting IP, Ending IP) or leave all empty.');
+        setDeployLoading(false);
+        return;
+      }
+      if (providedCount === 4) {
+        // Validate patterns defined on fields
+        await Providerform.validateFields(['cidr', 'gateway', 'startingIp', 'endingIp']);
+      }
+    } catch (e) {
+      // Field pattern validation failed
+      setDeployLoading(false);
+      return;
+    }
+
     // Transform configs for backend storage
     // Use the same hostnames assigned during Network Apply; allocate unique for any missing
     const savedHostnameMap = getHostnameMap();
@@ -1551,10 +1573,23 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     // Persist any newly allocated hostnames
     saveHostnameMap(savedHostnameMap);
 
+    // Build transformed configs; attach Provider fields only to first node
     const transformedConfigs = {};
+    const firstIp = forms && forms.length > 0 ? forms[0]?.ip : undefined;
+    const { cidr, gateway, startingIp, endingIp } = Providerform.getFieldsValue(['cidr', 'gateway', 'startingIp', 'endingIp']);
+    const providerData = {
+      provider_cidr: cidr && String(cidr).trim() !== '' ? cidr : 'N/A',
+      provider_gateway: gateway && String(gateway).trim() !== '' ? gateway : 'N/A',
+      provider_starting_ip: startingIp && String(startingIp).trim() !== '' ? startingIp : 'N/A',
+      provider_ending_ip: endingIp && String(endingIp).trim() !== '' ? endingIp : 'N/A',
+    };
     Object.entries(configs).forEach(([ip, form]) => {
       const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
-      transformedConfigs[ip] = { ...base, server_vip: form?.vip || vip };
+      transformedConfigs[ip] = {
+        ...base,
+        server_vip: form?.vip || vip,
+        ...(firstIp && ip === firstIp ? providerData : {}),
+      };
     });
 
     // Send to backend for storage as JSON
@@ -1697,6 +1732,60 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               }}
             />
           </Form.Item>
+        </Form>
+        {/* Optional Provider network fields (all-or-none) */}
+        <Form form={Providerform}>
+          <Space>
+            <div style={{ display: 'flex', gap: '40px' }}>
+              <Form.Item
+                name="cidr"
+                rules={[
+                  {
+                    pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
+                    message: 'Invalid CIDR format (e.g. 192.168.1.0/24)',
+                  },
+                ]}
+              >
+                <Input placeholder="Enter CIDR" style={{ width: 200 }} />
+              </Form.Item>
+
+              <Form.Item
+                name="gateway"
+                rules={[
+                  {
+                    pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                    message: 'Invalid IP address',
+                  },
+                ]}
+              >
+                <Input placeholder="Enter Gateway" style={{ width: 200 }} />
+              </Form.Item>
+
+              <Form.Item
+                name="startingIp"
+                rules={[
+                  {
+                    pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                    message: 'Invalid IP address',
+                  },
+                ]}
+              >
+                <Input placeholder="Enter Starting IP" style={{ width: 200 }} />
+              </Form.Item>
+
+              <Form.Item
+                name="endingIp"
+                rules={[
+                  {
+                    pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                    message: 'Invalid IP address',
+                  },
+                ]}
+              >
+                <Input placeholder="Enter Ending IP" style={{ width: 200 }} />
+              </Form.Item>
+            </div>
+          </Space>
         </Form>
       </div>
       <Divider />
