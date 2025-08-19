@@ -1737,7 +1737,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         {/* Optional Provider network fields (all-or-none) */}
         <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Provider Network:</span>
+          <span style={{ whiteSpace: 'nowrap' }}>Provider Network:</span>
             <Form.Item
               name="cidr"
               style={{ marginBottom: 0 }}
