@@ -146,8 +146,8 @@ const ServiceStatus = () => {
   const logEndRef = React.useRef(null);
   // Reconfigure modal state
   const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
-  const [selectedNodes, setSelectedNodes] = React.useState(['All']);
-  const [selectedServices, setSelectedServices] = React.useState(['All']);
+  const [selectedNodes, setSelectedNodes] = React.useState([]);
+  const [selectedServices, setSelectedServices] = React.useState([]);
   // Database recovery modal state
   const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
 
@@ -166,7 +166,7 @@ const ServiceStatus = () => {
   // Handle multiselect semantics for services: 'All' is exclusive/default
   const handleServicesChange = (vals) => {
     if (!Array.isArray(vals) || vals.length === 0) {
-      setSelectedServices(['All']);
+      setSelectedServices([]);
       return;
     }
     if (vals.includes('All')) {
@@ -179,7 +179,7 @@ const ServiceStatus = () => {
   // Handle multiselect semantics for nodes: 'All' is exclusive/default
   const handleNodesChange = (vals) => {
     if (!Array.isArray(vals) || vals.length === 0) {
-      setSelectedNodes(['All']);
+      setSelectedNodes([]);
       return;
     }
     if (vals.includes('All')) {
@@ -237,8 +237,8 @@ const ServiceStatus = () => {
 
   // Operations actions
   const reconfigureService = () => {
-    setSelectedNodes(['All']);
-    setSelectedServices(['All']);
+    setSelectedNodes([]);
+    setSelectedServices([]);
     setReconfigureOpen(true);
   };
 
@@ -482,6 +482,7 @@ const ServiceStatus = () => {
                         onChange={handleNodesChange}
                         style={{ width: '100%' }}
                         loading={nodeLoading}
+                        placeholder="Select node(s)"
                         maxTagCount="responsive"
                         options={nodeSelectOptions}
                       />
@@ -493,6 +494,7 @@ const ServiceStatus = () => {
                         value={selectedServices}
                         onChange={handleServicesChange}
                         style={{ width: '100%' }}
+                        placeholder="Select service(s)"
                         maxTagCount="responsive"
                         options={serviceSelectOptions}
                       />
