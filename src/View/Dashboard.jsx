@@ -782,7 +782,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none" }} />
+                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none",zoom: "1.2" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
