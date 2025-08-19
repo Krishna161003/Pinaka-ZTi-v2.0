@@ -196,9 +196,9 @@ const Support = () => {
 
   return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
-      <Typography style={{ textAlign: "center", marginTop: 8 }}>
+      {/* <Typography style={{ textAlign: "center", marginTop: 8 }}>
         <Title level={2} style={{ color: "#007bff", marginBottom: 0 }}>--- Support Details ---</Title>
-      </Typography>
+      </Typography> */}
 
       <Card style={{ width: "100%", maxWidth: 1100, marginTop: 16 }} bodyStyle={{ padding: 20 }}>
         <Title level={2} style={{ marginTop: 0 }}>Pinakastra AMC & SLAs</Title>
