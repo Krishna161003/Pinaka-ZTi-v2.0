@@ -1,6 +1,6 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, Tabs, Table, Badge, Button, Input } from 'antd';
+import { theme, Layout, Tabs, Table, Badge, Button, Input, Modal } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -145,6 +145,8 @@ const ServiceStatus = () => {
   // Operations logs terminal
   const [operationLogs, setOperationLogs] = React.useState([]);
   const logEndRef = React.useRef(null);
+  // Reconfigure modal state
+  const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
 
   const normalizeLogs = (payload) => Array.isArray(payload)
     ? payload
@@ -167,11 +169,7 @@ const ServiceStatus = () => {
 
   // Operations actions
   const reconfigureService = () => {
-    setOperationLogs((prev) => [
-      ...prev,
-      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered.`
-    ]);
-    // TODO: Hook backend action if available
+    setReconfigureOpen(true);
   };
 
   const databaseRecovery = () => {
@@ -180,6 +178,14 @@ const ServiceStatus = () => {
       `[${new Date().toLocaleTimeString()}] Database Recovery triggered.`
     ]);
     // TODO: Hook backend action if available
+  };
+
+  const handleReconfigureConfirm = () => {
+    setOperationLogs((prev) => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered.`
+    ]);
+    setReconfigureOpen(false);
   };
 
   const clearOperationLogs = () => setOperationLogs([]);
@@ -383,6 +389,16 @@ const ServiceStatus = () => {
                     <Button aria-label="Clear Logs" onClick={clearOperationLogs} style={{ width: '75px' }} >Clear</Button>
                   </div>
                 </div>
+                <Modal
+                  title="Reconfigure Service"
+                  open={reconfigureOpen}
+                  onOk={handleReconfigureConfirm}
+                  onCancel={() => setReconfigureOpen(false)}
+                  okText="Run Reconfigure"
+                  cancelText="Cancel"
+                >
+                  <p>Are you sure you want to reconfigure the service? This will apply configuration changes.</p>
+                </Modal>
                 <div
                   style={{
                     background: '#0b0b0b',
