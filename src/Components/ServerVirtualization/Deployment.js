@@ -1580,8 +1580,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     const providerData = {
       provider_cidr: cidr && String(cidr).trim() !== '' ? cidr : 'N/A',
       provider_gateway: gateway && String(gateway).trim() !== '' ? gateway : 'N/A',
-      provider_starting_ip: startingIp && String(startingIp).trim() !== '' ? startingIp : 'N/A',
-      provider_ending_ip: endingIp && String(endingIp).trim() !== '' ? endingIp : 'N/A',
+      provider_startingip: startingIp && String(startingIp).trim() !== '' ? startingIp : 'N/A',
+      provider_endingip: endingIp && String(endingIp).trim() !== '' ? endingIp : 'N/A',
     };
     Object.entries(configs).forEach(([ip, form]) => {
       const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
@@ -1707,8 +1707,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         </Button>
       </div>
       {/* VIP input below Cloud Name */}
-      <div style={{ marginTop: 12 }}>
-        <Form layout="inline">
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+        <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-end' }}>
           <Form.Item
             label="Enter VIP"
             validateStatus={vipError ? 'error' : ''}
@@ -1734,92 +1734,90 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           </Form.Item>
         </Form>
         {/* Optional Provider network fields (all-or-none) */}
-        <Form form={Providerform}>
-          <Space>
-            <div style={{ display: 'flex', gap: '40px' }}>
-              <Form.Item
-                name="cidr"
-                rules={[
-                  {
-                    pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
-                    message: 'Invalid CIDR format (e.g. 192.168.1.0/24)',
-                  },
-                ]}
-              >
-                <Input placeholder="Enter CIDR" style={{ width: 200 }} />
-              </Form.Item>
+        <Form form={Providerform} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+            <Form.Item
+              name="cidr"
+              rules={[
+                {
+                  pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
+                  message: 'Invalid CIDR format (e.g. 192.168.1.0/24)',
+                },
+              ]}
+            >
+              <Input placeholder="Enter CIDR" style={{ width: 200 }} />
+            </Form.Item>
 
-              <Form.Item
-                name="gateway"
-                rules={[
-                  {
-                    pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                    message: 'Invalid IP address',
-                  },
-                ]}
-              >
-                <Input placeholder="Enter Gateway" style={{ width: 200 }} />
-              </Form.Item>
+            <Form.Item
+              name="gateway"
+              rules={[
+                {
+                  pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                  message: 'Invalid IP address',
+                },
+              ]}
+            >
+              <Input placeholder="Enter Gateway" style={{ width: 200 }} />
+            </Form.Item>
 
-              <Form.Item
-                name="startingIp"
-                rules={[
-                  {
-                    pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                    message: 'Invalid IP address',
-                  },
-                ]}
-              >
-                <Input placeholder="Enter Starting IP" style={{ width: 200 }} />
-              </Form.Item>
+            <Form.Item
+              name="startingIp"
+              rules={[
+                {
+                  pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                  message: 'Invalid IP address',
+                },
+              ]}
+            >
+              <Input placeholder="Enter Starting IP" style={{ width: 200 }} />
+            </Form.Item>
 
-              <Form.Item
-                name="endingIp"
-                rules={[
-                  {
-                    pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                    message: 'Invalid IP address',
-                  },
-                ]}
-              >
-                <Input placeholder="Enter Ending IP" style={{ width: 200 }} />
-              </Form.Item>
-            </div>
-          </Space>
+            <Form.Item
+              name="endingIp"
+              rules={[
+                {
+                  pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                  message: 'Invalid IP address',
+                },
+              ]}
+            >
+              <Input placeholder="Enter Ending IP" style={{ width: 200 }} />
+            </Form.Item>
+          </div>
         </Form>
-      </div>
-      <Divider />
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {forms.map((form, idx) => (
-          <Spin spinning={cardStatus[idx]?.loading} tip="Applying network changes & restarting node...">
-            <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                  <Radio.Group
-                    value={form.configType}
-                    onChange={e => handleConfigTypeChange(idx, e.target.value)}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+        {/* End Provider form */}
+        <Divider />
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {forms.map((form, idx) => (
+            <Spin spinning={cardStatus[idx]?.loading} tip="Applying network changes & restarting node...">
+              <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <Radio.Group
+                      value={form.configType}
+                      onChange={e => handleConfigTypeChange(idx, e.target.value)}
+                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    >
+                      <Radio value="default">Default</Radio>
+                      <Radio value="segregated">Segregated</Radio>
+                    </Radio.Group>
+                    <Checkbox
+                      checked={form.useBond}
+                      onChange={e => handleUseBondChange(idx, e.target.checked)}
+                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    >
+                      Bond
+                    </Checkbox>
+                  </div>
+                  <Button
+                    onClick={() => fetchNodeData(form.ip)}
+                    size="small"
+                    type="default"
+                    style={{ width: 120 }}
                   >
-                    <Radio value="default">Default</Radio>
-                    <Radio value="segregated">Segregated</Radio>
-                  </Radio.Group>
-                  <Checkbox
-                    checked={form.useBond}
-                    onChange={e => handleUseBondChange(idx, e.target.checked)}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                  >
-                    Bond
-                  </Checkbox>
+                    Refetch Data
+                  </Button>
                 </div>
-                <Button
-                  onClick={() => fetchNodeData(form.ip)}
-                  size="small"
-                  type="default"
-                  style={{ width: 120 }}
-                >
-                  Refetch Data
-                </Button>
-              </div>
               <Table
                 columns={getColumns(form, idx)}
                 dataSource={form.tableData}
@@ -1926,6 +1924,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         ))}
       </Space>
     </div>
+  </div>
   );
 };
 
