@@ -12,7 +12,18 @@ const ServiceStatus = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
-  const [activeSection, setActiveSection] = React.useState('status'); // 'status' | 'operations'
+  // Persist section in session and URL
+  const SECTION_KEY = 'serviceStatus_activeSection';
+  const getInitialSection = () => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const s = params.get('section') || sessionStorage.getItem(SECTION_KEY) || 'status';
+      return (s === 'status' || s === 'operations') ? s : 'status';
+    } catch (_) {
+      return 'status';
+    }
+  };
+  const [activeSection, setActiveSection] = React.useState(getInitialSection); // 'status' | 'operations'
 
   // Columns: Compute/Storage
   const columnsCompute = [
@@ -190,6 +201,31 @@ const ServiceStatus = () => {
     }
   }, [operationLogs, activeSection]);
 
+  // Sync active section to sessionStorage and URL
+  React.useEffect(() => {
+    try { sessionStorage.setItem(SECTION_KEY, activeSection); } catch (_) { /* no-op */ }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('section', activeSection);
+      window.history.replaceState(null, '', url.toString());
+    } catch (_) { /* no-op */ }
+  }, [activeSection]);
+
+  // Respond to browser navigation (back/forward)
+  React.useEffect(() => {
+    const onPop = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const s = params.get('section');
+        if (s === 'status' || s === 'operations') {
+          setActiveSection(s);
+        }
+      } catch (_) { /* no-op */ }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   React.useEffect(() => {
     fetchOpenstackData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -337,12 +373,14 @@ const ServiceStatus = () => {
               </>
             ) : (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <h3 style={{ marginTop: 0, marginBottom: 0 }}>Service operations</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService}>Reconfigure Service</Button>
-                    <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery}>Database Recovery</Button>
-                    <Button onClick={clearOperationLogs}>Clear</Button>
+                <div style={{ marginBottom: 8 }}>
+                  <h3 style={{ marginTop: 0, marginBottom: 8 }}>Service operations</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService}>Reconfigure Service</Button>
+                      <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery}>Database Recovery</Button>
+                    </div>
+                    <Button aria-label="Clear Logs" onClick={clearOperationLogs}>Clear</Button>
                   </div>
                 </div>
                 <div
