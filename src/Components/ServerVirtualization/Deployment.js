@@ -1710,11 +1710,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       {/* VIP input below Cloud Name */}
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
         <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-start', alignItems: 'center' }}>
-          <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Enter VIP:</span><br />
+          <span style={{ whiteSpace: 'nowrap' }}>Enter VIP:</span>
           <Form.Item
             validateStatus={vipError ? 'error' : ''}
             help={vipError}
             style={{ marginBottom: 0 }}
+            rules={[
+              { required: true, message: 'VIP is required' },
+            ]}
           >
             <Input
               style={{ width: 200 }}
@@ -1738,7 +1741,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         {/* Optional Provider network fields (all-or-none) */}
         <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 12, flexWrap: 'nowrap', overflowX: 'auto' }}>
-          <span style={{ whiteSpace: 'nowrap' }}>Provider Network:</span> <br />
+          <span style={{ whiteSpace: 'nowrap' }}>Provider Network:</span>
             <Form.Item
               name="cidr"
               style={{ marginBottom: 0 }}
