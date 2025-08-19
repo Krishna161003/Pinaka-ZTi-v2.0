@@ -23,7 +23,8 @@ import {
   // InteractionOutlined
 
 } from "@ant-design/icons";
-import { Button, Layout, Menu, theme, Dropdown } from "antd";
+import { Button, Layout, Menu, theme, Dropdown, Modal } from "antd";
+import Support from "./support";
 
 const { Header, Content, Footer, Sider } = Layout;
 
@@ -32,6 +33,7 @@ const AppLayout = ({ children }) => {
   const [collapsed, setCollapsed] = useState(
     () => JSON.parse(sessionStorage.getItem("isSiderCollapsed")) || false
   );
+  const [supportOpen, setSupportOpen] = useState(false);
 
   const [userData, setUserData] = useState({});
   const [, updateState] = useState();
@@ -50,6 +52,12 @@ const AppLayout = ({ children }) => {
 
   const handleMenuClick = (e) => {
     forceUpdate();
+  };
+
+  const onUserMenuClick = ({ key }) => {
+    if (key === "support") {
+      setSupportOpen(true);
+    }
   };
 
   const location = useLocation();
@@ -92,16 +100,10 @@ const AppLayout = ({ children }) => {
     {
       type: "divider",
     },
-    // {
-    //   key: "2",
-    //   label: "Profile",
-    //   icon: <UserOutlined />,
-    // },
-    // {
-    //   key: "3",
-    //   label: "Settings",
-    //   icon: <SettingOutlined />,
-    // },
+    {
+      key: "support",
+      label: "Support",
+    },
     {
       key: "4",
       label: "Logout",
@@ -336,7 +338,7 @@ const AppLayout = ({ children }) => {
             </span>
           </div>
           <Dropdown
-            menu={{ items }}
+            menu={{ items, onClick: onUserMenuClick }}
             style={{
               width: "30px",
               height: "30px",
@@ -373,6 +375,19 @@ const AppLayout = ({ children }) => {
             trademark of Pinakastra Computing Pvt Ltd.
           </div>
         </Footer>
+        <Modal
+          title="Support"
+          open={supportOpen}
+          onCancel={() => setSupportOpen(false)}
+          footer={null}
+          width={1100}
+          bodyStyle={{ padding: 0 }}
+          destroyOnClose
+        >
+          <div style={{ padding: 16 }}>
+            <Support />
+          </div>
+        </Modal>
       </Layout>
     </Layout>
   );
