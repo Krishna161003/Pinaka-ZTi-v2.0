@@ -5,8 +5,7 @@ import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Content } = Layout;
-// const hostIP = window.location.hostname;
-const hostIP = "192.168.20.4"
+const hostIP = window.location.hostname;
 
 const ServiceStatus = () => {
   const {
@@ -152,18 +151,38 @@ const ServiceStatus = () => {
   // Database recovery modal state
   const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
 
-  // Dummy dropdown data (first item must be 'All')
-  const DUMMY_NODE_OPTIONS = ['All', 'controller-01', 'controller-02', 'compute-01', 'compute-02'];
+  // Dropdown data: real nodes fetched from backend, services remain static for now
+  const [nodeOptions, setNodeOptions] = React.useState(['All']);
+  const [nodeLoading, setNodeLoading] = React.useState(false);
   const DUMMY_SERVICE_OPTIONS = ['All', 'nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
+  const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
 
-  // Build dropdown options (include 'All' first)
-  const nodeOptions = React.useMemo(() => {
-    return DUMMY_NODE_OPTIONS;
-  }, [DUMMY_NODE_OPTIONS]);
+  const fetchNodeOptions = React.useCallback(async () => {
+    try {
+      setNodeLoading(true);
+      const userId = (() => {
+        try { return localStorage.getItem('userId'); } catch (_) { return null; }
+      })();
+      const res = await axios.get(`https://${hostIP}:5000/api/deployed-server-ips-dropdown`, {
+        params: { userId }
+      });
+      const ips = Array.isArray(res.data)
+        ? res.data
+        : (Array.isArray(res.data?.ips) ? res.data.ips : []);
+      const uniq = Array.from(new Set(ips.filter(Boolean)));
+      setNodeOptions(['All', ...uniq]);
+    } catch (e) {
+      // Fallback to just 'All' on error
+      setNodeOptions(['All']);
+    } finally {
+      setNodeLoading(false);
+    }
+  }, []);
 
-  const serviceOptions = React.useMemo(() => {
-    return DUMMY_SERVICE_OPTIONS;
-  }, [DUMMY_SERVICE_OPTIONS]);
+  React.useEffect(() => {
+    fetchNodeOptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const normalizeLogs = (payload) => Array.isArray(payload)
     ? payload
@@ -429,6 +448,7 @@ const ServiceStatus = () => {
                         value={selectedNode}
                         onChange={setSelectedNode}
                         style={{ width: '100%' }}
+                        loading={nodeLoading}
                         options={nodeOptions.map((v) => ({ label: v, value: v }))}
                       />
                     </div>
