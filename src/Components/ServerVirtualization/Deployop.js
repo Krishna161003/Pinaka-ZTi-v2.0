@@ -11,6 +11,7 @@ const DeploymentOptions = ({ onStart }) => {
   const [cloudName, setCloudName] = useState('');
   const [isDeployed, setIsDeployed] = useState(false); // NEW: track deployed state
   const [isChecking, setIsChecking] = useState(true); // NEW: disable Start until check completes
+  const [okLoading, setOkLoading] = useState(false); // NEW: modal OK button loading
 
   const inputRef = useRef(null); // Create a reference for the input
 
@@ -86,6 +87,7 @@ const DeploymentOptions = ({ onStart }) => {
   }, []);
 
   const handleModalOk = async () => {
+    setOkLoading(true);
     try {
       const response = await axios.post(`https://${hostIP}:5000/check-cloud-name`, {
         cloudName,
@@ -115,6 +117,8 @@ const DeploymentOptions = ({ onStart }) => {
           content: 'An error occurred while checking the cloud name. Please try again later.',
         });
       }
+    } finally {
+      setOkLoading(false);
     }
   };
 
@@ -242,7 +246,7 @@ const DeploymentOptions = ({ onStart }) => {
         visible={isModalVisible}
         onOk={handleModalOk}
         onCancel={handleModalCancel}
-        okButtonProps={{ disabled: !cloudName, style: { width: '80px' } }}
+        okButtonProps={{ disabled: !cloudName, loading: okLoading, style: { width: '80px' } }}
         cancelButtonProps={{ style: { width: '80px', marginRight: '8px' } }}
         style={{ maxWidth: '400px' }}
       >

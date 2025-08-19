@@ -149,6 +149,16 @@ const ServiceStatus = () => {
           >
             <h2 style={{ marginTop: '0px' }}>Services Status </h2>
           </div>
+          <div
+            style={{
+              padding: 30,
+              minHeight: "auto",
+              background: colorBgContainer,
+              // borderRadius: borderRadiusLG,
+            }}
+          >
+            <h2 style={{ marginTop: '0px' }}>Service operations </h2>
+          </div>
           <div style={{
             marginTop: 10,
             padding: 30,
