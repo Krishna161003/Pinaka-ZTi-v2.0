@@ -154,6 +154,23 @@ const ServiceStatus = () => {
     }
   };
 
+  // Operations actions
+  const reconfigureService = () => {
+    setOperationLogs((prev) => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered.`
+    ]);
+    // TODO: Hook backend action if available
+  };
+
+  const databaseRecovery = () => {
+    setOperationLogs((prev) => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Database Recovery triggered.`
+    ]);
+    // TODO: Hook backend action if available
+  };
+
   const clearOperationLogs = () => setOperationLogs([]);
 
   // Auto-fetch logs when Operations tab is opened
@@ -193,7 +210,7 @@ const ServiceStatus = () => {
                 padding: 30,
                 minHeight: 'auto',
                 background: colorBgContainer,
-                borderRadius: borderRadiusLG,
+                // borderRadius: borderRadiusLG,
                 flex: 1,
                 cursor: 'pointer',
                 border: '1px solid rgba(0,0,0,0.04)',
@@ -213,7 +230,7 @@ const ServiceStatus = () => {
                 padding: 30,
                 minHeight: 'auto',
                 background: colorBgContainer,
-                borderRadius: borderRadiusLG,
+                // borderRadius: borderRadiusLG,
                 flex: 1,
                 cursor: 'pointer',
                 border: '1px solid rgba(0,0,0,0.04)',
@@ -323,6 +340,8 @@ const ServiceStatus = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <h3 style={{ marginTop: 0, marginBottom: 0 }}>Service operations</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService}>Reconfigure Service</Button>
+                    <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery}>Database Recovery</Button>
                     <Button onClick={clearOperationLogs}>Clear</Button>
                   </div>
                 </div>
@@ -331,7 +350,7 @@ const ServiceStatus = () => {
                     background: '#0b0b0b',
                     color: '#e5e7eb',
                     border: '1px solid #111827',
-                    borderRadius: 8,
+                    // borderRadius: 8,
                     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                     fontSize: 12,
                     lineHeight: 1.5,
