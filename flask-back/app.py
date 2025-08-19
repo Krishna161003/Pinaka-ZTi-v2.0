@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from datetime import datetime
 from scapy.all import ARP, Ether, srp
@@ -16,6 +16,10 @@ import logging
 import socket
 import pathlib
 import openstack
+import shlex
+from typing import Optional
+import threading
+
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -1941,6 +1945,228 @@ def get_osd_count():
         return jsonify({"error": e.stderr.strip()}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ----- Paths & env -----
+WORK_DIR = "/home/pinakasupport/.pinaka_wd/vpinakastra/"
+LOG_DIR = "/home/pinakasupport/.pinaka_wd/logs/"
+LOG_FILE = os.path.join(LOG_DIR, "kolla_command.log")
+
+# Common environment sourcing (virtualenv + OpenStack)
+# NOTE: we append 'env' to ensure proper env vars are exported to the shell session.
+ENV_CMD = (
+    "source /home/pinakasupport/.pinaka_wd/vpinakastra/bin/activate && "
+    "source /etc/kolla/admin-openrc.sh && env"
+)
+
+INVENTORY = "multinode"  # change if you use another inventory file
+
+
+def ensure_paths():
+    os.makedirs(LOG_DIR, exist_ok=True)
+
+
+def timestamp():
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def log_line(text: str):
+    """Append a single line to the log file with timestamp."""
+    ensure_paths()
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp()}] {text.rstrip()}\n")
+
+
+def build_kolla_command(action: str,
+                        node: Optional[str] = None,
+                        service: Optional[str] = None) -> str:
+    """
+    Build the kolla-ansible command line for the requested action.
+    Supported actions:
+      - mariadb_recovery
+      - reconfigure_all
+      - reconfigure_node
+      - reconfigure_service
+      - reconfigure_node_service
+    """
+    base = f"kolla-ansible -i {INVENTORY}"
+
+    if action == "mariadb_recovery":
+        return f"{base} mariadb_recovery"
+
+    if action == "reconfigure_all":
+        return f"{base} reconfigure"
+
+    if action == "reconfigure_node":
+        if not node:
+            raise ValueError("Missing 'node' for action 'reconfigure_node'")
+        return f"{base} reconfigure --limit {shlex.quote(node)}"
+
+    if action == "reconfigure_service":
+        if not service:
+            raise ValueError("Missing 'service' for action 'reconfigure_service'")
+        return f"{base} reconfigure --tags {shlex.quote(service)}"
+
+    if action == "reconfigure_node_service":
+        if not node or not service:
+            raise ValueError("Missing 'node' or 'service' for action 'reconfigure_node_service'")
+        return f"{base} reconfigure --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
+
+    raise ValueError(f"Unsupported action '{action}'")
+
+
+def start_background_kolla(command: str) -> dict:
+    """
+    Start the kolla-ansible command in the background:
+      - cd to WORK_DIR
+      - source virtualenv + openrc
+      - run command
+      - append stdout/stderr to LOG_FILE
+    Returns dict with pid and a job_id.
+    """
+    ensure_paths()
+
+    # Full shell command: cd -> source env -> run command
+    shell_cmd = f"cd {shlex.quote(WORK_DIR)} && {ENV_CMD} && {command}"
+    job_id = f"job-{int(time.time())}"
+
+    # Write prologue to logs
+    log_line("============================================================")
+    log_line(f"JOB START {job_id}")
+    log_line(f"WORK_DIR: {WORK_DIR}")
+    log_line(f"COMMAND: {command}")
+
+    # We will tee the process output into the log file line-by-line using a thread
+    def runner():
+        try:
+            with subprocess.Popen(
+                shell_cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                executable="/bin/bash",
+                preexec_fn=os.setpgrp  # detach from flask worker's process group
+            ) as proc:
+                # Stream stdout -> log file
+                for line in proc.stdout:
+                    # Write raw line (not double timestamping the ansible progress lines)
+                    with open(LOG_FILE, "a", encoding="utf-8") as f:
+                        f.write(line)
+                rc = proc.wait()
+                log_line(f"JOB END {job_id} (returncode={rc})")
+                log_line("============================================================")
+        except Exception as e:
+            log_line(f"JOB ERROR {job_id}: {e}")
+
+    t = threading.Thread(target=runner, daemon=True)
+    t.start()
+
+    # We can’t get the child PID easily post-thread; if you want true PID, spawn before thread.
+    # For API, we return the shell_cmd and job_id (frontend will stream logs anyway).
+    return {
+        "job_id": job_id,
+        "shell_cmd": shell_cmd
+    }
+
+
+@app.route("/kolla/run", methods=["POST"])
+def kolla_run():
+    """
+    Start a kolla-ansible action in the background and return immediately.
+    Body JSON:
+      {
+        "action": "mariadb_recovery" | "reconfigure_all" | "reconfigure_node" |
+                  "reconfigure_service" | "reconfigure_node_service",
+        "node": "FD-001",         # optional, required for node actions
+        "service": "nova"         # optional, required for service actions
+      }
+    """
+    data = request.get_json(silent=True) or {}
+    action = data.get("action")
+    node = data.get("node")
+    service = data.get("service")
+
+    if not action:
+        return jsonify({"error": "Missing 'action'"}), 400
+
+    try:
+        cmd = build_kolla_command(action, node=node, service=service)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+
+    # Start background job
+    result = start_background_kolla(cmd)
+    return jsonify({
+        "status": "started",
+        "job_id": result["job_id"],
+        "command": cmd,
+        "log_file": LOG_FILE
+    })
+
+
+@app.route("/kolla/logs/last", methods=["GET"])
+def kolla_logs_last():
+    """
+    Return the last N lines of the log file.
+    Query: ?lines=200
+    """
+    lines = int(request.args.get("lines", 200))
+    ensure_paths()
+    if not os.path.exists(LOG_FILE):
+        return jsonify({"log": [], "lines": 0})
+
+    # Efficient tail
+    def tail(filepath, n):
+        with open(filepath, "rb") as f:
+            avg_line_len = 200
+            to_read = n * avg_line_len
+            try:
+                f.seek(0, os.SEEK_END)
+                file_size = f.tell()
+                f.seek(max(file_size - to_read, 0), os.SEEK_SET)
+            except OSError:
+                f.seek(0)
+            lines_bytes = f.read().splitlines()[-n:]
+            return [lb.decode("utf-8", errors="replace") for lb in lines_bytes]
+
+    last = tail(LOG_FILE, lines)
+    return jsonify({"log": last, "lines": len(last)})
+
+
+@app.route("/kolla/logs/stream", methods=["GET"])
+def kolla_logs_stream():
+    """
+    Server-Sent Events (SSE) endpoint to live-tail the log file.
+    Frontend can connect with EventSource('/kolla/logs/stream').
+    """
+    ensure_paths()
+
+    def generate():
+        # Start at end of file
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            f.seek(0, os.SEEK_END)
+            while True:
+                line = f.readline()
+                if line:
+                    # SSE format: "data: <line>\n\n"
+                    yield f"data: {line.rstrip()}\n\n"
+                else:
+                    time.sleep(0.5)
+
+    headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no"  # disable buffering on some proxies
+    }
+    return Response(stream_with_context(generate()), headers=headers)
+
+
+# (Optional) Simple health
+@app.route("/kolla/health", methods=["GET"])
+def health():
+    return jsonify({"ok": True, "work_dir": WORK_DIR, "log_file_exists": os.path.exists(LOG_FILE)})
+
 
 #--------------------------------------------Openstack Operation End-------------------------------------------
 
