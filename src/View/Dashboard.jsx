@@ -756,7 +756,7 @@ const Dashboard = () => {
                       userSelect: "none",
                       textTransform: 'uppercase',
                       letterSpacing: '1px'
-                    }}>Cloud Name: {cloudName || 'N/A'}</span>
+                    }}>{cloudName || 'N/A'}</span>
                   </div>
                 </div>
               </Col>
