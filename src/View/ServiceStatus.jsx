@@ -1,7 +1,6 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, Tabs, Table, Badge, Button, Input } from 'antd';
-import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Content } = Layout;
@@ -246,13 +245,15 @@ const ServiceStatus = () => {
                         <Button
                           aria-label="Refresh"
                           onClick={handleRefresh}
-                          icon={<SyncOutlined spin={tableLoading} />}
+                          loading={tableLoading}
                           style={{
                             borderColor: '#1677ff',
                             color: '#1677ff',
                             borderRadius: 8,
                           }}
-                        />
+                        >
+                          Refresh
+                        </Button>
                         <Input.Search
                           allowClear
                           placeholder="Search..."
@@ -330,9 +331,11 @@ const ServiceStatus = () => {
                     <Button
                       aria-label="Refresh"
                       onClick={fetchOperationLogs}
-                      icon={<SyncOutlined spin={logsLoading} />}
+                      loading={logsLoading}
                       style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
-                    />
+                    >
+                      Refresh
+                    </Button>
                     <Button onClick={clearOperationLogs}>Clear</Button>
                   </div>
                 </div>
