@@ -380,7 +380,7 @@ const ServiceStatus = () => {
                       <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService}>Reconfigure Service</Button>
                       <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery}>Database Recovery</Button>
                     </div>
-                    <Button aria-label="Clear Logs" onClick={clearOperationLogs}>Clear</Button>
+                    <Button aria-label="Clear Logs" onClick={clearOperationLogs} style={{ width: '75px' }} >Clear</Button>
                   </div>
                 </div>
                 <div
