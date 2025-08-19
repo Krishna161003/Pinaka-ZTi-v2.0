@@ -1715,6 +1715,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             validateStatus={vipError ? 'error' : ''}
             help={vipError}
             style={{ marginBottom: 0 }}
+            required
             label={
               <span>
                 Enter VIP&nbsp;
