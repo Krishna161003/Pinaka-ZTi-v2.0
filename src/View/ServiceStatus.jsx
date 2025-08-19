@@ -131,6 +131,52 @@ const ServiceStatus = () => {
     fetchOpenstackData();
   };
 
+  // Operations logs terminal
+  const [operationLogs, setOperationLogs] = React.useState([]);
+  const [logsLoading, setLogsLoading] = React.useState(false);
+  const logEndRef = React.useRef(null);
+
+  const normalizeLogs = (payload) => Array.isArray(payload)
+    ? payload
+    : (typeof payload === 'string' ? payload.split('\n') : []);
+
+  const fetchOperationLogs = async () => {
+    try {
+      setLogsLoading(true);
+      const res = await axios.get(`https://${hostIP}:2020/api/operation_logs`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = res.data ?? [];
+      setOperationLogs(normalizeLogs(data));
+    } catch (e) {
+      setOperationLogs((prev) => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Failed to fetch operation logs.`
+      ]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const clearOperationLogs = () => setOperationLogs([]);
+
+  // Auto-fetch logs when Operations tab is opened
+  React.useEffect(() => {
+    if (activeSection === 'operations') {
+      fetchOperationLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
+
+  // Auto-scroll terminal to bottom on new logs
+  React.useEffect(() => {
+    if (logEndRef.current && activeSection === 'operations') {
+      try {
+        logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      } catch (_) { /* no-op */ }
+    }
+  }, [operationLogs, activeSection]);
+
   React.useEffect(() => {
     fetchOpenstackData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,8 +324,42 @@ const ServiceStatus = () => {
               </>
             ) : (
               <div>
-                <h3 style={{ marginTop: 0 }}>Service operations</h3>
-                <p>Service operations content goes here.</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <h3 style={{ marginTop: 0, marginBottom: 0 }}>Service operations</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      aria-label="Refresh"
+                      onClick={fetchOperationLogs}
+                      icon={<SyncOutlined spin={logsLoading} />}
+                      style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
+                    />
+                    <Button onClick={clearOperationLogs}>Clear</Button>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    background: '#0b0b0b',
+                    color: '#e5e7eb',
+                    border: '1px solid #111827',
+                    borderRadius: 8,
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    padding: 12,
+                    height: 340,
+                    overflowY: 'auto',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {operationLogs.length === 0 ? (
+                    <div style={{ color: '#9ca3af' }}>No logs yet.</div>
+                  ) : (
+                    operationLogs.map((line, idx) => (
+                      <div key={idx}>{line}</div>
+                    ))
+                  )}
+                  <div ref={logEndRef} />
+                </div>
               </div>
             )}
           </div>
