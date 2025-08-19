@@ -1758,7 +1758,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 color: "#1890ff", fontSize: "14px", height: "12px",
                 width: "12px"
               }} />
-            </Tooltip>:</span>
+            </Tooltip>&nbsp;:</span>
             <Form.Item
               name="cidr"
               style={{ marginBottom: 0 }}
