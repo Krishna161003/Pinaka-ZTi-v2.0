@@ -813,7 +813,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", transform: 'rotate(90deg)' }} />
+                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
