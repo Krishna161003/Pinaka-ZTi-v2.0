@@ -151,13 +151,13 @@ const ServiceStatus = () => {
                 padding: 30,
                 minHeight: 'auto',
                 background: activeSection === 'status'
-                  ? `linear-gradient(0deg, rgba(22,119,255,0.03), rgba(22,119,255,0.03)), ${colorBgContainer}`
+                  ? `linear-gradient(0deg, rgba(22,119,255,0.015), rgba(22,119,255,0.015)), ${colorBgContainer}`
                   : colorBgContainer,
                 borderRadius: borderRadiusLG,
                 flex: 1,
                 cursor: 'pointer',
-                border: activeSection === 'status' ? '1px solid rgba(22,119,255,0.20)' : '1px solid rgba(0,0,0,0.06)',
-                boxShadow: activeSection === 'status' ? '0 4px 14px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
+                border: activeSection === 'status' ? '1px solid rgba(22,119,255,0.12)' : '1px solid rgba(0,0,0,0.04)',
+                boxShadow: activeSection === 'status' ? '0 2px 8px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.03)',
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
@@ -173,13 +173,13 @@ const ServiceStatus = () => {
                 padding: 30,
                 minHeight: 'auto',
                 background: activeSection === 'operations'
-                  ? `linear-gradient(0deg, rgba(22,119,255,0.03), rgba(22,119,255,0.03)), ${colorBgContainer}`
+                  ? `linear-gradient(0deg, rgba(22,119,255,0.015), rgba(22,119,255,0.015)), ${colorBgContainer}`
                   : colorBgContainer,
                 borderRadius: borderRadiusLG,
                 flex: 1,
                 cursor: 'pointer',
-                border: activeSection === 'operations' ? '1px solid rgba(22,119,255,0.20)' : '1px solid rgba(0,0,0,0.06)',
-                boxShadow: activeSection === 'operations' ? '0 4px 14px rgba(0,0,0,0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
+                border: activeSection === 'operations' ? '1px solid rgba(22,119,255,0.12)' : '1px solid rgba(0,0,0,0.04)',
+                boxShadow: activeSection === 'operations' ? '0 2px 8px rgba(0,0,0,0.06)' : '0 1px 2px rgba(0,0,0,0.03)',
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
