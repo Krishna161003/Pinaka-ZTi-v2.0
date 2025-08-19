@@ -1,6 +1,7 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, Tabs, Table, Badge, Button, Input } from 'antd';
+import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
 const { Content } = Layout;
@@ -126,7 +127,9 @@ const ServiceStatus = () => {
   // Refresh handling (UI-only)
   const [tableLoading, setTableLoading] = React.useState(false);
   const [searchText, setSearchText] = React.useState('');
-  // removed manual refresh handler per request
+  const handleRefresh = () => {
+    fetchOpenstackData();
+  };
 
   // Operations logs terminal
   const [operationLogs, setOperationLogs] = React.useState([]);
@@ -236,6 +239,16 @@ const ServiceStatus = () => {
                   tabBarExtraContent={{
                     right: (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Button
+                          aria-label="Refresh"
+                          onClick={handleRefresh}
+                          icon={<SyncOutlined spin={tableLoading} />}
+                          style={{
+                            borderColor: '#1677ff',
+                            color: '#1677ff',
+                            borderRadius: 8,
+                          }}
+                        />
                         <Input.Search
                           allowClear
                           placeholder="Search..."
@@ -310,12 +323,6 @@ const ServiceStatus = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <h3 style={{ marginTop: 0, marginBottom: 0 }}>Service operations</h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Button
-                      aria-label="Refresh"
-                      onClick={fetchOperationLogs}
-                      icon={<SyncOutlined spin={logsLoading} />}
-                      style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
-                    />
                     <Button onClick={clearOperationLogs}>Clear</Button>
                   </div>
                 </div>
