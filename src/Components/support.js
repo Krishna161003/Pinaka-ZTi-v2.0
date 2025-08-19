@@ -22,6 +22,7 @@ const Support = () => {
       dataIndex: "label",
       key: "label",
       width: 320,
+      onCell: () => ({ style: { verticalAlign: "top" } }),
       render: (value, row, index) => {
         if (index === 2) {
           // Hide left cell for the full-width final row
@@ -33,6 +34,7 @@ const Support = () => {
     {
       dataIndex: "content",
       key: "content",
+      onCell: () => ({ style: { verticalAlign: "top" } }),
       render: (value, row, index) => {
         if (index === 2) {
           return {
@@ -53,9 +55,11 @@ const Support = () => {
     {
       key: "hw-1",
       label: (
-        <Text strong>
-          Description — OEM warranty applicable and hardware replacement terms
-        </Text>
+        <>
+          <Text>Description</Text>
+          <br />
+          <Text>OEM warranty applicable and hardware replacement terms</Text>
+        </>
       ),
       content: (
         <>
