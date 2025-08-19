@@ -471,6 +471,8 @@ const Dashboard = () => {
     cloudCount: 0,
     squadronCount: 0
   });
+  // Cloud name (earliest) to show in Cloud card
+  const [cloudName, setCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
   // Server counts (from backend /api/server-counts)
   const [serverCounts, setServerCounts] = useState({ total_count: 0, online_count: 0, offline_count: 0 });
   // State for hover effects
@@ -660,6 +662,25 @@ const Dashboard = () => {
     }
   }, [userId, selectedHostIP]);
 
+  // Fetch earliest Cloud Name
+  useEffect(() => {
+    const cached = sessionStorage.getItem('cloud_first_cloudname');
+    if (cached) setCloudName((cached || '').trim());
+    (async () => {
+      try {
+        const res = await fetch(`https://${hostIP}:5000/api/first-cloudname`);
+        const data = await res.json();
+        if (data && typeof data.cloudname === 'string') {
+          const val = (data.cloudname || '').trim();
+          setCloudName(val);
+          sessionStorage.setItem('cloud_first_cloudname', val);
+        }
+      } catch (_) {
+        // Silent fail; keep cached or empty
+      }
+    })();
+  }, []);
+
   // Fetch server up/down counts for Squadron card
   useEffect(() => {
     let cancelled = false;
@@ -735,7 +756,7 @@ const Dashboard = () => {
                       userSelect: "none",
                       textTransform: 'uppercase',
                       letterSpacing: '1px'
-                    }}>Cloud</span>
+                    }}>Cloud Name: {cloudName || 'N/A'}</span>
                   </div>
                 </div>
               </Col>
