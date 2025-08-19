@@ -471,6 +471,8 @@ const Dashboard = () => {
     cloudCount: 0,
     squadronCount: 0
   });
+  // Server counts (from backend /api/server-counts)
+  const [serverCounts, setServerCounts] = useState({ total_count: 0, online_count: 0, offline_count: 0 });
   // State for hover effects
   const [hoveredCard, setHoveredCard] = useState(null);
 
@@ -658,6 +660,32 @@ const Dashboard = () => {
     }
   }, [userId, selectedHostIP]);
 
+  // Fetch server up/down counts for Squadron card
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchServerCounts() {
+      try {
+        const res = await fetch(`https://${hostIP}:5000/api/server-counts`);
+        const data = await res.json();
+        if (!cancelled && data) {
+          setServerCounts({
+            total_count: Number(data.total_count) || 0,
+            online_count: Number(data.online_count) || 0,
+            offline_count: Number(data.offline_count) || 0,
+          });
+        }
+      } catch (e) {
+        if (!cancelled && lastErrorIpRef.current !== hostIP) {
+          message.error('Failed to fetch server counts');
+          lastErrorIpRef.current = hostIP;
+        }
+      }
+    }
+    fetchServerCounts();
+    const interval = setInterval(fetchServerCounts, 15000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -751,9 +779,9 @@ const Dashboard = () => {
                       color: '#2c3e50',
                       textAlign: 'right'
                     }}>
-                      <span style={{ color: '#4caf50' }}>Up <strong>0</strong></span>
+                      <span style={{ color: '#4caf50' }}>Up <strong>{serverCounts.online_count}</strong></span>
                       <span style={{ color: '#e0e0e0' }}>|</span>
-                      <span style={{ color: '#f44336' }}>Down <strong>0</strong></span>
+                      <span style={{ color: '#f44336' }}>Down <strong>{serverCounts.offline_count}</strong></span>
                     </div>
                   </div>
                 </div>
