@@ -645,7 +645,7 @@ const ServiceStatus = () => {
                     </Button>
                     {opsBusy && <span style={{ color: '#1677ff' }}>Operation in progress…</span>}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: "15px 0 0 0" }}>
                     <Button
                       aria-label="Clear Logs"
                       onClick={clearOperationLogs}
