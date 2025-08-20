@@ -2198,6 +2198,24 @@ def load_job_status(job_id: str) -> Optional[dict]:
     with open(path, "r") as f:
         return json.load(f)
 
+def any_active_job_running() -> bool:
+    """Return True if any job in JOBS_DIR is currently running."""
+    try:
+        for fname in os.listdir(JOBS_DIR):
+            if not fname.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(JOBS_DIR, fname), "r") as f:
+                    data = json.load(f)
+                    if data.get("state") == "running":
+                        return True
+            except Exception:
+                # Ignore malformed job files
+                continue
+    except FileNotFoundError:
+        return False
+    return False
+
 def is_zip_encrypted(zip_path):
     """Check if the ZIP file is encrypted."""
     with zipfile.ZipFile(zip_path) as zf:
@@ -2209,6 +2227,10 @@ def is_zip_encrypted(zip_path):
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    # Prevent concurrent runs while a script is active
+    if any_active_job_running():
+        return jsonify({"error": "A script is already running. Please wait for it to finish."}), 409
+
     if "file" not in request.files:
         return jsonify({"error": "No file part"}), 400
 

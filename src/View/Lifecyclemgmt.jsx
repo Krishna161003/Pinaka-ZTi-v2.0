@@ -21,6 +21,7 @@ const Lifecyclemgmt = () => {
   const [polling, setPolling] = useState(false);
   const pollTimerRef = useRef(null);
   const lastStateRef = useRef(job?.state || null);
+  const isRunning = job?.state === 'running';
 
   const persistJob = (jid, data) => {
     if (jid) localStorage.setItem('lm_job_id', jid);
@@ -85,7 +86,12 @@ const Lifecyclemgmt = () => {
     maxCount: 1,
     accept: '.zip',
     action: `https://${hostIP}:2020/upload`,
+    disabled: isRunning,
     beforeUpload(file) {
+      if (isRunning) {
+        message.warning('A script is currently running. Please wait until it finishes.');
+        return false;
+      }
       const isZip =
         file.type === 'application/zip' ||
         file.type === 'application/x-zip-compressed' ||
@@ -116,7 +122,21 @@ const Lifecyclemgmt = () => {
           message.warning('Upload finished but no job id returned.');
         }
       } else if (status === 'error') {
-        message.error(`${info.file.name} file upload failed.`);
+        let errMsg = 'file upload failed.';
+        const resp = info?.file?.response;
+        if (typeof resp === 'string' && resp.trim()) {
+          errMsg = resp;
+        } else if (resp?.error) {
+          errMsg = resp.error;
+        } else if (info?.file?.xhr?.responseText) {
+          try {
+            const j = JSON.parse(info.file.xhr.responseText);
+            if (j?.error) errMsg = j.error; else if (j?.message) errMsg = j.message;
+          } catch {
+            errMsg = info.file.xhr.responseText;
+          }
+        }
+        message.error(`${info.file.name}: ${errMsg}`);
       }
     },
     onDrop(e) {
