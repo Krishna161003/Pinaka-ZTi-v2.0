@@ -14,6 +14,7 @@ const Lifecyclemgmt = () => {
   const uploadProps = {
     name: 'file',
     multiple: true,
+    maxCount: 1,
     accept: '.zip',
     action: 'https://660d2bd96ddfa2943b33731c.mockapi.io/api/upload',
     beforeUpload(file) {
