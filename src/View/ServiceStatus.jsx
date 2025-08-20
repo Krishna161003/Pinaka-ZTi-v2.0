@@ -622,14 +622,14 @@ const ServiceStatus = () => {
               <>
                 <h3 style={{ marginTop: 0 }}>Service Operations</h3>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: "15px 0 15px 0" }}>
                     <Button
                       type="primary"
                       size="middle"
                       aria-label="Reconfigure Service"
                       onClick={reconfigureService}
                       disabled={opsBusy}
-                      style={{ width: 190, flex: '0 0 auto' }}
+                      style={{ width: 160, flex: '0 0 auto' }}
                     >
                       Reconfigure Service
                     </Button>
@@ -639,7 +639,7 @@ const ServiceStatus = () => {
                       aria-label="Database Recovery"
                       onClick={databaseRecovery}
                       disabled={opsBusy}
-                      style={{ width: 190, flex: '0 0 auto' }}
+                      style={{ width: 160, flex: '0 0 auto' }}
                     >
                       Database Recovery
                     </Button>
