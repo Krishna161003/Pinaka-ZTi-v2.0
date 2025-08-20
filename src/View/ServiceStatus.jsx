@@ -22,6 +22,35 @@ const ServiceStatus = () => {
       return 'status';
     }
   };
+
+  // Live log streaming via SSE
+  const startLogStream = React.useCallback(() => {
+    if (sseRef.current) return; // already streaming
+    try {
+      const es = new EventSource(`https://${hostIP}:2020/kolla/logs/stream`);
+      es.onmessage = (evt) => {
+        const line = evt?.data ?? '';
+        if (line) {
+          setOperationLogs((prev) => [...prev, line]);
+          reconcileJobsFromLines([line]);
+        }
+      };
+      es.onerror = () => {
+        try { es.close(); } catch (_) { /* no-op */ }
+        sseRef.current = null;
+      };
+      sseRef.current = es;
+    } catch (_) {
+      // Ignore; fallback remains manual refresh / snapshot fetches
+    }
+  }, [reconcileJobsFromLines]);
+
+  const stopLogStream = React.useCallback(() => {
+    if (sseRef.current) {
+      try { sseRef.current.close(); } catch (_) { /* no-op */ }
+      sseRef.current = null;
+    }
+  }, []);
   const [activeSection, setActiveSection] = React.useState(getInitialSection); // 'status' | 'operations'
 
   // Columns: Compute/Storage
@@ -144,6 +173,58 @@ const ServiceStatus = () => {
   // Operations logs terminal
   const [operationLogs, setOperationLogs] = React.useState([]);
   const logEndRef = React.useRef(null);
+  const sseRef = React.useRef(null);
+  const [opsLogsLoading, setOpsLogsLoading] = React.useState(false);
+  // Persisted operation busy state & job tracking
+  const OPS_BUSY_KEY = 'service_ops_busy';
+  const OPS_JOB_IDS_KEY = 'service_ops_job_ids';
+  const [opsBusy, setOpsBusy] = React.useState(() => {
+    try { return localStorage.getItem(OPS_BUSY_KEY) === '1'; } catch (_) { return false; }
+  });
+  const getJobIds = React.useCallback(() => {
+    try { return JSON.parse(localStorage.getItem(OPS_JOB_IDS_KEY) || '[]'); } catch (_) { return []; }
+  }, []);
+  const saveJobIds = React.useCallback((ids) => {
+    try {
+      localStorage.setItem(OPS_JOB_IDS_KEY, JSON.stringify(ids));
+      if (ids.length > 0) {
+        localStorage.setItem(OPS_BUSY_KEY, '1');
+      } else {
+        localStorage.removeItem(OPS_BUSY_KEY);
+      }
+    } catch (_) { /* no-op */ }
+    setOpsBusy(ids.length > 0);
+  }, []);
+  const markJobStarted = React.useCallback((jobId) => {
+    if (!jobId) return;
+    const ids = getJobIds();
+    if (!ids.includes(jobId)) {
+      ids.push(jobId);
+      saveJobIds(ids);
+    } else {
+      saveJobIds(ids); // ensure busy flag
+    }
+  }, [getJobIds, saveJobIds]);
+  const markJobEnded = React.useCallback((jobId) => {
+    if (!jobId) return;
+    const ids = getJobIds().filter((id) => id !== jobId);
+    saveJobIds(ids);
+  }, [getJobIds, saveJobIds]);
+  const reconcileJobsFromLines = React.useCallback((lines) => {
+    const arr = Array.isArray(lines) ? lines : [lines];
+    if (arr.length === 0) return;
+    const endIds = [];
+    const startIds = [];
+    arr.forEach((ln) => {
+      if (typeof ln !== 'string') return;
+      const mEnd = ln.match(/JOB END\s+(job-\d+)/);
+      if (mEnd && mEnd[1]) endIds.push(mEnd[1]);
+      const mStart = ln.match(/JOB START\s+(job-\d+)/);
+      if (mStart && mStart[1]) startIds.push(mStart[1]);
+    });
+    if (startIds.length) startIds.forEach((id) => markJobStarted(id));
+    if (endIds.length) endIds.forEach((id) => markJobEnded(id));
+  }, [markJobEnded, markJobStarted]);
   // Reconfigure modal state
   const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
   const [selectedNodes, setSelectedNodes] = React.useState([]);
@@ -219,54 +300,126 @@ const ServiceStatus = () => {
     : (typeof payload === 'string' ? payload.split('\n') : []);
 
   const fetchOperationLogs = async () => {
+    setOpsLogsLoading(true);
     try {
-      const res = await axios.get(`https://${hostIP}:2020/api/operation_logs`, {
+      const res = await axios.get(`https://${hostIP}:2020/kolla/logs/last`, {
+        params: { lines: 200 },
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = res.data ?? [];
-      setOperationLogs(normalizeLogs(data));
+      const data = res.data ?? {};
+      const lines = Array.isArray(data.log) ? data.log : [];
+      setOperationLogs(lines);
+      // Reconcile busy state with last logs snapshot
+      reconcileJobsFromLines(lines);
     } catch (e) {
       setOperationLogs((prev) => [
         ...prev,
         `[${new Date().toLocaleTimeString()}] Failed to fetch operation logs.`
       ]);
+    } finally {
+      setOpsLogsLoading(false);
+    }
+  };
+
+  // Start a kolla job on Flask backend (port 2020)
+  const runKolla = async (payload) => {
+    try {
+      const res = await axios.post(`https://${hostIP}:2020/kolla/run`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const { job_id, command } = res.data || {};
+      setOperationLogs((prev) => ([
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Started job ${job_id || ''}: ${command || JSON.stringify(payload)}`
+      ]));
+      if (job_id) markJobStarted(job_id);
+      return res.data;
+    } catch (e) {
+      const msg = e?.response?.data?.error || e.message;
+      setOperationLogs((prev) => ([
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] Failed to start job: ${msg}`
+      ]));
+      throw e;
     }
   };
 
   // Operations actions
   const reconfigureService = () => {
+    if (opsBusy) return;
     setSelectedNodes([]);
     setSelectedServices([]);
     setReconfigureOpen(true);
   };
 
   const databaseRecovery = () => {
+    if (opsBusy) return;
     setDbRecoveryOpen(true);
   };
 
-  const handleReconfigureConfirm = () => {
+  const handleReconfigureConfirm = async () => {
+    const nodes = (selectedNodes.includes('All') || selectedNodes.length === 0) ? [] : selectedNodes;
+    const services = (selectedServices.includes('All') || selectedServices.length === 0) ? [] : selectedServices;
+
     setOperationLogs((prev) => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] Reconfigure Service triggered. Nodes: ${Array.isArray(selectedNodes) ? selectedNodes.join(', ') : String(selectedNodes)}, Services: ${Array.isArray(selectedServices) ? selectedServices.join(', ') : String(selectedServices)}`
+      `[${new Date().toLocaleTimeString()}] Reconfigure triggered. Nodes: ${nodes.length ? nodes.join(', ') : 'ALL'}, Services: ${services.length ? services.join(', ') : 'ALL'}`
     ]);
-    setReconfigureOpen(false);
+
+    // Build job payloads based on selections
+    const jobs = [];
+    if (nodes.length === 0 && services.length === 0) {
+      jobs.push({ action: 'reconfigure_all' });
+    } else if (nodes.length > 0 && services.length === 0) {
+      nodes.forEach((n) => jobs.push({ action: 'reconfigure_node', node: n }));
+    } else if (nodes.length === 0 && services.length > 0) {
+      services.forEach((s) => jobs.push({ action: 'reconfigure_service', service: s }));
+    } else {
+      nodes.forEach((n) => services.forEach((s) => jobs.push({ action: 'reconfigure_node_service', node: n, service: s })));
+    }
+
+    try {
+      // Immediately mark busy to prevent duplicate actions while requests are in-flight
+      try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+      setOpsBusy(true);
+      await Promise.allSettled(jobs.map((p) => runKolla(p)));
+      // Fetch latest logs snapshot after starting
+      await fetchOperationLogs();
+    } finally {
+      setReconfigureOpen(false);
+    }
   };
 
-  const handleDbRecoveryConfirm = () => {
-    setOperationLogs((prev) => [
+  const handleDbRecoveryConfirm = async () => {
+    setOperationLogs((prev) => ([
       ...prev,
-      `[${new Date().toLocaleTimeString()}] MariaDB Recovery confirmed. Starting recovery...`
-    ]);
-    setDbRecoveryOpen(false);
+      `[${new Date().toLocaleTimeString()}] MariaDB Recovery: starting...`
+    ]));
+    try {
+      // Immediately mark busy to prevent duplicate actions while requests are in-flight
+      try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+      setOpsBusy(true);
+      await runKolla({ action: 'mariadb_recovery' });
+      await fetchOperationLogs();
+    } finally {
+      setDbRecoveryOpen(false);
+    }
   };
 
   const clearOperationLogs = () => setOperationLogs([]);
 
-  // Auto-fetch logs when Operations tab is opened
+  // Auto-fetch and stream logs when Operations tab is opened
   React.useEffect(() => {
     if (activeSection === 'operations') {
       fetchOperationLogs();
+      startLogStream();
+    } else {
+      stopLogStream();
     }
+    return () => {
+      // cleanup on unmount or tab switch
+      stopLogStream();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
 
@@ -450,17 +603,20 @@ const ServiceStatus = () => {
                 />
               </>
             ) : (
-              <div>
-                <div style={{ marginBottom: 8 }}>
-                  <h3 style={{ marginTop: 0, marginBottom: 8 }}>Service operations</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '20px 0px 10px 0px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService}>Reconfigure Service</Button>
-                      <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery}>Database Recovery</Button>
-                    </div>
-                    <Button aria-label="Clear Logs" onClick={clearOperationLogs} style={{ width: '75px' }} >Clear</Button>
-                  </div>
+              <>
+                <h3 style={{ marginTop: 0 }}>Service Operations</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Button
+                    aria-label="Refresh"
+                    onClick={fetchOperationLogs}
+                    icon={<SyncOutlined spin={opsLogsLoading} />}
+                    style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
+                  />
+                  <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService} disabled={opsBusy}>Reconfigure Service</Button>
+                  <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery} disabled={opsBusy}>Database Recovery</Button>
+                  {opsBusy && <span style={{ color: '#1677ff' }}>Operation in progress…</span>}
                 </div>
+
                 <Modal
                   title="Reconfigure Service"
                   open={reconfigureOpen}
@@ -468,7 +624,7 @@ const ServiceStatus = () => {
                   onCancel={() => setReconfigureOpen(false)}
                   okText="Run Reconfigure"
                   cancelText="Cancel"
-                  okButtonProps={{ style: { width: 160 } }}
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy }}
                   cancelButtonProps={{ style: { width: 100 } }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -499,6 +655,7 @@ const ServiceStatus = () => {
                     </div>
                   </div>
                 </Modal>
+
                 <Modal
                   title="Database Recovery"
                   open={dbRecoveryOpen}
@@ -506,11 +663,12 @@ const ServiceStatus = () => {
                   onCancel={() => setDbRecoveryOpen(false)}
                   okText="Run Recovery"
                   cancelText="Cancel"
-                  okButtonProps={{ style: { width: 160 } }}
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy }}
                   cancelButtonProps={{ style: { width: 100 } }}
                 >
                   <p>Are you sure you want to run MariaDB recovery? This may restart database services and attempt to repair the cluster.</p>
                 </Modal>
+
                 <div
                   style={{
                     background: '#0b0b0b',
@@ -535,7 +693,7 @@ const ServiceStatus = () => {
                   )}
                   <div ref={logEndRef} />
                 </div>
-              </div>
+              </>
             )}
           </div>
         </Content>

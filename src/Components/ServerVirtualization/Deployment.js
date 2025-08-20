@@ -1496,20 +1496,21 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       return;
     }
 
-    // Validate role combinations across nodes: require at least one node to match an allowed combo
-    const hasAnyValidRoleNode = forms.some(f => isAllowedCombo(f.selectedRoles));
-    if (!hasAnyValidRoleNode) {
-      const invalidIps = new Set(forms.filter(f => !isAllowedCombo(f.selectedRoles)).map(f => f.ip));
-      setForms(prev => prev.map(f => invalidIps.has(f.ip)
-        ? { ...f, roleError: 'Choose a valid role model: Control+Storage (+Monitoring) (+Compute)' }
-        : f
-      ));
+    // Validate role combinations across nodes: the union of roles across ALL nodes must equal an allowed combo
+    const unionRoles = normalizeRoles(forms.flatMap(f => f?.selectedRoles || []));
+    const isUnionAllowed = isAllowedCombo(unionRoles);
+    if (!isUnionAllowed) {
+      setForms(prev => prev.map(f => ({
+        ...f,
+        roleError: 'Combined roles across nodes must be one of: Control+Storage, Control+Storage+Compute, Control+Storage+Monitoring, Control+Storage+Monitoring+Compute'
+      })));
+      // Force-enable role selectors even if cards were applied
       setForceEnableRoles(prev => {
         const next = { ...prev };
-        invalidIps.forEach(ip => { next[ip] = true; });
+        forms.forEach(f => { if (f?.ip) next[f.ip] = true; });
         return next;
       });
-      message.error('Invalid role combination. Select one: Control+Storage, Control+Storage+Compute, Control+Storage+Monitoring, or Control+Storage+Monitoring+Compute.');
+      message.error(`Invalid combined roles: [${unionRoles.join(', ')}]. Required combos: Control+Storage, Control+Storage+Compute, Control+Storage+Monitoring, or Control+Storage+Monitoring+Compute.`);
       return;
     }
 
