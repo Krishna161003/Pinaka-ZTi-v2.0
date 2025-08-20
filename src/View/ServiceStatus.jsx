@@ -6,6 +6,7 @@ import axios from 'axios';
 
 const { Content } = Layout;
 const hostIP = window.location.hostname;
+const IP = "192.168.20.4";
 
 const ServiceStatus = () => {
   const {
@@ -606,41 +607,45 @@ const ServiceStatus = () => {
             ) : (
               <>
                 <h3 style={{ marginTop: 0 }}>Service Operations</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Button
-                    aria-label="Refresh"
-                    onClick={fetchOperationLogs}
-                    icon={<SyncOutlined spin={opsLogsLoading} />}
-                    style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
-                  />
-                  <Button
-                    aria-label="Clear Logs"
-                    onClick={clearOperationLogs}
-                    style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
-                  >
-                    Clear
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="middle"
-                    aria-label="Reconfigure Service"
-                    onClick={reconfigureService}
-                    disabled={opsBusy}
-                    style={{ width: 220, flex: '0 0 auto' }}
-                  >
-                    Reconfigure Service
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="middle"
-                    aria-label="Database Recovery"
-                    onClick={databaseRecovery}
-                    disabled={opsBusy}
-                    style={{ width: 220, flex: '0 0 auto' }}
-                  >
-                    Database Recovery
-                  </Button>
-                  {opsBusy && <span style={{ color: '#1677ff' }}>Operation in progress…</span>}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      type="primary"
+                      size="middle"
+                      aria-label="Reconfigure Service"
+                      onClick={reconfigureService}
+                      disabled={opsBusy}
+                      style={{ width: 220, flex: '0 0 auto' }}
+                    >
+                      Reconfigure Service
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="middle"
+                      aria-label="Database Recovery"
+                      onClick={databaseRecovery}
+                      disabled={opsBusy}
+                      style={{ width: 220, flex: '0 0 auto' }}
+                    >
+                      Database Recovery
+                    </Button>
+                    {opsBusy && <span style={{ color: '#1677ff' }}>Operation in progress…</span>}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      aria-label="Clear Logs"
+                      onClick={clearOperationLogs}
+                      style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      aria-label="Refresh"
+                      onClick={fetchOperationLogs}
+                      icon={<SyncOutlined spin={opsLogsLoading} />}
+                      style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
+                    />
+                  </div>
                 </div>
 
                 <Modal
