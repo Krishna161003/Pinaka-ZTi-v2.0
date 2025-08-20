@@ -657,7 +657,7 @@ const ServiceStatus = () => {
                       aria-label="Refresh"
                       onClick={fetchOperationLogs}
                       icon={<SyncOutlined spin={opsLogsLoading} />}
-                      style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
+                      style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8, width: "50px" }}
                     />
                   </div>
                 </div>
