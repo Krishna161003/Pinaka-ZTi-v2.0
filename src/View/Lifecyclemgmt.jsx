@@ -1,13 +1,47 @@
 import React from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout } from 'antd';
+import { theme, Layout, message, Upload } from 'antd';
+import { InboxOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
+const { Dragger } = Upload;
 
 const Lifecyclemgmt = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+
+  const uploadProps = {
+    name: 'file',
+    multiple: true,
+    accept: '.zip',
+    action: 'https://660d2bd96ddfa2943b33731c.mockapi.io/api/upload',
+    beforeUpload(file) {
+      const isZip =
+        file.type === 'application/zip' ||
+        file.type === 'application/x-zip-compressed' ||
+        /\.zip$/i.test(file.name);
+      if (!isZip) {
+        message.error('Only .zip files are allowed.');
+        return Upload.LIST_IGNORE; // prevent upload and adding to list
+      }
+      return true;
+    },
+    onChange(info) {
+      const { status } = info.file;
+      if (status !== 'uploading') {
+        // console.log(info.file, info.fileList);
+      }
+      if (status === 'done') {
+        message.success(`${info.file.name} file uploaded successfully.`);
+      } else if (status === 'error') {
+        message.error(`${info.file.name} file upload failed.`);
+      }
+    },
+    onDrop(e) {
+      // console.log('Dropped files', e.dataTransfer.files);
+    },
+  };
 
   return (
     <Layout1>
@@ -32,7 +66,13 @@ const Lifecyclemgmt = () => {
               // borderRadius: borderRadiusLG,
             }}
           >
-
+            <Dragger {...uploadProps}>
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Click or drag .zip file(s) to this area to upload</p>
+              <p className="ant-upload-hint">Only .zip files are allowed.</p>
+            </Dragger>
           </div>
         </Content>
       </Layout>
