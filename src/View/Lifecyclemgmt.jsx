@@ -25,6 +25,7 @@ const Lifecyclemgmt = () => {
           </div>
           <div
             style={{
+              marginTop: 10,
               padding: 30,
               minHeight: "auto",
               background: colorBgContainer,
