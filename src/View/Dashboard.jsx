@@ -477,6 +477,8 @@ const Dashboard = () => {
   const [serverCounts, setServerCounts] = useState({ total_count: 0, online_count: 0, offline_count: 0 });
   // State for hover effects
   const [hoveredCard, setHoveredCard] = useState(null);
+  // OSD counts from backend
+  const [osdCounts, setOsdCounts] = useState({ total_osds: 0, up_osds: 0, in_osds: 0 });
 
   // Docker containers state (live from backend)
   const [dockerContainers, setDockerContainers] = useState([]);
@@ -707,6 +709,40 @@ const Dashboard = () => {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
+  // Fetch OSD counts from Flask backend
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOsdCounts = async () => {
+      try {
+        // const res = await fetch(`https://${hostIP}:2020/ceph/osd-count`);
+        const res = await fetch('https://192.168.20.4:2020/ceph/osd-count');
+        const data = await res.json();
+        if (!cancelled) {
+          if (data && typeof data === 'object' && 'total_osds' in data) {
+            setOsdCounts({
+              total_osds: Number(data.total_osds) || 0,
+              up_osds: Number(data.up_osds) || 0,
+              in_osds: Number(data.in_osds) || 0,
+            });
+          } else {
+            setOsdCounts({ total_osds: 0, up_osds: 0, in_osds: 0 });
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setOsdCounts({ total_osds: 0, up_osds: 0, in_osds: 0 });
+          if (lastErrorIpRef.current !== hostIP) {
+            message.error('Failed to fetch OSD counts');
+            lastErrorIpRef.current = hostIP;
+          }
+        }
+      }
+    };
+    fetchOsdCounts();
+    const interval = setInterval(fetchOsdCounts, 10000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -817,7 +853,7 @@ const Dashboard = () => {
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
-                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>0</span>
+                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>{osdCounts.total_osds}</span>
                     <div style={{ 
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -832,9 +868,9 @@ const Dashboard = () => {
                       color: '#2c3e50',
                       textAlign: 'center'
                     }}>
-                      <span style={{ color: '#4caf50' }}>In <strong>0</strong></span>
+                      <span style={{ color: '#4caf50' }}>In <strong>{osdCounts.in_osds}</strong></span>
                       <span style={{ color: '#e0e0e0' }}>|</span>
-                      <span style={{ color: '#2196f3' }}>Up <strong>0</strong></span>
+                      <span style={{ color: '#2196f3' }}>Up <strong>{osdCounts.up_osds}</strong></span>
                     </div>
                   </div>
                 </div>
