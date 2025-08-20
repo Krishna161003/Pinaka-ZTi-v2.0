@@ -210,7 +210,7 @@ const ServiceStatus = () => {
   const startLogStream = React.useCallback(() => {
     if (sseRef.current) return; // already streaming
     try {
-      const es = new EventSource(`https://${hostIP}:2020/kolla/logs/stream`);
+      const es = new EventSource(`https://${IP}:2020/kolla/logs/stream`);
       es.onmessage = (evt) => {
         const line = evt?.data ?? '';
         if (line) {
@@ -304,7 +304,7 @@ const ServiceStatus = () => {
   const fetchOperationLogs = async () => {
     setOpsLogsLoading(true);
     try {
-      const res = await axios.get(`https://${hostIP}:2020/kolla/logs/last`, {
+      const res = await axios.get(`https://${IP}:2020/kolla/logs/last`, {
         params: { lines: 200 },
         headers: { 'Content-Type': 'application/json' }
       });
@@ -326,7 +326,7 @@ const ServiceStatus = () => {
   // Start a kolla job on Flask backend (port 2020)
   const runKolla = async (payload) => {
     try {
-      const res = await axios.post(`https://${hostIP}:2020/kolla/run`, payload, {
+      const res = await axios.post(`https://${IP}:2020/kolla/run`, payload, {
         headers: { 'Content-Type': 'application/json' }
       });
       const { job_id, command } = res.data || {};
