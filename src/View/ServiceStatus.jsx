@@ -613,8 +613,33 @@ const ServiceStatus = () => {
                     icon={<SyncOutlined spin={opsLogsLoading} />}
                     style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
                   />
-                  <Button type="primary" aria-label="Reconfigure Service" onClick={reconfigureService} disabled={opsBusy}>Reconfigure Service</Button>
-                  <Button type="primary" aria-label="Database Recovery" onClick={databaseRecovery} disabled={opsBusy}>Database Recovery</Button>
+                  <Button
+                    aria-label="Clear Logs"
+                    onClick={clearOperationLogs}
+                    style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 8 }}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="middle"
+                    aria-label="Reconfigure Service"
+                    onClick={reconfigureService}
+                    disabled={opsBusy}
+                    style={{ width: 220, flex: '0 0 auto' }}
+                  >
+                    Reconfigure Service
+                  </Button>
+                  <Button
+                    type="primary"
+                    size="middle"
+                    aria-label="Database Recovery"
+                    onClick={databaseRecovery}
+                    disabled={opsBusy}
+                    style={{ width: 220, flex: '0 0 auto' }}
+                  >
+                    Database Recovery
+                  </Button>
                   {opsBusy && <span style={{ color: '#1677ff' }}>Operation in progress…</span>}
                 </div>
 
