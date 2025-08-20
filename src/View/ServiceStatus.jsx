@@ -23,34 +23,7 @@ const ServiceStatus = () => {
     }
   };
 
-  // Live log streaming via SSE
-  const startLogStream = React.useCallback(() => {
-    if (sseRef.current) return; // already streaming
-    try {
-      const es = new EventSource(`https://${hostIP}:2020/kolla/logs/stream`);
-      es.onmessage = (evt) => {
-        const line = evt?.data ?? '';
-        if (line) {
-          setOperationLogs((prev) => [...prev, line]);
-          reconcileJobsFromLines([line]);
-        }
-      };
-      es.onerror = () => {
-        try { es.close(); } catch (_) { /* no-op */ }
-        sseRef.current = null;
-      };
-      sseRef.current = es;
-    } catch (_) {
-      // Ignore; fallback remains manual refresh / snapshot fetches
-    }
-  }, [reconcileJobsFromLines]);
-
-  const stopLogStream = React.useCallback(() => {
-    if (sseRef.current) {
-      try { sseRef.current.close(); } catch (_) { /* no-op */ }
-      sseRef.current = null;
-    }
-  }, []);
+  // Live log streaming via SSE (defined below after reconcileJobsFromLines)
   const [activeSection, setActiveSection] = React.useState(getInitialSection); // 'status' | 'operations'
 
   // Columns: Compute/Storage
@@ -175,6 +148,12 @@ const ServiceStatus = () => {
   const logEndRef = React.useRef(null);
   const sseRef = React.useRef(null);
   const [opsLogsLoading, setOpsLogsLoading] = React.useState(false);
+  const stopLogStream = React.useCallback(() => {
+    if (sseRef.current) {
+      try { sseRef.current.close(); } catch (_) { /* no-op */ }
+      sseRef.current = null;
+    }
+  }, []);
   // Persisted operation busy state & job tracking
   const OPS_BUSY_KEY = 'service_ops_busy';
   const OPS_JOB_IDS_KEY = 'service_ops_job_ids';
@@ -225,6 +204,28 @@ const ServiceStatus = () => {
     if (startIds.length) startIds.forEach((id) => markJobStarted(id));
     if (endIds.length) endIds.forEach((id) => markJobEnded(id));
   }, [markJobEnded, markJobStarted]);
+
+  // Live log streaming via SSE
+  const startLogStream = React.useCallback(() => {
+    if (sseRef.current) return; // already streaming
+    try {
+      const es = new EventSource(`https://${hostIP}:2020/kolla/logs/stream`);
+      es.onmessage = (evt) => {
+        const line = evt?.data ?? '';
+        if (line) {
+          setOperationLogs((prev) => [...prev, line]);
+          reconcileJobsFromLines([line]);
+        }
+      };
+      es.onerror = () => {
+        try { es.close(); } catch (_) { /* no-op */ }
+        sseRef.current = null;
+      };
+      sseRef.current = es;
+    } catch (_) {
+      // Ignore; fallback remains manual refresh / snapshot fetches
+    }
+  }, [reconcileJobsFromLines]);
   // Reconfigure modal state
   const [reconfigureOpen, setReconfigureOpen] = React.useState(false);
   const [selectedNodes, setSelectedNodes] = React.useState([]);
