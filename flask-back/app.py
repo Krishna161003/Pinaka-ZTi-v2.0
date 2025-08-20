@@ -2174,8 +2174,8 @@ def health():
 
 #--------------------------------------------Lifecycle Management Start-------------------------------------------
 
-# UPLOAD_FOLDER = "/home/pinakasupport/.pinaka_wd/lifecycle/"
-UPLOAD_FOLDER = "/home/pinaka/Documents/"
+UPLOAD_FOLDER = "/home/pinakasupport/.pinaka_wd/lifecycle/"
+# UPLOAD_FOLDER = "/home/pinaka/Documents/"
 ZIP_PASSWORD = b"1@P1@n@k@1609zip123"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
