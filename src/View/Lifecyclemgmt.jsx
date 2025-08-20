@@ -151,7 +151,7 @@ const Lifecyclemgmt = () => {
                 aria-label="Refresh"
                 onClick={() => jobId && fetchStatusOnce(jobId)}
                 icon={<SyncOutlined spin={polling} />}
-                style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20 }}
+                style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
               >
                 Refresh
               </Button>
