@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, message, Upload } from 'antd';
 import { InboxOutlined } from '@ant-design/icons';
@@ -10,10 +10,11 @@ const Lifecyclemgmt = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+  const [fileList, setFileList] = useState([]);
 
   const uploadProps = {
     name: 'file',
-    multiple: true,
+    multiple: false,
     maxCount: 1,
     accept: '.zip',
     action: 'https://660d2bd96ddfa2943b33731c.mockapi.io/api/upload',
@@ -30,9 +31,12 @@ const Lifecyclemgmt = () => {
     },
     onChange(info) {
       const { status } = info.file;
-      if (status !== 'uploading') {
-        // console.log(info.file, info.fileList);
-      }
+      // Keep only valid .zip and only the latest one
+      const latestZipOnly = info.fileList
+        .filter(f => /\.zip$/i.test(f.name))
+        .slice(-1);
+      setFileList(latestZipOnly);
+
       if (status === 'done') {
         message.success(`${info.file.name} file uploaded successfully.`);
       } else if (status === 'error') {
@@ -67,7 +71,7 @@ const Lifecyclemgmt = () => {
               // borderRadius: borderRadiusLG,
             }}
           >
-            <Dragger {...uploadProps}>
+            <Dragger {...uploadProps} fileList={fileList}>
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
