@@ -622,7 +622,7 @@ const ServiceStatus = () => {
               <>
                 <h3 style={{ marginTop: 0 }}>Service Operations</h3>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: "15px 0 15px 0" }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: "15px 0 10px 0" }}>
                     <Button
                       type="primary"
                       size="middle"
