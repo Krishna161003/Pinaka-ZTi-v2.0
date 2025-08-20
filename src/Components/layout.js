@@ -10,7 +10,7 @@ import {
   UserOutlined,
   DashboardOutlined,
   DeploymentUnitOutlined,
-  // SyncOutlined,
+  SyncOutlined,
   TruckOutlined,
   CloudServerOutlined,
   // SettingOutlined,
