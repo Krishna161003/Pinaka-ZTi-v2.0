@@ -739,7 +739,7 @@ const Dashboard = () => {
       }
     };
     fetchOsdCounts();
-    const interval = setInterval(fetchOsdCounts, 10000);
+    const interval = setInterval(fetchOsdCounts, 60000); // every 60s
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
