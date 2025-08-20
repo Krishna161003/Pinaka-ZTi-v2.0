@@ -77,7 +77,7 @@ const AppLayout = ({ children }) => {
     // "/vdi": "7",
     // "/siem": "8",
     // "/noc": "9",
-    // "/lifecyclemgmt": "10",
+    "/lifecyclemgmt": "10",
     "/migration": "11",
     // "/compliance": "12",
     // "/marketplace": "13",
@@ -199,15 +199,15 @@ const AppLayout = ({ children }) => {
     //     </Link>
     //   ),
     // },
-    // {
-    //   key: "10",
-    //   icon: <SyncOutlined />,
-    //   label: (
-    //     <Link to="/lifecyclemgmt" style={{ textDecoration: "none" }}>
-    //       Lifecycle Mgmt
-    //     </Link>
-    //   ),
-    // },
+    {
+      key: "10",
+      icon: <SyncOutlined />,
+      label: (
+        <Link to="/lifecyclemgmt" style={{ textDecoration: "none" }}>
+          Lifecycle Mgmt
+        </Link>
+      ),
+    },
     {
       key: "11",
       icon: <TruckOutlined />,
