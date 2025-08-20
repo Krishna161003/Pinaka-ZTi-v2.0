@@ -10,8 +10,7 @@ const Lifecyclemgmt = () => {
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
-  // const hostIP = window.location.hostname;
-  const hostIP = "192.168.20.4";
+  const hostIP = window.location.hostname;
   const [fileList, setFileList] = useState([]);
   const [jobId, setJobId] = useState(() => localStorage.getItem('lm_job_id') || null);
   const [job, setJob] = useState(() => {
