@@ -714,8 +714,8 @@ const Dashboard = () => {
     let cancelled = false;
     const fetchOsdCounts = async () => {
       try {
-        // const res = await fetch(`https://${hostIP}:2020/ceph/osd-count`);
-        const res = await fetch('https://192.168.20.4:2020/ceph/osd-count');
+        const res = await fetch(`https://${hostIP}:2020/ceph/osd-count`);
+        // const res = await fetch('https://192.168.20.4:2020/ceph/osd-count');
         const data = await res.json();
         if (!cancelled) {
           if (data && typeof data === 'object' && 'total_osds' in data) {
