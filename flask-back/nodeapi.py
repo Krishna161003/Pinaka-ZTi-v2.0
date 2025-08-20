@@ -266,8 +266,10 @@ def store_network_config(data):
     and with any legacy 'pinakasv' inner wrapper.
     """
     import threading
-    file_path = os.path.join("submitted_configs", "network_configs.json")
-    os.makedirs("submitted_configs", exist_ok=True)
+    # Resolve storage directory from env or default
+    base_dir = os.environ.get("PINAKA_CONFIG_DIR", "/home/pinaka/.pinaka_wd/.scripts/")
+    os.makedirs(base_dir, exist_ok=True)
+    file_path = os.path.join(base_dir, "data.json")
 
     # Module-level lock fallback (avoid per-call locks)
     global CONFIG_LOCK
@@ -289,43 +291,9 @@ def store_network_config(data):
         return obj.get("hostname") or obj.get("default_gateway") or "unknown"
 
     with CONFIG_LOCK:
-        # Load existing file
-        existing_list = []
-        if os.path.exists(file_path):
-            try:
-                with open(file_path, "r") as f:
-                    existing = json.load(f)
-                # Convert dict-shaped to list of values; keep list as-is
-                if isinstance(existing, dict):
-                    # Legacy: unwrap any inner 'pinakasv' in values
-                    tmp = []
-                    for v in existing.values():
-                        if isinstance(v, dict) and 'pinakasv' in v and isinstance(v['pinakasv'], dict):
-                            tmp.append(v['pinakasv'])
-                        else:
-                            tmp.append(v)
-                    existing_list = [x for x in tmp if isinstance(x, dict)]
-                elif isinstance(existing, list):
-                    existing_list = [x for x in existing if isinstance(x, dict)]
-                else:
-                    existing_list = []
-            except Exception:
-                existing_list = []
-
-        # Upsert by key (hostname/default_gateway)
-        in_key = get_key(incoming)
-        updated = False
-        for i, item in enumerate(existing_list):
-            if get_key(item) == in_key:
-                existing_list[i] = incoming
-                updated = True
-                break
-        if not updated:
-            existing_list.append(incoming)
-
-        # Write back as a list (flat, no wrapper)
+        # Overwrite with the latest cleaned data (no append/merge)
         with open(file_path, "w") as f:
-            json.dump(existing_list, f, indent=4)
+            json.dump(incoming, f, indent=4)
     return True
 
 def validate_ip_address(ip):

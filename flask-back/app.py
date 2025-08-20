@@ -19,7 +19,6 @@ import openstack
 import shlex
 from typing import Optional
 import threading
-import datetime
 import uuid
 import zipfile
 
@@ -211,7 +210,7 @@ def validate():
     elif mode == "remote":
         host = data.get("host")
         username = "pinakasupport"
-        pem_path = "/home/pinaka/ps_key.pem"
+        pem_path = "/home/pinaka/.pinaka_wd/key/ps_key.pem"
 
         if not all([host, username, pem_path]):
             return jsonify({"error": "Missing remote credentials"}), 400
@@ -989,41 +988,6 @@ def get_disks():
 # ------------------------------------------------GET DISK LIST FROM THE RUNNING SERVER End-----------------------
 
 
-# ------------------- Deployment Progress Endpoint starts-------------------
-
-@app.route("/deployment-progress", methods=["GET"])
-def deployment_progress():
-    # folder_path = "/home/pinakasupport/.pinaka_wd/.progress/"  # Change as needed
-    folder_path = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/progress/"  # Change as needed
-    steps = [
-        ("file1.txt", "Step 1: Initialized"),
-        ("file2.txt", "Step 2: Resources created"),
-        ("file3.txt", "Step 3: Configuration applied"),
-        ("file4.txt", "Step 4: Services started"),
-        ("file5.txt", "Step 5: Finalizing deployment"),
-    ]
-    completed = []
-    percent = 0
-
-    try:
-        os.makedirs(folder_path, exist_ok=True)
-        for idx, (fname, msg) in enumerate(steps):
-            if os.path.exists(os.path.join(folder_path, fname)):
-                completed.append(msg)
-                percent = (idx + 1) * 20
-            else:
-                break
-        if percent == 100:
-            completed.append("Deployment Completed")
-        return jsonify({
-            "percent": percent,
-            "completed_steps": completed
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-# ------------------- Deployment Progress Endpoint ends -------------------
-
 # ------------------- System Utilization Endpoint -------------------
 import psutil
 @app.route('/system-utilization', methods=['GET'])
@@ -1275,7 +1239,7 @@ def get_node_status(ip):
         print(f"Error checking local IPs: {str(e)}")
     
     # Use the specified PEM key path
-    pem_key = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/ps_key.pem"
+    pem_key = "/home/pinaka/.pinaka_wd/key/ps_key.pem"
     print(f"Using PEM key: {pem_key}")
     
     if not os.path.exists(pem_key):
@@ -1440,7 +1404,7 @@ def server_control():
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
         # Load the private key
-        key_path = '/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/ps_key.pem'
+        key_path = '/home/pinaka/.pinaka_wd/key/ps_key.pem'
         if not os.path.exists(key_path):
             return jsonify({'error': f'Key file {key_path} not found'}), 500
             
@@ -1555,7 +1519,7 @@ def poll_ssh_status():
     ssh_key = None
     print(f"DEBUG: Enforcing PEM-only auth. Using user '{ssh_user}', no password, no inline key (disk PEM only)")
     
-    pem_path = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/ps_key.pem"
+    pem_path = "/home/pinaka/.pinaka_wd/key/ps_key.pem"
 
     import threading, queue, time, json
     status_queue = queue.Queue()
@@ -1699,7 +1663,7 @@ def check_ssh_status():
 @app.route('/node-deployment-progress', methods=['GET'])
 def node_deployment_progress():
     try:
-        configs_dir = pathlib.Path('/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/flask-back/deployment_configs')
+        configs_dir = pathlib.Path('/home/pinaka/.pinaka_wd/cluster/nodes/')
         if not configs_dir.exists():
             # No folder means no pending node_* files → consider completed
             return jsonify({
@@ -1746,8 +1710,8 @@ def apply_license():
         license_period = data.get("license_period")
 
         ssh_username = data.get("ssh_username", "pinakasupport")
-        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/ps_key.pem")
-        remote_path = data.get("remote_path", "/opt/pinaka/license/license.json")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
+        remote_path = data.get("remote_path", "/home/pinaka/.pinaka_wd/license/license.json")
 
         missing = [k for k, v in {
             "server_ip": server_ip,
@@ -2174,7 +2138,7 @@ def health():
 
 #--------------------------------------------Lifecycle Management Start-------------------------------------------
 
-UPLOAD_FOLDER = "/home/pinakasupport/.pinaka_wd/lifecycle/"
+UPLOAD_FOLDER = "/home/pinaka/.pinaka_wd/lifecycle/"
 ZIP_PASSWORD = b"1@P1@n@k@1609zip123"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
