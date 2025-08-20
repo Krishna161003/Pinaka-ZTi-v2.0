@@ -1887,18 +1887,41 @@ def get_openstack_data():
 @app.route("/ceph/osd-count", methods=["GET"])
 def get_osd_count():
     try:
-        # Run ceph osd stat inside cephadm shell
-        result = subprocess.run(
-            ["sudo", "cephadm", "shell", "--", "ceph", "osd", "stat", "--format", "json"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=True
-        )
+        # Read Ceph credentials file
+        cred_file = os.path.expanduser("/home/pinaka/.pinaka_wd/.markers/ceph_dashboard_credentials.txt")
+        with open(cred_file, "r") as f:
+            content = f.read()
 
-        osd_stat = json.loads(result.stdout)
+        # Extract hostname from the Dashboard URL line
+        match = re.search(r"https://([^:]+):\d+", content)
+        if not match:
+            return jsonify({"error": "Could not parse hostname from credentials file"}), 500
+        hostname = match.group(1)
 
-        # Example JSON: {"epoch": 923, "num_osds": 4, "num_up_osds": 3, "num_in_osds": 3}
+        # SSH credentials (assuming same user running Flask, adjust as needed)
+        ssh_user = "pinakasupport"   # or pinakasupport if Ceph is managed under that user
+        ssh_key = os.path.expanduser("~/.ssh/id_rsa")  # or password if required
+
+        # Connect to remote Ceph node
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname, username=ssh_user, key_filename=ssh_key)
+
+        # Run the Ceph command remotely
+        cmd = "cephadm shell -- ceph osd stat --format json"
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+
+        result = stdout.read().decode().strip()
+        err = stderr.read().decode().strip()
+
+        ssh.close()
+
+        if err:
+            return jsonify({"error": err}), 500
+
+        # Parse JSON output
+        osd_stat = json.loads(result)
+
         data = {
             "total_osds": osd_stat.get("num_osds", 0),
             "up_osds": osd_stat.get("num_up_osds", 0),
@@ -1906,12 +1929,6 @@ def get_osd_count():
         }
 
         return jsonify(data)
-
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": e.stderr.strip()}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 
 # ----- Paths & env -----
 WORK_DIR = "/home/pinakasupport/.pinaka_wd/vpinakastra/"
