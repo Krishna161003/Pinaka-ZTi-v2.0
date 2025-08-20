@@ -199,8 +199,16 @@ const ServiceStatus = () => {
       if (typeof ln !== 'string') return;
       const mEnd = ln.match(/JOB END\s+(job-\d+)/);
       if (mEnd && mEnd[1]) endIds.push(mEnd[1]);
+      // Treat error/failed endings as job end to re-enable buttons
+      const mErr = ln.match(/JOB\s+(?:ERROR|FAILED)\s+(job-\d+)/i);
+      if (mErr && mErr[1]) endIds.push(mErr[1]);
       const mStart = ln.match(/JOB START\s+(job-\d+)/);
       if (mStart && mStart[1]) startIds.push(mStart[1]);
+      // Generic fallback: if line shows error and references a job id, end that job
+      if (!mEnd && !mErr && /(ERROR|Failed|failure|non-zero exit|exited with code [1-9])/i.test(ln)) {
+        const mAnyJob = ln.match(/(job-\d+)/);
+        if (mAnyJob && mAnyJob[1]) endIds.push(mAnyJob[1]);
+      }
     });
     if (startIds.length) startIds.forEach((id) => markJobStarted(id));
     if (endIds.length) endIds.forEach((id) => markJobEnded(id));
@@ -237,7 +245,7 @@ const ServiceStatus = () => {
   // Dropdown data: real nodes fetched from backend, services remain static for now
   const [nodeOptions, setNodeOptions] = React.useState(['All']);
   const [nodeLoading, setNodeLoading] = React.useState(false);
-  const DUMMY_SERVICE_OPTIONS = ['All', 'nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
+  const DUMMY_SERVICE_OPTIONS = ['All', 'octavia','nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
   const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
   const nodeSelectOptions = React.useMemo(() => (
     nodeOptions.map(v => ({ label: v, value: v, disabled: selectedNodes.includes('All') && v !== 'All' }))
@@ -380,16 +388,19 @@ const ServiceStatus = () => {
       nodes.forEach((n) => services.forEach((s) => jobs.push({ action: 'reconfigure_node_service', node: n, service: s })));
     }
 
-    try {
-      // Immediately mark busy to prevent duplicate actions while requests are in-flight
-      try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
-      setOpsBusy(true);
-      await Promise.allSettled(jobs.map((p) => runKolla(p)));
-      // Fetch latest logs snapshot after starting
-      await fetchOperationLogs();
-    } finally {
-      setReconfigureOpen(false);
+    // Immediately mark busy to prevent duplicate actions while requests are in-flight
+    try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+    setOpsBusy(true);
+    // Close modal right after process starts
+    setReconfigureOpen(false);
+    const results = await Promise.allSettled(jobs.map((p) => runKolla(p)));
+    // If none started successfully, clear busy state to re-enable buttons
+    const anyStarted = results.some(r => r.status === 'fulfilled' && r.value && r.value.job_id);
+    if (!anyStarted) {
+      saveJobIds([]);
     }
+    // Fetch latest logs snapshot after starting
+    await fetchOperationLogs();
   };
 
   const handleDbRecoveryConfirm = async () => {
@@ -397,14 +408,17 @@ const ServiceStatus = () => {
       ...prev,
       `[${new Date().toLocaleTimeString()}] MariaDB Recovery: starting...`
     ]));
+    // Immediately mark busy and close modal after process starts
+    try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+    setOpsBusy(true);
+    setDbRecoveryOpen(false);
     try {
-      // Immediately mark busy to prevent duplicate actions while requests are in-flight
-      try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
-      setOpsBusy(true);
       await runKolla({ action: 'mariadb_recovery' });
-      await fetchOperationLogs();
+    } catch (_) {
+      // If start failed, clear busy
+      saveJobIds([]);
     } finally {
-      setDbRecoveryOpen(false);
+      await fetchOperationLogs();
     }
   };
 
