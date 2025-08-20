@@ -629,7 +629,7 @@ const ServiceStatus = () => {
                       aria-label="Reconfigure Service"
                       onClick={reconfigureService}
                       disabled={opsBusy}
-                      style={{ width: 220, flex: '0 0 auto' }}
+                      style={{ width: 190, flex: '0 0 auto' }}
                     >
                       Reconfigure Service
                     </Button>
@@ -639,7 +639,7 @@ const ServiceStatus = () => {
                       aria-label="Database Recovery"
                       onClick={databaseRecovery}
                       disabled={opsBusy}
-                      style={{ width: 220, flex: '0 0 auto' }}
+                      style={{ width: 190, flex: '0 0 auto' }}
                     >
                       Database Recovery
                     </Button>
