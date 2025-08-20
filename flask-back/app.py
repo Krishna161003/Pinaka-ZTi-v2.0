@@ -20,6 +20,8 @@ import shlex
 from typing import Optional
 import threading
 import datetime
+import uuid
+import zipfile
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -2169,6 +2171,174 @@ def health():
 
 
 #--------------------------------------------Openstack Operation End-------------------------------------------
+
+#--------------------------------------------Lifecycle Management Start-------------------------------------------
+
+UPLOAD_FOLDER = "/home/pinakasupport/.pinaka_wd/lifecycle/"
+ZIP_PASSWORD = b"1@P1@n@k@1609zip123"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+JOBS_DIR = os.path.join(UPLOAD_FOLDER, "jobs")
+os.makedirs(JOBS_DIR, exist_ok=True)
+
+def _job_file(job_id: str) -> str:
+    return os.path.join(JOBS_DIR, f"{job_id}.json")
+
+def save_job_status(job_id: str, data: dict):
+    tmp_path = _job_file(job_id) + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp_path, _job_file(job_id))
+
+def load_job_status(job_id: str) -> Optional[dict]:
+    path = _job_file(job_id)
+    if not os.path.exists(path):
+        return None
+    with open(path, "r") as f:
+        return json.load(f)
+
+def is_zip_encrypted(zip_path):
+    """Check if the ZIP file is encrypted."""
+    with zipfile.ZipFile(zip_path) as zf:
+        try:
+            zf.testzip()  # Try reading without a password
+            return False  # If it succeeds, it's NOT encrypted
+        except RuntimeError:
+            return True  # If it raises an error, it's encrypted
+
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files["file"]
+    if not file.filename.endswith(".zip"):
+        return jsonify({"error": "Only .zip files are allowed"}), 400
+
+    filename = file.filename
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    extract_folder = os.path.join(UPLOAD_FOLDER, filename[:-4])
+    file.save(file_path)
+
+    job_id = str(uuid.uuid4())
+    job_status = {
+        "job_id": job_id,
+        "filename": filename,
+        "created_at": int(time.time()),
+        "state": "queued",
+        "message": "Upload received",
+    }
+    save_job_status(job_id, job_status)
+
+    def process_upload(job_id: str, file_path: str, extract_folder: str):
+        is_valid = True
+        readme_content = "README file not found."
+        status = load_job_status(job_id) or {}
+        try:
+            # Mark as running
+            status.update({
+                "state": "running",
+                "message": "Script starting",
+                "started_at": int(time.time()),
+            })
+            save_job_status(job_id, status)
+
+            # Check encryption
+            if not is_zip_encrypted(file_path):
+                raise ValueError("ZIP file is not PP")
+
+            # Extract using password
+            with zipfile.ZipFile(file_path) as zf:
+                try:
+                    zf.extractall(extract_folder, pwd=ZIP_PASSWORD)
+                except RuntimeError:
+                    raise ValueError("Invalid code")
+
+            # Validate structure
+            pinaka_folder = os.path.join(extract_folder, "pinaka")
+            if not os.path.exists(pinaka_folder) or not os.path.isdir(pinaka_folder):
+                raise ValueError("Invalid file structure")
+
+            # Read README
+            readme_file_path = os.path.join(pinaka_folder, "README")
+            if os.path.exists(readme_file_path):
+                with open(readme_file_path, "r") as readme_file:
+                    readme_content = readme_file.read()
+
+            # Ensure only upgrade.sh exists
+            shell_scripts = [f for f in os.listdir(pinaka_folder) if f.endswith(".sh")]
+            if len(shell_scripts) != 1 or "upgrade.sh" not in shell_scripts:
+                raise ValueError("Invalid file(s) found")
+
+            upgrade_script = os.path.join(pinaka_folder, "upgrade.sh")
+            os.chmod(upgrade_script, 0o755)
+
+            # Run script
+            result = subprocess.run(
+                ["sudo", "bash", upgrade_script],
+                cwd=pinaka_folder,
+                capture_output=True,
+                text=True,
+            )
+
+            # Update final status
+            terminal = {
+                "finished_at": int(time.time()),
+                "output": result.stdout,
+                "errors": result.stderr,
+                "readme": readme_content,
+            }
+            if result.returncode == 0:
+                status.update({"state": "succeeded", "message": "Script finished successfully", **terminal})
+            else:
+                is_valid = False
+                status.update({
+                    "state": "failed",
+                    "message": f"Script exited with code {result.returncode}",
+                    **terminal
+                })
+            save_job_status(job_id, status)
+
+        except ValueError as e:
+            is_valid = False
+            status.update({
+                "state": "failed",
+                "message": str(e),
+                "finished_at": int(time.time()),
+            })
+            save_job_status(job_id, status)
+        except Exception as e:
+            is_valid = False
+            status.update({
+                "state": "failed",
+                "message": f"Unexpected error: {str(e)}",
+                "finished_at": int(time.time()),
+            })
+            save_job_status(job_id, status)
+        finally:
+            if not is_valid:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+                if os.path.exists(extract_folder):
+                    os.system(f"rm -rf {extract_folder}")
+
+    threading.Thread(target=process_upload, args=(job_id, file_path, extract_folder), daemon=True).start()
+
+    return jsonify({"job_id": job_id, "status": "queued", "message": "Upload received"}), 202
+
+@app.route("/upload/status/<job_id>", methods=["GET"])
+def upload_status(job_id):
+    status = load_job_status(job_id)
+    if not status:
+        return jsonify({"error": "Job not found"}), 404
+    return jsonify(status), 200
+
+
+#--------------------------------------------Lifecycle Management End-------------------------------------------
+
 
 if __name__ == "__main__":
     app.run(
