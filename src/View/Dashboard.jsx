@@ -1218,13 +1218,12 @@ const Dashboard = () => {
                           }
                         }}
                         yAxis={{
+                          min: 0,
+                          max: 100,
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          min: 0,
-                          max: 100,
-                          ticks: [10, 30, 50, 70, 100],
-                          nice: false,
+                          ticks: [0, 20, 40, 60, 80, 100],
                         }}
                       />
                     </div>
@@ -1281,13 +1280,13 @@ const Dashboard = () => {
                           }
                         }}
                         yAxis={{
+                          min: 0,
+                          max: 100,
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          min: 0,
-                          max: 100,
-                          ticks: [10, 30, 50, 70, 100],
-                        }}
+                          ticks: [0, 20, 40, 60, 80, 100],
+                        }}                        
                       />
                     </div>
                   </div>
