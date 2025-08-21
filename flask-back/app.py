@@ -10,6 +10,8 @@ import paramiko
 import re
 import subprocess
 import time
+import urllib.request
+import ssl
 import ipaddress
 import netifaces
 import logging
@@ -2238,7 +2240,7 @@ def upload_file():
     }
     save_job_status(job_id, job_status)
 
-    def process_upload(job_id: str, file_path: str, extract_folder: str):
+    def process_upload(job_id: str, file_path: str, extract_folder: str, host_ip: str):
         is_valid = True
         readme_content = "README file not found."
         status = load_job_status(job_id) or {}
@@ -2307,6 +2309,37 @@ def upload_file():
                 })
             save_job_status(job_id, status)
 
+            # On success, push lifecycle history to Node backend
+            if status.get("state") == "succeeded":
+                try:
+                    info_line = None
+                    if readme_content:
+                        for line in readme_content.splitlines():
+                            m = re.search(r"^\s*INFO\s*:\s*(.+)$", line, re.IGNORECASE)
+                            if m:
+                                info_line = m.group(1).strip()
+                                break
+                    if not info_line:
+                        info_line = "Patch applied"
+
+                    payload = {
+                        "id": job_id,
+                        "info": info_line,
+                        # finished_at is epoch seconds; Node accepts number and normalizes
+                        "date": status.get("finished_at") or int(time.time()),
+                    }
+                    url = f"https://{host_ip}:5000/api/lifecycle-history"
+                    # Best-effort; ignore SSL in local dev and time out quickly
+                    data_bytes = json.dumps(payload).encode("utf-8")
+                    req = urllib.request.Request(url, data=data_bytes, headers={"Content-Type": "application/json"}, method="POST")
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
+                        _ = resp.read()
+                except Exception as ex:
+                    logging.exception("Failed to store lifecycle history in Node backend: %s", ex)
+
         except ValueError as e:
             is_valid = False
             status.update({
@@ -2333,7 +2366,19 @@ def upload_file():
                 if os.path.exists(extract_folder):
                     os.system(f"rm -rf {extract_folder}")
 
-    threading.Thread(target=process_upload, args=(job_id, file_path, extract_folder), daemon=True).start()
+    # Accept host_ip from client, fallback to request host header (e.g. 10.0.0.5:2020 -> 10.0.0.5)
+    try:
+        host_ip = (
+            request.form.get("host_ip") or
+            ((request.get_json(silent=True) or {}).get("host_ip")) or
+            request.args.get("host_ip") or
+            request.headers.get("X-Host-IP") or
+            (request.host or "").split(":")[0] or
+            "localhost"
+        )
+    except Exception:
+        host_ip = "localhost"
+    threading.Thread(target=process_upload, args=(job_id, file_path, extract_folder, host_ip), daemon=True).start()
 
     return jsonify({"job_id": job_id, "status": "queued", "message": "Upload received"}), 202
 

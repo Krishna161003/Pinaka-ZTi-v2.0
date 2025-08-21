@@ -1617,6 +1617,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       provider_gateway: gateway && String(gateway).trim() !== '' ? gateway : 'N/A',
       provider_startingip: startingIp && String(startingIp).trim() !== '' ? startingIp : 'N/A',
       provider_endingip: endingIp && String(endingIp).trim() !== '' ? endingIp : 'N/A',
+      tenant_cidr: '10.0.0.0/24',
+      tenant_gateway: '10.0.0.1',
+      tenant_nameserver: '8.8.8.8',
     };
     Object.entries(configs).forEach(([ip, form]) => {
       const base = buildDeployConfigPayload({ ...form, hostname: hostnameMap[ip] || form?.hostname });
