@@ -525,9 +525,11 @@ const Dashboard = () => {
     const pct = Math.max(0, Math.min(100, (used / total) * 100));
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 180, height: 6, background: '#eaeef5', borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ width: `${pct}%`, height: '100%', background: color }} />
-        </div>
+        <Tooltip title={`${pct.toFixed(2)}%`}>
+          <div style={{ width: 180, height: 6, background: '#eaeef5', borderRadius: 4, overflow: 'hidden', cursor: 'pointer' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: color }} />
+          </div>
+        </Tooltip>
         <span style={{ fontSize: 12, color: '#2c3e50' }}>{used} / {total}</span>
       </div>
     );
