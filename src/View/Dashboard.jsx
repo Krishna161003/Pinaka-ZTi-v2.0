@@ -1189,28 +1189,38 @@ const Dashboard = () => {
                     <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
                       Current: {cpuData.toFixed(1)}%
                     </div>
-                    <div style={{ height: '100px' }}>
-                      <Area
-                        data={cpuHistory}
+                    <div style={{ height: '180px' }}>
+                      <Line
+                        data={[
+                          { date: '00:00', cpu: 20 },
+                          { date: '03:00', cpu: 45 },
+                          { date: '06:00', cpu: 28 },
+                          { date: '09:00', cpu: 65 },
+                          { date: '12:00', cpu: 75 },
+                          { date: '15:00', cpu: 52 },
+                          { date: '18:00', cpu: 38 },
+                          { date: '21:00', cpu: 25 },
+                        ]}
                         xField="date"
                         yField="cpu"
                         height={180}
-                        smooth={true}
-                        // Y axis in percentage with ticks at 10,20,...,100
+                        color="#1890ff"
+                        point={{
+                          size: 4,
+                          style: {
+                            fill: '#1890ff',
+                            stroke: '#fff',
+                            lineWidth: 1,
+                          },
+                        }}
                         yAxis={{
                           label: {
                             formatter: (v) => `${v}%`,
                           },
+                          min: 0,
+                          max: 100,
+                          tickInterval: 20,
                         }}
-                        meta={{
-                          cpu: {
-                            min: 0,
-                            max: 100,
-                            tickInterval: 10,
-                          },
-                        }}
-                        areaStyle={{ fill: 'l(270) 0:#1890ff 0.5:#e6f7ff 1:#ffffff' }}
-                        line={{ color: '#1890ff' }}
                       />
                     </div>
                   </div>
@@ -1238,8 +1248,39 @@ const Dashboard = () => {
                       Used: {usedMemory} MB / {totalMemory} MB
                       Usage: {memoryData.toFixed(1)}%
                     </div>
-                    <div style={{ height: '80px' }}>
-                      <Area {...memoryconfig} />
+                    <div style={{ height: '180px' }}>
+                      <Line
+                        data={[
+                          { date: '00:00', memory: 30 },
+                          { date: '03:00', memory: 55 },
+                          { date: '06:00', memory: 48 },
+                          { date: '09:00', memory: 75 },
+                          { date: '12:00', memory: 82 },
+                          { date: '15:00', memory: 65 },
+                          { date: '18:00', memory: 58 },
+                          { date: '21:00', memory: 42 },
+                        ]}
+                        xField="date"
+                        yField="memory"
+                        height={180}
+                        color="#52c41a"
+                        point={{
+                          size: 4,
+                          style: {
+                            fill: '#52c41a',
+                            stroke: '#fff',
+                            lineWidth: 1,
+                          },
+                        }}
+                        yAxis={{
+                          label: {
+                            formatter: (v) => `${v}%`,
+                          },
+                          min: 0,
+                          max: 100,
+                          tickInterval: 20,
+                        }}
+                      />
                     </div>
                   </div>
                 </Col>
