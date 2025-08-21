@@ -1219,7 +1219,8 @@ const Dashboard = () => {
                           },
                           min: 0,
                           max: 100,
-                          tickInterval: 20,
+                          tickCount: 6,
+                          nice: false,
                         }}
                       />
                     </div>
