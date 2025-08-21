@@ -275,13 +275,14 @@ const Dashboard = () => {
       data: memoryHistory,
       xField: 'date',
       yField: 'memory',
-      color: '#52c41a',
+      // color: '#52c41a',
       point: {
         shapeField: 'circle',
         sizeField: 2,
       },
       style: {
         lineWidth: 1,
+        stroke: '#52c41a',
       },
       yAxis: {
         min: 0,
