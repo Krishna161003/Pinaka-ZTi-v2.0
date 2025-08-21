@@ -1204,18 +1204,37 @@ const Dashboard = () => {
                         color="#1890ff"
                         point={{
                           size: 4,
-                          style: { fill: '#1890ff', stroke: '#fff', lineWidth: 1 },
+                          style: {
+                            fill: '#1890ff',
+                            stroke: '#fff',
+                            lineWidth: 1,
+                          },
                         }}
-                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, label: { autoRotate: true } }}
                         scale={{
-                          cpu: { type: 'linear', domain: [0, 100], nice: false },
-                          date: { type: 'time', mask: 'HH:mm:ss' },
+                          cpu: {
+                            type: 'linear',
+                            domain: [0, 100],  // This forces the y-axis to be 0-100
+                            nice: false,       // Prevents automatic "nice" scaling
+                          },
+                          date: {
+                            type: 'time',
+                            mask: 'HH:mm:ss'
+                          }
                         }}
-                        yAxis={{
-                          label: { formatter: (v) => `${v}%` },
-                          ticks: [0, 20, 40, 60, 80, 100], // more intuitive ticks
+                        axis={{
+                          x: {
+                            mask: 'HH:mm:ss',
+                            tickCount: 6,
+                            label: { autoRotate: true }
+                          },
+                          y: {
+                            label: {
+                              formatter: (v) => `${v}%`
+                            }
+                          }
                         }}
                       />
+
                     </div>
                   </div>
                 </Col>
@@ -1263,29 +1282,26 @@ const Dashboard = () => {
                         }}
                         scale={{
                           memory: {
-                            min: 0,
-                            max: 100,
-                            nice: false,
-                            type: 'linear'
+                            type: 'linear',
+                            domain: [0, 100],  // This forces the y-axis to be 0-100
+                            nice: false,       // Prevents automatic "nice" scaling
                           },
                           date: {
                             type: 'time',
                             mask: 'HH:mm:ss'
                           }
                         }}
-                        xAxis={{
-                          type: 'time',
-                          mask: 'HH:mm:ss',
-                          tickCount: 6,
-                          label: { autoRotate: true }
-                        }}
-                        yAxis={{
-                          label: {
-                            formatter: (v) => `${v}%`
+                        axis={{
+                          x: {
+                            mask: 'HH:mm:ss',
+                            tickCount: 6,
+                            label: { autoRotate: true }
                           },
-                          min: 0,
-                          max: 100,
-                          tickCount: 6
+                          y: {
+                            label: {
+                              formatter: (v) => `${v}%`
+                            }
+                          }
                         }}
                       />
 
