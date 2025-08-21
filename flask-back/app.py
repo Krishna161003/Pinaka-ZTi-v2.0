@@ -1930,6 +1930,9 @@ def get_osd_count():
 
         return jsonify(data)
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 # ----- Paths & env -----
@@ -1952,7 +1955,7 @@ def ensure_paths():
 
 
 def timestamp():
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def log_line(text: str):
