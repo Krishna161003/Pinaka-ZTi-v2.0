@@ -1204,7 +1204,15 @@ const Dashboard = () => {
                             lineWidth: 1,
                           },
                         }}
-                        xAxis={{ type: 'time' }}
+                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, nice: true, label: { autoRotate: true } }}
+                        meta={{
+                          date: { type: 'time', mask: 'HH:mm:ss' },
+                          cpu: {
+                            min: 0,
+                            max: 100,
+                            tickInterval: 20,
+                          }
+                        }}
                         yAxis={{
                           label: {
                             formatter: (v) => `${v}%`,
@@ -1255,7 +1263,15 @@ const Dashboard = () => {
                             lineWidth: 1,
                           },
                         }}
-                        xAxis={{ type: 'time' }}
+                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, nice: true, label: { autoRotate: true } }}
+                        meta={{
+                          date: { type: 'time', mask: 'HH:mm:ss' },
+                          memory: {
+                            min: 0,
+                            max: 100,
+                            tickInterval: 20,
+                          }
+                        }}
                         yAxis={{
                           label: {
                             formatter: (v) => `${v}%`,
