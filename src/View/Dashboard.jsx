@@ -251,10 +251,10 @@ const Dashboard = () => {
       data: cpuHistory,
       xField: 'date',
       yField: 'cpu',
-      point: {
-        shapeField: 'circle',
-        sizeField: 2,
-      },
+      // point: {
+      //   shapeField: 'circle',
+      //   sizeField: 2,
+      // },
       style: {
         lineWidth: 1,
       },
@@ -275,12 +275,11 @@ const Dashboard = () => {
       data: memoryHistory,
       xField: 'date',
       yField: 'memory',
-      // color: '#52c41a',
-      point: {
-        shapeField: 'circle',
-        sizeField: 2,
-        color: '#52c41a',
-      },
+      // point: {
+      //   shapeField: 'circle',
+      //   sizeField: 2,
+      //   color: '#52c41a',
+      // },
       style: {
         lineWidth: 1,
         stroke: '#52c41a',
