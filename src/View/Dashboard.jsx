@@ -561,7 +561,8 @@ const Dashboard = () => {
     let cancelled = false;
     const fetchResourceUsage = async () => {
       try {
-        const res = await fetch(`https://${hostIP}:2020/resource-usage`);
+        // const res = await fetch(`https://${hostIP}:2020/resource-usage`);
+        const res = await fetch('https://192.168.20.4:2020/resource-usage');
         const data = await res.json();
         if (!cancelled && data && !data.error) {
           setCloudStats({
