@@ -160,7 +160,7 @@ const Dashboard = () => {
                 ? (rawCpu <= 1 ? rawCpu * 100 : rawCpu)
                 : 0;
               return {
-                date: new Date(item.timestamp * 1000),
+                date: item.timestamp * 1000,
                 cpu: cpuVal
               };
             })
@@ -176,7 +176,7 @@ const Dashboard = () => {
                 ? (rawMem <= 1 ? rawMem * 100 : rawMem)
                 : 0;
               return {
-                date: new Date(item.timestamp * 1000),
+                date: item.timestamp * 1000,
                 memory: memVal
               };
             })
@@ -1204,6 +1204,7 @@ const Dashboard = () => {
                             lineWidth: 1,
                           },
                         }}
+                        xAxis={{ type: 'time' }}
                         yAxis={{
                           label: {
                             formatter: (v) => `${v}%`,
@@ -1254,6 +1255,7 @@ const Dashboard = () => {
                             lineWidth: 1,
                           },
                         }}
+                        xAxis={{ type: 'time' }}
                         yAxis={{
                           label: {
                             formatter: (v) => `${v}%`,
