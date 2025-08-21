@@ -157,7 +157,7 @@ const Dashboard = () => {
             data.cpu_history.map(item => {
               const rawCpu = item.cpu;
               const cpuVal = typeof rawCpu === 'number' && !isNaN(rawCpu)
-                ? (rawCpu <= 1 ? rawCpu * 100 : rawCpu)
+                ? rawCpu
                 : 0;
               return {
                 date: new Date(item.timestamp * 1000),
@@ -173,7 +173,7 @@ const Dashboard = () => {
             data.memory_history.map(item => {
               const rawMem = item.memory;
               const memVal = typeof rawMem === 'number' && !isNaN(rawMem)
-                ? (rawMem <= 1 ? rawMem * 100 : rawMem)
+                ? rawMem
                 : 0;
               return {
                 date: new Date(item.timestamp * 1000),
@@ -1208,7 +1208,7 @@ const Dashboard = () => {
                         meta={{
                           date: { type: 'time', mask: 'HH:mm:ss' },
                           cpu: {
-                            min: 10,
+                            min: 0,
                             max: 100,
                             tickInterval: 20,
                           }
@@ -1217,7 +1217,7 @@ const Dashboard = () => {
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          min: 10,
+                          min: 0,
                           max: 100,
                           tickCount: 6,
                           nice: false,
@@ -1268,7 +1268,7 @@ const Dashboard = () => {
                         meta={{
                           date: { type: 'time', mask: 'HH:mm:ss' },
                           memory: {
-                            min: 10,
+                            min: 0,
                             max: 100,
                             tickInterval: 20,
                           }
@@ -1277,7 +1277,7 @@ const Dashboard = () => {
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          min: 10,
+                          min: 0,
                           max: 100,
                           tickInterval: 20,
                         }}
