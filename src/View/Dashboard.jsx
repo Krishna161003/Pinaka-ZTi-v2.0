@@ -152,13 +152,20 @@ const Dashboard = () => {
       try {
         const res = await fetch(`https://${selectedHostIP}:2020/system-utilization-history`);
         const data = await res.json();
-        if (data && Array.isArray(data.cpu_history)) {
+        // Detect if values are in fractions (0-1) and convert to 0-100 if needed
+        const cpuHistIn = Array.isArray(data?.cpu_history) ? data.cpu_history : [];
+        const memHistIn = Array.isArray(data?.memory_history) ? data.memory_history : [];
+
+        const maxCpuVal = cpuHistIn.length ? Math.max(...cpuHistIn.map(i => (typeof i.cpu === 'number' ? i.cpu : parseFloat(i.cpu) || 0))) : 0;
+        const maxMemVal = memHistIn.length ? Math.max(...memHistIn.map(i => (typeof i.memory === 'number' ? i.memory : parseFloat(i.memory) || 0))) : 0;
+        const cpuIsFraction = maxCpuVal > 0 && maxCpuVal <= 1.5;
+        const memIsFraction = maxMemVal > 0 && maxMemVal <= 1.5;
+
+        if (cpuHistIn.length) {
           setCpuHistory(
-            data.cpu_history.map(item => {
-              const rawCpu = item.cpu;
-              const cpuVal = typeof rawCpu === 'number' && !isNaN(rawCpu)
-                ? rawCpu
-                : 0;
+            cpuHistIn.map(item => {
+              const rawCpu = (typeof item.cpu === 'number' ? item.cpu : parseFloat(item.cpu)) || 0;
+              const cpuVal = cpuIsFraction ? rawCpu * 100 : rawCpu;
               return {
                 date: new Date(item.timestamp * 1000),
                 cpu: cpuVal
@@ -168,13 +175,12 @@ const Dashboard = () => {
         } else {
           setCpuHistory([]);
         }
-        if (data && Array.isArray(data.memory_history)) {
+
+        if (memHistIn.length) {
           setMemoryHistory(
-            data.memory_history.map(item => {
-              const rawMem = item.memory;
-              const memVal = typeof rawMem === 'number' && !isNaN(rawMem)
-                ? rawMem
-                : 0;
+            memHistIn.map(item => {
+              const rawMem = (typeof item.memory === 'number' ? item.memory : parseFloat(item.memory)) || 0;
+              const memVal = memIsFraction ? rawMem * 100 : rawMem;
               return {
                 date: new Date(item.timestamp * 1000),
                 memory: memVal
