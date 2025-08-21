@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Layout1 from "../Components/layout";
-import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message } from "antd";
+import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
+import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
 import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.jpeg";
@@ -71,6 +72,7 @@ const Dashboard = () => {
   const [currentBandwidth, setCurrentBandwidth] = useState(0);
   const [chartData, setChartData] = useState([]);
   const [healthStatus, setHealthStatus] = useState("Loading");
+  const [healthDetails, setHealthDetails] = useState({ metrics: null, thresholds: null, reasons: [] });
   const [memoryData, setMemoryData] = useState(0);
   const [totalMemory, setTotalMemory] = useState(0);
   const [usedMemory, setUsedMemory] = useState(0);
@@ -443,9 +445,16 @@ const Dashboard = () => {
     const fetchHealth = async () => {
       try {
         const res = await axios.get(`https://${selectedHostIP}:2020/check-health`);
-        setHealthStatus(res.data.status.toUpperCase());
+        const data = res.data || {};
+        setHealthStatus((data.status || 'ERROR').toUpperCase());
+        setHealthDetails({
+          metrics: data.metrics || null,
+          thresholds: data.thresholds || null,
+          reasons: Array.isArray(data.reasons) ? data.reasons : []
+        });
       } catch (err) {
         setHealthStatus("ERROR");
+        setHealthDetails({ metrics: null, thresholds: null, reasons: [] });
       }
     };
 
@@ -980,7 +989,48 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      Health Check
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Health Check
+                        <Tooltip
+                          placement="right"
+                          title={(() => {
+                            const reasons = healthDetails.reasons || [];
+                            const m = healthDetails.metrics || {};
+                            const t = healthDetails.thresholds || {};
+                            const lines = [];
+                            if (reasons.length > 0) {
+                              reasons.forEach(r => {
+                                lines.push(`${r.metric}: ${r.level} — actual ${r.actual}% > ${r.level === 'CRITICAL' ? (t[r.metric?.toLowerCase()]?.critical ?? r.threshold) : (t[r.metric?.toLowerCase()]?.warning ?? r.threshold)}%`);
+                              });
+                            } else if (healthStatus === 'GOOD') {
+                              lines.push('All metrics are below warning thresholds');
+                            }
+                            // Show current vs thresholds
+                            const metricsBlock = [
+                              typeof m.cpu_usage_percent === 'number' ? `CPU: ${m.cpu_usage_percent}% (warn ${t.cpu?.warning ?? '—'}%, crit ${t.cpu?.critical ?? '—'}%)` : null,
+                              typeof m.memory_usage_percent === 'number' ? `Memory: ${m.memory_usage_percent}% (warn ${t.memory?.warning ?? '—'}%, crit ${t.memory?.critical ?? '—'}%)` : null,
+                              typeof m.disk_usage_percent === 'number' ? `Disk: ${m.disk_usage_percent}% (warn ${t.disk?.warning ?? '—'}%, crit ${t.disk?.critical ?? '—'}%)` : null,
+                            ].filter(Boolean);
+                            return (
+                              <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                                <div style={{ fontWeight: 600, marginBottom: 4 }}>Status: {healthStatus}</div>
+                                {lines.length > 0 && (
+                                  <div style={{ marginBottom: 4 }}>
+                                    {lines.map((l, i) => (<div key={i}>{l}</div>))}
+                                  </div>
+                                )}
+                                {metricsBlock.length > 0 && (
+                                  <div>
+                                    {metricsBlock.map((l, i) => (<div key={i}>{l}</div>))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        >
+                          <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                        </Tooltip>
+                      </span>
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div
@@ -1005,7 +1055,7 @@ const Dashboard = () => {
                 <Col className="gutter-row" span={7} style={performancewidgetStyle}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Bandwidth Latency</span>
+                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Latency</span>
                       <Select
                         style={{ width: 100 }}
                         value={selectedInterface}

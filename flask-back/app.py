@@ -992,6 +992,7 @@ def get_disks():
 
 # ------------------- System Utilization Endpoint -------------------
 import psutil
+
 @app.route('/system-utilization', methods=['GET'])
 def system_utilization():
     try:
@@ -1148,13 +1149,36 @@ def get_local_health_status():
         elif cpu_usage > CPU_WARNING or mem_usage > MEM_WARNING or disk_usage > DISK_WARNING:
             status = "Warning"
 
+        # Build reasons per metric
+        reasons = []
+        if cpu_usage > CPU_CRITICAL:
+            reasons.append({"metric": "CPU", "level": "CRITICAL", "actual": round(cpu_usage, 2), "threshold": CPU_CRITICAL})
+        elif cpu_usage > CPU_WARNING:
+            reasons.append({"metric": "CPU", "level": "WARNING", "actual": round(cpu_usage, 2), "threshold": CPU_WARNING})
+
+        if mem_usage > MEM_CRITICAL:
+            reasons.append({"metric": "Memory", "level": "CRITICAL", "actual": round(mem_usage, 2), "threshold": MEM_CRITICAL})
+        elif mem_usage > MEM_WARNING:
+            reasons.append({"metric": "Memory", "level": "WARNING", "actual": round(mem_usage, 2), "threshold": MEM_WARNING})
+
+        if disk_usage > DISK_CRITICAL:
+            reasons.append({"metric": "Disk", "level": "CRITICAL", "actual": round(disk_usage, 2), "threshold": DISK_CRITICAL})
+        elif disk_usage > DISK_WARNING:
+            reasons.append({"metric": "Disk", "level": "WARNING", "actual": round(disk_usage, 2), "threshold": DISK_WARNING})
+
         return {
             "status": status,
             "metrics": {
                 "cpu_usage_percent": round(cpu_usage, 2),
                 "memory_usage_percent": round(mem_usage, 2),
                 "disk_usage_percent": round(disk_usage, 2)
-            }
+            },
+            "thresholds": {
+                "cpu": {"warning": CPU_WARNING, "critical": CPU_CRITICAL},
+                "memory": {"warning": MEM_WARNING, "critical": MEM_CRITICAL},
+                "disk": {"warning": DISK_WARNING, "critical": DISK_CRITICAL}
+            },
+            "reasons": reasons
         }
 
     except Exception as e:
