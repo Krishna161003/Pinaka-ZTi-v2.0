@@ -253,10 +253,10 @@ const Dashboard = () => {
       yField: 'cpu',
       point: {
         shapeField: 'circle',
-        sizeField: 1,
+        sizeField: 2,
       },
       style: {
-        lineWidth: 2,
+        lineWidth: 1,
       },
       yAxis: {
         min: 0,
@@ -278,10 +278,10 @@ const Dashboard = () => {
       color: '#52c41a',
       point: {
         shapeField: 'circle',
-        sizeField: 1,
+        sizeField: 2,
       },
       style: {
-        lineWidth: 2,
+        lineWidth: 1,
       },
       yAxis: {
         min: 0,
