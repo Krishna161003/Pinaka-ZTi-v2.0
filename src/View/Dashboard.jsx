@@ -782,30 +782,6 @@ const Dashboard = () => {
       <Layout>
         <Content>
           <div>
-            {/* Cloud section - Full width */}
-            <Row gutter={16} style={{ margin: "0 18px 0 20px" }}>
-              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%' } : { ...style, width: '100%' }}
-                onClick={() => navigateToIaasTab("1")}
-                onMouseEnter={() => setHoveredCard('cloud')}
-                onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={cloud} alt="cloud--v1" style={{ width: "64px", height: "64px", userSelect: "none" }} />
-                    <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Cloud</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
-                    <span style={{ 
-                      fontSize: "24px", 
-                      fontWeight: "600", 
-                      color: "#1890ff", 
-                      userSelect: "none",
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px'
-                    }}>{cloudName || 'N/A'}</span>
-                  </div>
-                </div>
-              </Col>
-            </Row>
 
             {/* Second row: Flight Deck, Squadron, and OSD */}
             <Row gutter={16} justify="space-between" style={{ marginLeft: "20px", marginTop: "5px" }}>
@@ -881,6 +857,30 @@ const Dashboard = () => {
                       <span style={{ color: '#e0e0e0' }}>|</span>
                       <span style={{ color: '#2196f3' }}>Up <strong>{osdCounts.up_osds}</strong></span>
                     </div>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+            {/* Cloud section - Full width (moved below) */}
+            <Row gutter={16} style={{ margin: "0 18px 0 20px" }}>
+              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%' } : { ...style, width: '100%' }}
+                onClick={() => navigateToIaasTab("1")}
+                onMouseEnter={() => setHoveredCard('cloud')}
+                onMouseLeave={() => setHoveredCard(null)}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
+                    <img src={cloud} alt="cloud--v1" style={{ width: "64px", height: "64px", userSelect: "none" }} />
+                    <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Cloud</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                    <span style={{ 
+                      fontSize: "24px", 
+                      fontWeight: "600", 
+                      color: "#1890ff", 
+                      userSelect: "none",
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>{cloudName || 'N/A'}</span>
                   </div>
                 </div>
               </Col>
@@ -979,59 +979,57 @@ const Dashboard = () => {
                 </Col>
                 <Col className="gutter-row" span={7} style={performancewidgetStyle}>
                   <div>
-                    <span
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "500",
-                        marginLeft: "1px",
-                        userSelect: "none",
-                        display: "block",
-                        marginBottom: "8px"
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: "500",
+                          marginLeft: "1px",
+                          userSelect: "none",
+                        }}
+                      >
                         Health Check
-                        <Tooltip
-                          placement="right"
-                          title={(() => {
-                            const reasons = healthDetails.reasons || [];
-                            const m = healthDetails.metrics || {};
-                            const t = healthDetails.thresholds || {};
-                            const lines = [];
-                            if (reasons.length > 0) {
-                              reasons.forEach(r => {
-                                lines.push(`${r.metric}: ${r.level} — actual ${r.actual}% > ${r.level === 'CRITICAL' ? (t[r.metric?.toLowerCase()]?.critical ?? r.threshold) : (t[r.metric?.toLowerCase()]?.warning ?? r.threshold)}%`);
-                              });
-                            } else if (healthStatus === 'GOOD') {
-                              lines.push('All metrics are below warning thresholds');
-                            }
-                            // Show current vs thresholds
-                            const metricsBlock = [
-                              typeof m.cpu_usage_percent === 'number' ? `CPU: ${m.cpu_usage_percent}% (warn ${t.cpu?.warning ?? '—'}%, crit ${t.cpu?.critical ?? '—'}%)` : null,
-                              typeof m.memory_usage_percent === 'number' ? `Memory: ${m.memory_usage_percent}% (warn ${t.memory?.warning ?? '—'}%, crit ${t.memory?.critical ?? '—'}%)` : null,
-                              typeof m.disk_usage_percent === 'number' ? `Disk: ${m.disk_usage_percent}% (warn ${t.disk?.warning ?? '—'}%, crit ${t.disk?.critical ?? '—'}%)` : null,
-                            ].filter(Boolean);
-                            return (
-                              <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-                                <div style={{ fontWeight: 600, marginBottom: 4 }}>Status: {healthStatus}</div>
-                                {lines.length > 0 && (
-                                  <div style={{ marginBottom: 4 }}>
-                                    {lines.map((l, i) => (<div key={i}>{l}</div>))}
-                                  </div>
-                                )}
-                                {metricsBlock.length > 0 && (
-                                  <div>
-                                    {metricsBlock.map((l, i) => (<div key={i}>{l}</div>))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        >
-                          <InfoCircleOutlined style={{ color: '#1890ff' }} />
-                        </Tooltip>
                       </span>
-                    </span>
+                      <Tooltip
+                        placement="right"
+                        title={(() => {
+                          const reasons = healthDetails.reasons || [];
+                          const m = healthDetails.metrics || {};
+                          const t = healthDetails.thresholds || {};
+                          const lines = [];
+                          if (reasons.length > 0) {
+                            reasons.forEach(r => {
+                              lines.push(`${r.metric}: ${r.level} — actual ${r.actual}% > ${r.level === 'CRITICAL' ? (t[r.metric?.toLowerCase()]?.critical ?? r.threshold) : (t[r.metric?.toLowerCase()]?.warning ?? r.threshold)}%`);
+                            });
+                          } else if (healthStatus === 'GOOD') {
+                            lines.push('All metrics are below warning thresholds');
+                          }
+                          // Show current vs thresholds
+                          const metricsBlock = [
+                            typeof m.cpu_usage_percent === 'number' ? `CPU: ${m.cpu_usage_percent}% (warn ${t.cpu?.warning ?? '—'}%, crit ${t.cpu?.critical ?? '—'}%)` : null,
+                            typeof m.memory_usage_percent === 'number' ? `Memory: ${m.memory_usage_percent}% (warn ${t.memory?.warning ?? '—'}%, crit ${t.memory?.critical ?? '—'}%)` : null,
+                            typeof m.disk_usage_percent === 'number' ? `Disk: ${m.disk_usage_percent}% (warn ${t.disk?.warning ?? '—'}%, crit ${t.disk?.critical ?? '—'}%)` : null,
+                          ].filter(Boolean);
+                          return (
+                            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                              <div style={{ fontWeight: 600, marginBottom: 4 }}>Status: {healthStatus}</div>
+                              {lines.length > 0 && (
+                                <div style={{ marginBottom: 4 }}>
+                                  {lines.map((l, i) => (<div key={i}>{l}</div>))}
+                                </div>
+                              )}
+                              {metricsBlock.length > 0 && (
+                                <div>
+                                  {metricsBlock.map((l, i) => (<div key={i}>{l}</div>))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      >
+                        <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                      </Tooltip>
+                    </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div
                       style={{
