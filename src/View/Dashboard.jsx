@@ -5,7 +5,6 @@ import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
 import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.jpeg";
-import cloud from "../Images/cloud-computing_660475.png";
 import squad from "../Images/Squadron.png";
 import osd from "../Images/OSD.jpeg";
 import { Area, Line } from '@ant-design/plots';
@@ -869,8 +868,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={cloud} alt="cloud--v1" style={{ width: "64px", height: "64px", userSelect: "none" }} />
-                    <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Cloud</span>
+                    <span style={{ fontSize: "16px", fontWeight: "600", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
                     <span style={{ 
