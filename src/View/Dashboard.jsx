@@ -1249,26 +1249,46 @@ const Dashboard = () => {
                         yField="memory"
                         height={180}
                         color="#52c41a"
-                        lineStyle={{ stroke: '#52c41a', lineWidth: 2 }}
+                        lineStyle={{
+                          stroke: '#52c41a',
+                          lineWidth: 2,
+                        }}
                         point={{
                           size: 4,
-                          style: { fill: '#52c41a', stroke: '#fff', lineWidth: 1 },
+                          style: {
+                            fill: '#52c41a',
+                            stroke: '#fff',
+                            lineWidth: 1,
+                          },
+                        }}
+                        scale={{
+                          memory: {
+                            min: 0,
+                            max: 100,
+                            nice: false,
+                            type: 'linear'
+                          },
+                          date: {
+                            type: 'time',
+                            mask: 'HH:mm:ss'
+                          }
                         }}
                         xAxis={{
                           type: 'time',
                           mask: 'HH:mm:ss',
                           tickCount: 6,
-                          label: { autoRotate: true },
-                        }}
-                        scale={{
-                          memory: { type: 'linear', domain: [0, 100], nice: false },
-                          date: { type: 'time', mask: 'HH:mm:ss' },
+                          label: { autoRotate: true }
                         }}
                         yAxis={{
-                          label: { formatter: (v) => `${v}%` },
-                          ticks: [0, 20, 40, 60, 80, 100],
+                          label: {
+                            formatter: (v) => `${v}%`
+                          },
+                          min: 0,
+                          max: 100,
+                          tickCount: 6
                         }}
                       />
+
                     </div>
                   </div>
                 </Col>
