@@ -873,25 +873,25 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "8px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none",zoom: "1.1" }} />
+                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none", zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
                   </div>
                   <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>1</span>
                 </div>
               </Col>
-              
+
               <Col className="gutter-row" span={7} style={hoveredCard === 'squadron' ? hoverStyle : style}
                 onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('squadron')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none",zoom: "1.1" }} />
+                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none", zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
-                    <div style={{ 
+                    <div style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
@@ -911,18 +911,18 @@ const Dashboard = () => {
                   </div>
                 </div>
               </Col>
-              
+
               <Col className="gutter-row" span={7} style={hoveredCard === 'osd' ? hoverStyle : style}
                 onMouseEnter={() => setHoveredCard('osd')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "9px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none",zoom: "1.1" }} />
+                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>{osdCounts.total_osds}</span>
-                    <div style={{ 
+                    <div style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
@@ -955,10 +955,10 @@ const Dashboard = () => {
                     <span style={{ fontSize: "20px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "30px" }}>
-                    <span style={{ 
-                      fontSize: "20px", 
-                      fontWeight: "600", 
-                      color: "#1890ff", 
+                    <span style={{
+                      fontSize: "20px",
+                      fontWeight: "600",
+                      color: "#1890ff",
                       userSelect: "none",
                       textTransform: 'uppercase',
                       letterSpacing: '1px'
@@ -1172,11 +1172,11 @@ const Dashboard = () => {
                   </div>
                 </Col>
               </Row>
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px" }}>
+              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "270px" }}>
                 <Col
                   className="gutter-row"
                   span={11} // Each column takes up 7 spans
-                  style={{ ...performancewidgetStyle, padding: '10px 14px' }}
+                  style={performancewidgetStyle}
                 >
                   <div>
                     <span
@@ -1189,18 +1189,49 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      CPU Usage
+                      CPU Usage Trend
                     </span>
-                    <Divider style={{ margin: "0 0 8px 0" }} />
-                    <div style={{ fontSize: 22, color: '#333', marginTop: -6, fontWeight: 600 }}>
-                      {cpuData.toFixed(1)}%
+                    <Divider style={{ margin: "0 0 16px 0" }} />
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Current: {cpuData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <Line
+                        data={cpuHistory}
+                        xField="date"
+                        yField="cpu"
+                        height={180}
+                        color="#1890ff"
+                        point={{
+                          size: 4,
+                          style: {
+                            fill: '#1890ff',
+                            stroke: '#fff',
+                            lineWidth: 1,
+                          },
+                        }}
+                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, nice: true, label: { autoRotate: true } }}
+                        meta={{
+                          date: { type: 'time', mask: 'HH:mm:ss' },
+                          cpu: {
+                            alias: 'CPU Usage (%)',
+                          },
+                        }}
+                        yAxis={{
+                          label: {
+                            formatter: (v) => `${v}%`,
+                          },
+                          nice: true,   // ✅ Let Ant Design Charts auto-scale Y axis
+                        }}
+                      />
+
                     </div>
                   </div>
                 </Col>
                 <Col
                   className="gutter-row"
                   span={11} // Each column takes up 7 spans
-                  style={{ ...performancewidgetStyle, padding: '10px 14px' }}
+                  style={performancewidgetStyle}
                 >
                   <div>
                     <span
@@ -1213,12 +1244,47 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      Memory Usage
+                      Memory Usage Trend
                     </span>
-                    <Divider style={{ margin: "0 0 8px 0" }} />
-                    <div style={{ fontSize: 14, color: '#333' }}>
-                      <div style={{ marginBottom: 4 }}>Used: <strong>{usedMemory}</strong> MB / <strong>{totalMemory}</strong> MB</div>
-                      <div style={{ fontSize: 22, fontWeight: 600 }}>{memoryData.toFixed(1)}%</div>
+                    <Divider style={{ margin: "0 0 16px 0" }} />
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Used: {usedMemory} MB / {totalMemory} MB
+                      Usage: {memoryData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <Line
+                        data={memoryHistory}
+                        xField="date"
+                        yField="memory"
+                        height={180}
+                        color="#52c41a"
+                        lineStyle={{
+                          stroke: '#52c41a',
+                          lineWidth: 2,
+                        }}
+                        point={{
+                          size: 4,
+                          style: {
+                            fill: '#52c41a',
+                            stroke: '#fff',
+                            lineWidth: 1,
+                          },
+                        }}
+                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, nice: true, label: { autoRotate: true } }}
+                        meta={{
+                          date: { type: 'time', mask: 'HH:mm:ss' },
+                          memory: {
+                            min: 0,
+                            max: 100,
+                          }
+                        }}
+                        yAxis={{
+                          label: {
+                            formatter: (v) => `${v}%`,
+                          },
+                          nice: true,   // ✅ auto-fit range
+                        }}
+                      />
                     </div>
                   </div>
                 </Col>
