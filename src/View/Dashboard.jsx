@@ -862,17 +862,17 @@ const Dashboard = () => {
             </Row>
             {/* Cloud section - Full width (moved below) */}
             <Row gutter={16} style={{ margin: "0 18px 0 20px" }}>
-              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%' } : { ...style, width: '100%' }}
+              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%', padding: '12px 16px', marginTop: '10px' } : { ...style, width: '100%', padding: '12px 16px', marginTop: '10px' }}
                 onClick={() => navigateToIaasTab("1")}
                 onMouseEnter={() => setHoveredCard('cloud')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <span style={{ fontSize: "30px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "60px", justifyContent: "center", marginLeft: "20px" }}>
+                    <span style={{ fontSize: "20px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "30px" }}>
                     <span style={{ 
-                      fontSize: "24px", 
+                      fontSize: "20px", 
                       fontWeight: "600", 
                       color: "#1890ff", 
                       userSelect: "none",
