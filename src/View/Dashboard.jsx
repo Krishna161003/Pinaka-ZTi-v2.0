@@ -164,32 +164,31 @@ const Dashboard = () => {
         if (cpuHistIn.length) {
           setCpuHistory(
             cpuHistIn.map(item => {
-              const rawCpu = (typeof item.cpu === 'number' ? item.cpu : parseFloat(item.cpu)) || 0;
-              const cpuVal = cpuIsFraction ? rawCpu * 100 : rawCpu;
+              const rawCpu = Number(item.cpu) || 0;
+              // Always normalize into percentage
+              const cpuVal = rawCpu <= 1.5 ? rawCpu * 100 : rawCpu;
               return {
                 date: new Date(item.timestamp * 1000),
-                cpu: cpuVal
+                cpu: cpuVal,
               };
             })
           );
-        } else {
-          setCpuHistory([]);
         }
-
+        
         if (memHistIn.length) {
           setMemoryHistory(
             memHistIn.map(item => {
-              const rawMem = (typeof item.memory === 'number' ? item.memory : parseFloat(item.memory)) || 0;
-              const memVal = memIsFraction ? rawMem * 100 : rawMem;
+              const rawMem = Number(item.memory) || 0;
+              // Always normalize into percentage
+              const memVal = rawMem <= 1.5 ? rawMem * 100 : rawMem;
               return {
                 date: new Date(item.timestamp * 1000),
-                memory: memVal
+                memory: memVal,
               };
             })
           );
-        } else {
-          setMemoryHistory([]);
         }
+        
       } catch (err) {
         setCpuHistory([]);
         setMemoryHistory([]);
@@ -873,25 +872,25 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "8px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none", zoom: "1.1" }} />
+                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
                   </div>
                   <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>1</span>
                 </div>
               </Col>
-
+              
               <Col className="gutter-row" span={7} style={hoveredCard === 'squadron' ? hoverStyle : style}
                 onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('squadron')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none", zoom: "1.1" }} />
+                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
-                    <div style={{
+                    <div style={{ 
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
@@ -911,18 +910,18 @@ const Dashboard = () => {
                   </div>
                 </div>
               </Col>
-
+              
               <Col className="gutter-row" span={7} style={hoveredCard === 'osd' ? hoverStyle : style}
                 onMouseEnter={() => setHoveredCard('osd')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "9px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", zoom: "1.1" }} />
+                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none",zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>{osdCounts.total_osds}</span>
-                    <div style={{
+                    <div style={{ 
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '6px',
@@ -955,10 +954,10 @@ const Dashboard = () => {
                     <span style={{ fontSize: "20px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "30px" }}>
-                    <span style={{
-                      fontSize: "20px",
-                      fontWeight: "600",
-                      color: "#1890ff",
+                    <span style={{ 
+                      fontSize: "20px", 
+                      fontWeight: "600", 
+                      color: "#1890ff", 
                       userSelect: "none",
                       textTransform: 'uppercase',
                       letterSpacing: '1px'
@@ -1214,17 +1213,20 @@ const Dashboard = () => {
                         meta={{
                           date: { type: 'time', mask: 'HH:mm:ss' },
                           cpu: {
-                            alias: 'CPU Usage (%)',
-                          },
+                            min: 0,
+                            max: 100,
+                          }
                         }}
                         yAxis={{
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          nice: true,   // ✅ Let Ant Design Charts auto-scale Y axis
+                          min: 0,
+                          max: 100,
+                          ticks: [10, 30, 50, 70, 100],
+                          nice: false,
                         }}
                       />
-
                     </div>
                   </div>
                 </Col>
@@ -1252,7 +1254,7 @@ const Dashboard = () => {
                       Usage: {memoryData.toFixed(1)}%
                     </div>
                     <div style={{ height: '180px' }}>
-                      <Line
+                        <Line
                         data={memoryHistory}
                         xField="date"
                         yField="memory"
@@ -1282,7 +1284,9 @@ const Dashboard = () => {
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          nice: true,   // ✅ auto-fit range
+                          min: 0,
+                          max: 100,
+                          ticks: [10, 30, 50, 70, 100],
                         }}
                       />
                     </div>
