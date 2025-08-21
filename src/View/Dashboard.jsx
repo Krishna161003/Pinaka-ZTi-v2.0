@@ -176,7 +176,7 @@ const Dashboard = () => {
                 ? (rawMem <= 1 ? rawMem * 100 : rawMem)
                 : 0;
               return {
-                date: item.timestamp * 1000,
+                date: new Date(item.timestamp * 1000),
                 memory: memVal
               };
             })
