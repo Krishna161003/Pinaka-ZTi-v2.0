@@ -160,7 +160,7 @@ const Dashboard = () => {
                 ? (rawCpu <= 1 ? rawCpu * 100 : rawCpu)
                 : 0;
               return {
-                date: item.timestamp * 1000,
+                date: new Date(item.timestamp * 1000),
                 cpu: cpuVal
               };
             })
