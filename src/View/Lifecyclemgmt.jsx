@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Layout1 from '../Components/layout';
-import { theme, Layout, message, Upload, Button, Alert } from 'antd';
+import { theme, Layout, message, Upload, Button, Alert, Tabs, Table } from 'antd';
 import { InboxOutlined, SyncOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
@@ -17,6 +17,11 @@ const Lifecyclemgmt = () => {
     const v = localStorage.getItem('lm_job');
     try { return v ? JSON.parse(v) : null; } catch { return null; }
   });
+  const [activeTab, setActiveTab] = useState('upload');
+  const [history, setHistory] = useState(() => {
+    const v = localStorage.getItem('lm_history');
+    try { return v ? JSON.parse(v) : []; } catch { return []; }
+  });
   const [polling, setPolling] = useState(false);
   const pollTimerRef = useRef(null);
   const lastStateRef = useRef(job?.state || null);
@@ -25,6 +30,22 @@ const Lifecyclemgmt = () => {
   const persistJob = (jid, data) => {
     if (jid) localStorage.setItem('lm_job_id', jid);
     if (data) localStorage.setItem('lm_job', JSON.stringify(data));
+  };
+
+  const persistHistory = (items) => {
+    localStorage.setItem('lm_history', JSON.stringify(items || []));
+  };
+
+  const addHistoryItem = (jid, data) => {
+    if (!jid || !data) return;
+    setHistory(prev => {
+      if (prev.some(h => h.id === jid)) return prev; // avoid duplicates
+      const info = data.readme || data.message || 'Patch applied';
+      const date = data.finished_at || data.completed_at || data.timestamp || new Date().toISOString();
+      const next = [...prev, { id: jid, info, date }];
+      persistHistory(next);
+      return next;
+    });
   };
 
   const stopPolling = () => {
@@ -46,7 +67,10 @@ const Lifecyclemgmt = () => {
       // Transition notifications
       if (lastStateRef.current !== data.state) {
         if (data.state === 'running') message.info('Script started');
-        if (data.state === 'succeeded') message.success('Script finished successfully');
+        if (data.state === 'succeeded') {
+          message.success('Script finished successfully');
+          addHistoryItem(jid, data);
+        }
         if (data.state === 'failed') message.error(`Script failed: ${data.message || 'Unknown error'}`);
         lastStateRef.current = data.state;
       }
@@ -166,38 +190,86 @@ const Lifecyclemgmt = () => {
               // borderRadius: borderRadiusLG,
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-              <Button
-                aria-label="Refresh"
-                onClick={() => jobId && fetchStatusOnce(jobId)}
-                icon={<SyncOutlined spin={polling} />}
-                style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
-              >
-                Refresh
-              </Button>
-            </div>
-            <Dragger {...uploadProps} fileList={fileList}>
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p className="ant-upload-text">Click or drag .zip file(s) to this area to upload</p>
-              <p className="ant-upload-hint">Only .zip files are allowed.</p>
-            </Dragger>
-            {jobId && (
-              <div style={{ marginTop: 16 }}>
-                <Alert
-                  type={job?.state === 'failed' ? 'error' : job?.state === 'succeeded' ? 'success' : 'info'}
-                  showIcon
-                  message={`Status: ${job?.state || 'unknown'}`}
-                  description={job?.message || 'Processing'}
-                />
-                {job?.errors && job.errors.trim() && (
-                  <pre style={{ marginTop: 8, background: '#fafafa', padding: 12, borderRadius: 6, maxHeight: 200, overflow: 'auto' }}>
-                    {job.errors}
-                  </pre>
-                )}
-              </div>
-            )}
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              items={[
+                {
+                  key: 'upload',
+                  label: 'Upload',
+                  children: (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                        <Button
+                          aria-label="Refresh"
+                          onClick={() => jobId && fetchStatusOnce(jobId)}
+                          icon={<SyncOutlined spin={polling} />}
+                          style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                      <Dragger {...uploadProps} fileList={fileList}>
+                        <p className="ant-upload-drag-icon">
+                          <InboxOutlined />
+                        </p>
+                        <p className="ant-upload-text">Click or drag .zip file(s) to this area to upload</p>
+                        <p className="ant-upload-hint">Only .zip files are allowed.</p>
+                      </Dragger>
+                      {jobId && (
+                        <div style={{ marginTop: 16 }}>
+                          <Alert
+                            type={job?.state === 'failed' ? 'error' : job?.state === 'succeeded' ? 'success' : 'info'}
+                            showIcon
+                            message={`Status: ${job?.state || 'unknown'}`}
+                            description={job?.message || 'Processing'}
+                          />
+                          {job?.errors && job.errors.trim() && (
+                            <pre style={{ marginTop: 8, background: '#fafafa', padding: 12, borderRadius: 6, maxHeight: 200, overflow: 'auto' }}>
+                              {job.errors}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'history',
+                  label: 'History',
+                  children: (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                        <Button
+                          aria-label="Refresh"
+                          onClick={() => {
+                            const v = localStorage.getItem('lm_history');
+                            try { setHistory(v ? JSON.parse(v) : []); } catch { setHistory([]); }
+                          }}
+                          icon={<SyncOutlined />}
+                          style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                      <Table
+                        size="middle"
+                        columns={[
+                          { title: 'S.NO', key: 'sno', width: 90, render: (_t, _r, idx) => idx + 1 },
+                          { title: 'Patch Info', dataIndex: 'info', key: 'info' },
+                          { title: 'Date', dataIndex: 'date', key: 'date', width: 220, render: (v) => {
+                            const d = v ? new Date(v) : null;
+                            return d && !isNaN(d) ? d.toLocaleString() : '-';
+                          } },
+                        ]}
+                        dataSource={(history || []).map((h, idx) => ({ key: h.id || String(idx), ...h }))}
+                        pagination={{ pageSize: 10 }}
+                      />
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </div>
         </Content>
       </Layout>

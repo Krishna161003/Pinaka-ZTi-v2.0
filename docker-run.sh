@@ -64,7 +64,7 @@ mkdir -p /home/pinaka/ssl
 
 # Copy SSL files to /home/pinaka/ssl
 cp keycloak.crt keycloak.key keystore.p12 /home/pinaka/ssl/
-cp keycloak.crt keycloak.key /home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/
+cp keycloak.crt keycloak.key /home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/flask-back/
 
 # Set correct permissions
 chmod 644 /home/pinaka/ssl/keycloak.crt /home/pinaka/ssl/keycloak.key /home/pinaka/ssl/keystore.p12

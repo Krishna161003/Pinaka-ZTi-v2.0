@@ -409,6 +409,7 @@ const Administration = () => {
               style={{ width: "100px" }}
               type="primary"
               onClick={() => showModal()}
+              disabled
             >
               Create User
             </Button>
