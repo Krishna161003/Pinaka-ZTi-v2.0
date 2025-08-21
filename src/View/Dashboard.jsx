@@ -218,7 +218,7 @@ const Dashboard = () => {
     }
 
     fetchHistory();
-    const interval = setInterval(fetchHistory, 10000);
+    const interval = setInterval(fetchHistory, 30000);
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
@@ -373,7 +373,7 @@ const Dashboard = () => {
       }
     }
     fetchUtilization();
-    const interval = setInterval(fetchUtilization, 10000);
+    const interval = setInterval(fetchUtilization, 30000);
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
