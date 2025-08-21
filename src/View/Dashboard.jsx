@@ -251,7 +251,7 @@ const Dashboard = () => {
       data: cpuHistory,
       xField: 'date',
       yField: 'cpu',
-      height: 200,
+      height: 180,
       // point: {
       //   shapeField: 'circle',
       //   sizeField: 2,
@@ -276,6 +276,7 @@ const Dashboard = () => {
       data: memoryHistory,
       xField: 'date',
       yField: 'memory',
+      height: 180,
       // point: {
       //   shapeField: 'circle',
       //   sizeField: 2,
