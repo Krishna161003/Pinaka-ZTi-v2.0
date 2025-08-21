@@ -511,10 +511,10 @@ const Dashboard = () => {
   const [cloudStats, setCloudStats] = useState({
     instances: 0,
     volumes: 0,
-    vcpuUsed: 0,
-    vcpuTotal: 0,
-    memUsedGiB: 0,
-    memTotalGiB: 0,
+    vcpuUsed: 2,
+    vcpuTotal: 10,
+    memUsedGiB: 2,
+    memTotalGiB: 10,
   });
 
   // Small usage bar component used in the table for vCPU and Memory
