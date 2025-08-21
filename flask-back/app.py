@@ -33,34 +33,29 @@ timestamped_memory_history = deque(maxlen=60)
 timestamped_bandwidth_history = deque(maxlen=60)
 
 def add_cpu_history(cpu_percent):
+    # Ensure value is always 0–100, never fraction.
+    cpu_percent = float(cpu_percent)
+    if 0 < cpu_percent <= 1.5:  # Looks like a fraction
+        cpu_percent *= 100
     timestamped_cpu_history.append({
         "timestamp": int(time.time()),
         "cpu": cpu_percent
     })
 
 def add_memory_history(mem_percent):
+    mem_percent = float(mem_percent)
+    if 0 < mem_percent <= 1.5:
+        mem_percent *= 100
     timestamped_memory_history.append({
         "timestamp": int(time.time()),
         "memory": mem_percent
     })
 
 def get_cpu_history():
-    return [
-        {
-            "timestamp": entry["timestamp"],
-            "cpu": entry["cpu"] * 100 if entry["cpu"] <= 1.5 else entry["cpu"],
-        }
-        for entry in timestamped_cpu_history
-    ]
+    return list(timestamped_cpu_history)
 
 def get_memory_history():
-    return [
-        {
-            "timestamp": entry["timestamp"],
-            "memory": entry["memory"] * 100 if entry["memory"] <= 1.5 else entry["memory"],
-        }
-        for entry in timestamped_memory_history
-    ]
+    return list(timestamped_memory_history)
 
 # Add bandwidth history
 last_bandwidth = {'rx': 0, 'tx': 0, 'timestamp': 0}
