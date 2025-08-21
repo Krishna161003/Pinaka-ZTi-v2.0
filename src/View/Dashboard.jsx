@@ -152,44 +152,62 @@ const Dashboard = () => {
       try {
         const res = await fetch(`https://${selectedHostIP}:2020/system-utilization-history`);
         const data = await res.json();
-        // Detect if values are in fractions (0-1) and convert to 0-100 if needed
+
         const cpuHistIn = Array.isArray(data?.cpu_history) ? data.cpu_history : [];
         const memHistIn = Array.isArray(data?.memory_history) ? data.memory_history : [];
 
+        // DEBUG: Log raw data
+        console.log('Raw CPU data:', cpuHistIn);
+        console.log('Raw Memory data:', memHistIn);
+
         const maxCpuVal = cpuHistIn.length ? Math.max(...cpuHistIn.map(i => (typeof i.cpu === 'number' ? i.cpu : parseFloat(i.cpu) || 0))) : 0;
         const maxMemVal = memHistIn.length ? Math.max(...memHistIn.map(i => (typeof i.memory === 'number' ? i.memory : parseFloat(i.memory) || 0))) : 0;
-        const cpuIsFraction = maxCpuVal > 0 && maxCpuVal <= 1.5;
-        const memIsFraction = maxMemVal > 0 && maxMemVal <= 1.5;
 
+        // DEBUG: Log max values and conversion flags
+        console.log('Max CPU:', maxCpuVal, 'Max Memory:', maxMemVal);
+        console.log('CPU is fraction:', maxCpuVal > 0 && maxCpuVal <= 1.5);
+        console.log('Memory is fraction:', maxMemVal > 0 && maxMemVal <= 1.5);
+
+        // Process CPU data
         if (cpuHistIn.length) {
-          setCpuHistory(
-            cpuHistIn.map(item => {
-              const rawCpu = (typeof item.cpu === 'number' ? item.cpu : parseFloat(item.cpu)) || 0;
-              const cpuVal = cpuIsFraction ? rawCpu * 100 : rawCpu;
-              return {
-                date: new Date(item.timestamp * 1000),
-                cpu: cpuVal
-              };
-            })
-          );
+          const processedCpu = cpuHistIn.map(item => {
+            let cpuVal = (typeof item.cpu === 'number' ? item.cpu : parseFloat(item.cpu)) || 0;
+            // If value is between 0-1, assume it's a fraction and convert to percentage
+            if (cpuVal > 0 && cpuVal <= 1) {
+              cpuVal *= 100;
+            }
+            return {
+              date: new Date(item.timestamp * 1000),
+              cpu: cpuVal
+            };
+          });
+
+          console.log('Processed CPU data:', processedCpu);
+          setCpuHistory(processedCpu);
         } else {
           setCpuHistory([]);
         }
 
+        // Process Memory data
         if (memHistIn.length) {
-          setMemoryHistory(
-            memHistIn.map(item => {
-              const rawMem = (typeof item.memory === 'number' ? item.memory : parseFloat(item.memory)) || 0;
-              const memVal = memIsFraction ? rawMem * 100 : rawMem;
-              return {
-                date: new Date(item.timestamp * 1000),
-                memory: memVal
-              };
-            })
-          );
+          const processedMem = memHistIn.map(item => {
+            let memVal = (typeof item.memory === 'number' ? item.memory : parseFloat(item.memory)) || 0;
+            // If value is between 0-1, assume it's a fraction and convert to percentage
+            if (memVal > 0 && memVal <= 1) {
+              memVal *= 100;
+            }
+            return {
+              date: new Date(item.timestamp * 1000),
+              memory: memVal
+            };
+          });
+
+          console.log('Processed Memory data:', processedMem);
+          setMemoryHistory(processedMem);
         } else {
           setMemoryHistory([]);
         }
+
       } catch (err) {
         setCpuHistory([]);
         setMemoryHistory([]);
@@ -198,6 +216,7 @@ const Dashboard = () => {
         }
       }
     }
+
     fetchHistory();
     const interval = setInterval(fetchHistory, 10000);
     return () => clearInterval(interval);
