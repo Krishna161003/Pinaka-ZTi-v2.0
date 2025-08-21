@@ -1210,7 +1210,6 @@ const Dashboard = () => {
                           cpu: {
                             min: 0,
                             max: 100,
-                            tickInterval: 20,
                           }
                         }}
                         yAxis={{
@@ -1219,7 +1218,7 @@ const Dashboard = () => {
                           },
                           min: 0,
                           max: 100,
-                          tickCount: 6,
+                          ticks: [10, 30, 50, 70, 100],
                           nice: false,
                         }}
                       />
@@ -1270,7 +1269,6 @@ const Dashboard = () => {
                           memory: {
                             min: 0,
                             max: 100,
-                            tickInterval: 20,
                           }
                         }}
                         yAxis={{
@@ -1279,7 +1277,7 @@ const Dashboard = () => {
                           },
                           min: 0,
                           max: 100,
-                          tickInterval: 20,
+                          ticks: [10, 30, 50, 70, 100],
                         }}
                       />
                     </div>
