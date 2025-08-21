@@ -1220,37 +1220,14 @@ const Dashboard = () => {
                         xField="date"
                         yField="cpu"
                         height={180}
-                        color="#1890ff"
-                        point={{
-                          size: 4,
-                          style: {
-                            fill: '#1890ff',
-                            stroke: '#fff',
-                            lineWidth: 1,
-                          },
+                        meta={{
+                          cpu: { min: 0, max: 100, alias: 'CPU (%)' },
+                          date: { type: 'time', mask: 'HH:mm:ss' }
                         }}
-                        scale={{
-                          cpu: {
-                            type: 'linear',
-                            domain: [0, 100],  // This forces the y-axis to be 0-100
-                            nice: false,       // Prevents automatic "nice" scaling
-                          },
-                          date: {
-                            type: 'time',
-                            mask: 'HH:mm:ss'
-                          }
-                        }}
-                        axis={{
-                          x: {
-                            mask: 'HH:mm:ss',
-                            tickCount: 6,
-                            label: { autoRotate: true }
-                          },
-                          y: {
-                            label: {
-                              formatter: (v) => `${v}%`
-                            }
-                          }
+                        yAxis={{
+                          min: 0,
+                          max: 100,
+                          label: { formatter: (v) => `${v}%` }
                         }}
                       />
 
@@ -1286,41 +1263,14 @@ const Dashboard = () => {
                         xField="date"
                         yField="memory"
                         height={180}
-                        color="#52c41a"
-                        lineStyle={{
-                          stroke: '#52c41a',
-                          lineWidth: 2,
+                        meta={{
+                          memory: { min: 0, max: 100, alias: 'Memory (%)' },
+                          date: { type: 'time', mask: 'HH:mm:ss' }
                         }}
-                        point={{
-                          size: 4,
-                          style: {
-                            fill: '#52c41a',
-                            stroke: '#fff',
-                            lineWidth: 1,
-                          },
-                        }}
-                        scale={{
-                          memory: {
-                            type: 'linear',
-                            domain: [0, 100],  // This forces the y-axis to be 0-100
-                            nice: false,       // Prevents automatic "nice" scaling
-                          },
-                          date: {
-                            type: 'time',
-                            mask: 'HH:mm:ss'
-                          }
-                        }}
-                        axis={{
-                          x: {
-                            mask: 'HH:mm:ss',
-                            tickCount: 6,
-                            label: { autoRotate: true }
-                          },
-                          y: {
-                            label: {
-                              formatter: (v) => `${v}%`
-                            }
-                          }
+                        yAxis={{
+                          min: 0,
+                          max: 100,
+                          label: { formatter: (v) => `${v}%` }
                         }}
                       />
 
