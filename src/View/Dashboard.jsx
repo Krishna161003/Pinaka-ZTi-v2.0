@@ -431,7 +431,7 @@ const Dashboard = () => {
       }
     };
     fetchBandwidthHistory();
-    const interval = setInterval(fetchBandwidthHistory, 10000); // every 20s
+    const interval = setInterval(fetchBandwidthHistory, 30000); // every 20s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
@@ -449,7 +449,7 @@ const Dashboard = () => {
       }
     };
     fetchData();
-    const interval = setInterval(fetchData, 10000); // every 10s
+    const interval = setInterval(fetchData, 30000); // every 10s
     return () => clearInterval(interval);
   }, [selectedHostIP, selectedInterface]);
 
@@ -501,7 +501,7 @@ const Dashboard = () => {
     };
 
     fetchHealth();
-    const interval = setInterval(fetchHealth, 10000); // auto-refresh every 10s
+    const interval = setInterval(fetchHealth, 30000); // auto-refresh every 10s
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
@@ -703,7 +703,7 @@ const Dashboard = () => {
       }
     }
     fetchDockerInfo();
-    const interval = setInterval(fetchDockerInfo, 10000); // Poll every 10s
+    const interval = setInterval(fetchDockerInfo, 30000); // Poll every 10s
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
