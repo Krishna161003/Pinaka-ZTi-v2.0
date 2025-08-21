@@ -157,16 +157,16 @@ const Dashboard = () => {
         const memHistIn = Array.isArray(data?.memory_history) ? data.memory_history : [];
 
         // DEBUG: Log raw data
-        console.log('Raw CPU data:', cpuHistIn);
-        console.log('Raw Memory data:', memHistIn);
+        // console.log('Raw CPU data:', cpuHistIn);
+        // console.log('Raw Memory data:', memHistIn);
 
         const maxCpuVal = cpuHistIn.length ? Math.max(...cpuHistIn.map(i => (typeof i.cpu === 'number' ? i.cpu : parseFloat(i.cpu) || 0))) : 0;
         const maxMemVal = memHistIn.length ? Math.max(...memHistIn.map(i => (typeof i.memory === 'number' ? i.memory : parseFloat(i.memory) || 0))) : 0;
 
         // DEBUG: Log max values and conversion flags
-        console.log('Max CPU:', maxCpuVal, 'Max Memory:', maxMemVal);
-        console.log('CPU is fraction:', maxCpuVal > 0 && maxCpuVal <= 1.5);
-        console.log('Memory is fraction:', maxMemVal > 0 && maxMemVal <= 1.5);
+        // console.log('Max CPU:', maxCpuVal, 'Max Memory:', maxMemVal);
+        // console.log('CPU is fraction:', maxCpuVal > 0 && maxCpuVal <= 1.5);
+        // console.log('Memory is fraction:', maxMemVal > 0 && maxMemVal <= 1.5);
 
         // Process CPU data
         if (cpuHistIn.length) {
@@ -182,7 +182,7 @@ const Dashboard = () => {
             };
           });
 
-          console.log('Processed CPU data:', processedCpu);
+          // console.log('Processed CPU data:', processedCpu);
           setCpuHistory(processedCpu);
         } else {
           setCpuHistory([]);
@@ -202,7 +202,7 @@ const Dashboard = () => {
             };
           });
 
-          console.log('Processed Memory data:', processedMem);
+          // console.log('Processed Memory data:', processedMem);
           setMemoryHistory(processedMem);
         } else {
           setMemoryHistory([]);
