@@ -507,6 +507,50 @@ const Dashboard = () => {
   // Persisted docker search text
   const [dockerSearchText, setDockerSearchText] = useState(() => sessionStorage.getItem('docker_search_text') || '');
 
+  // Cloud resources summary for the table below the Cloud card
+  const [cloudStats, setCloudStats] = useState({
+    instances: 0,
+    volumes: 0,
+    vcpuUsed: 0,
+    vcpuTotal: 0,
+    memUsedGiB: 0,
+    memTotalGiB: 0,
+  });
+
+  // Small usage bar component used in the table for vCPU and Memory
+  const UsageBar = ({ used = 0, total = 0, color = '#4c8dff' }) => {
+    if (!total || total <= 0) {
+      return <span style={{ color: '#8c8c8c' }}>N/A</span>;
+    }
+    const pct = Math.max(0, Math.min(100, (used / total) * 100));
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 180, height: 6, background: '#eaeef5', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: color }} />
+        </div>
+        <span style={{ fontSize: 12, color: '#2c3e50' }}>{used} / {total}</span>
+      </div>
+    );
+  };
+
+  // Columns and data for Cloud resources table
+  const cloudTableColumns = [
+    { title: 'Instances', dataIndex: 'instances', key: 'instances', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'vCPU (Core)', dataIndex: 'vcpu', key: 'vcpu', width: '30%', render: (vcpu) => <UsageBar used={vcpu?.used} total={vcpu?.total} color="#4c8dff" /> },
+    { title: 'Configured Memory (GiB)', dataIndex: 'memory', key: 'memory', width: '30%', render: (mem) => <UsageBar used={mem?.used} total={mem?.total} color="#4c8dff" /> },
+    { title: 'Volumes', dataIndex: 'volumes', key: 'volumes', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+  ];
+
+  const cloudTableData = [
+    {
+      key: 'summary',
+      instances: cloudStats.instances,
+      vcpu: { used: cloudStats.vcpuUsed, total: cloudStats.vcpuTotal },
+      memory: { used: cloudStats.memUsedGiB, total: cloudStats.memTotalGiB },
+      volumes: cloudStats.volumes,
+    }
+  ];
+
   // Keep filtered containers in sync with search text and containers; persist page
   useEffect(() => {
     const value = (dockerSearchText || '').toLowerCase();
@@ -883,6 +927,24 @@ const Dashboard = () => {
                 </div>
               </Col>
             </Row>
+            {/* Cloud resources summary table */}
+            <div
+              style={{
+                marginTop: 10,
+                padding: 16,
+                background: colorBgContainer,
+                marginLeft: "20px",
+                marginRight: "17px",
+              }}
+            >
+              <Table
+                columns={cloudTableColumns}
+                dataSource={cloudTableData}
+                pagination={false}
+                size="small"
+                rowKey="key"
+              />
+            </div>
             <div
               style={{
                 marginTop: 10,
