@@ -246,38 +246,52 @@ const Dashboard = () => {
   }, [selectedInterface]);
 
 
-  const memoryconfig = {
-    data: memoryHistory,
-    xField: 'date',
-    yField: 'memory',
-    smooth: true,
-    // Set the solid or semi-transparent fill color:
-    style: {
-      fill: '#8fd98f',
-    },
-    // Y axis in percentage with ticks at 10,20,...,100
-    yAxis: {
-      label: {
-        formatter: (v) => `${v}%`,
+  const CPUUsageChart = () => {
+    const config = {
+      data: cpuHistory,
+      xField: 'date',
+      yField: 'cpu',
+      point: {
+        shapeField: 'circle',
+        sizeField: 4,
       },
-    },
-    meta: {
-      memory: {
+      style: {
+        lineWidth: 2,
+      },
+      yAxis: {
         min: 0,
         max: 100,
-        tickInterval: 10,
+        label: { formatter: (v) => `${v}%` },
       },
-    },
-    // Optional: make the line match the fill color
-    // line: {
-    //   color: '#4CAF50',     // darker green
-    //   size: 1.5,
-    // },
-    // Hide axes/ticks if desired
-    xAxis: false,
-    // yAxis: false,
-    // tooltip: false,
-    height: 180,
+      meta: {
+        cpu: { min: 0, max: 100 },
+      },
+    };
+    return <Line {...config} />;
+  };
+
+  const MemoryUsageChart = () => {
+    const config = {
+      data: memoryHistory,
+      xField: 'date',
+      yField: 'memory',
+      point: {
+        shapeField: 'circle',
+        sizeField: 4,
+      },
+      style: {
+        lineWidth: 2,
+      },
+      yAxis: {
+        min: 0,
+        max: 100,
+        label: { formatter: (v) => `${v}%` },
+      },
+      meta: {
+        memory: { min: 0, max: 100 },
+      },
+    };
+    return <Line {...config} />;
   };
 
   // Helper: Moving average smoothing for bandwidth
@@ -1215,19 +1229,7 @@ const Dashboard = () => {
                       Current: {cpuData.toFixed(1)}%
                     </div>
                     <div style={{ height: '180px' }}>
-                      <Line
-                        data={cpuHistory}
-                        xField="date"
-                        yField="cpu"
-                        yAxis={{
-                          min: 0,
-                          max: 100,
-                          label: { formatter: (v) => v + '%' }
-                        }}
-                        meta={{
-                          cpu: { min: 0, max: 100 }
-                        }}
-                      />
+                      <CPUUsageChart />
                     </div>
                   </div>
                 </Col>
@@ -1255,21 +1257,7 @@ const Dashboard = () => {
                       Usage: {memoryData.toFixed(1)}%
                     </div>
                     <div style={{ height: '180px' }}>
-                      <Line
-                        data={memoryHistory}
-                        xField="date"
-                        yField="memory"
-                        height={180}
-                        yAxis={{
-                          min: 0,
-                          max: 100,
-                          label: { formatter: (v) => v + '%' }
-                        }}
-                        meta={{
-                          memory: { min: 0, max: 100 }
-                        }}
-                      />
-
+                      <MemoryUsageChart />
                     </div>
                   </div>
                 </Col>
