@@ -1631,6 +1631,15 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                   >
                     Remove Node
                   </Button>
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={() => handleNext()}
+                    style={{ width: 120 }}
+                    disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}
+                  >
+                    Next
+                  </Button>
                 </div>
               </div>
               <Table
@@ -1662,7 +1671,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 </Form.Item>
                 <Form.Item
                   label="Select Disk"
-                  required
+                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
                   validateStatus={form.diskError ? 'error' : ''}
                   help={form.diskError}
                   style={{ minWidth: 220 }}
