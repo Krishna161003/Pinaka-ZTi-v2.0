@@ -1395,6 +1395,18 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       return;
     }
 
+    // Per-node validation: if Storage role is selected, at least one disk must be chosen
+    for (let i = 0; i < forms.length; i++) {
+      const f = forms[i] || {};
+      if (Array.isArray(f.selectedRoles) && f.selectedRoles.includes('Storage')) {
+        if (!Array.isArray(f.selectedDisks) || f.selectedDisks.length === 0) {
+          setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, diskError: 'At least one disk required' } : ff));
+          message.error(`Node ${f.ip || i + 1}: please select at least one disk for Storage role.`);
+          return;
+        }
+      }
+    }
+
     // We'll build transformedConfigs after we know how many nodes are already deployed
 
     // Pre-deployment check: ensure all nodes in this cloud are up

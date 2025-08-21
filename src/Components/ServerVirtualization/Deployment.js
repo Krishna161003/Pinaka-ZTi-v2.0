@@ -471,7 +471,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   }
   function handleRoleChange(idx, value) {
     setForms(prev => {
-      const next = prev.map((f, i) => i === idx ? { ...f, selectedRoles: value, roleError: '' } : f);
+      const hasStorage = Array.isArray(value) && value.includes('Storage');
+      const next = prev.map((f, i) => {
+        if (i !== idx) return f;
+        const update = { selectedRoles: value, roleError: '' };
+        // If Storage is not selected, disk is not mandatory; clear any disk error
+        if (!hasStorage) update.diskError = '';
+        return { ...f, ...update };
+      });
       const updatedForm = next[idx];
       // Persist immediately so DB (5000) and Python (2020) flows read updated roles from session
       if (updatedForm?.ip) {
@@ -1189,13 +1196,21 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       message.error('Default Gateway must be a valid IP address.');
       return;
     }
-    // Validate disks
-    if (!form.selectedDisks || form.selectedDisks.length === 0) {
-      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: 'At least one disk required' } : f));
-      message.error('Please select at least one disk.');
-      return;
-    } else {
-      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
+    // Validate disks only if 'Storage' role is selected
+    {
+      const hasStorageRole = Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage');
+      if (hasStorageRole) {
+        if (!form.selectedDisks || form.selectedDisks.length === 0) {
+          setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: 'At least one disk required' } : f));
+          message.error('Please select at least one disk for Storage role.');
+          return;
+        } else {
+          setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
+        }
+      } else {
+        // Not requiring disks when Storage role is not selected
+        setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
+      }
     }
     // Validate roles
     if (!form.selectedRoles || form.selectedRoles.length === 0) {
@@ -1496,6 +1511,25 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       return;
     }
 
+    // Per-node validation: ensure roles selected and disks selected for Storage role
+    for (let i = 0; i < forms.length; i++) {
+      const f = forms[i] || {};
+      // Each node must have at least one role
+      if (!Array.isArray(f.selectedRoles) || f.selectedRoles.length === 0) {
+        setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, roleError: 'At least one role required' } : ff));
+        message.error(`Node ${f.ip || i + 1}: please select at least one role.`);
+        return;
+      }
+      // If Storage role is selected, at least one disk must be chosen
+      if (Array.isArray(f.selectedRoles) && f.selectedRoles.includes('Storage')) {
+        if (!Array.isArray(f.selectedDisks) || f.selectedDisks.length === 0) {
+          setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, diskError: 'At least one disk required' } : ff));
+          message.error(`Node ${f.ip || i + 1}: please select at least one disk for Storage role.`);
+          return;
+        }
+      }
+    }
+
     // Validate role combinations across nodes: the union of roles across ALL nodes must equal an allowed combo
     const unionRoles = normalizeRoles(forms.flatMap(f => f?.selectedRoles || []));
     const isUnionAllowed = isAllowedCombo(unionRoles);
@@ -1697,201 +1731,274 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         <h4 style={{ marginBottom: 0 }}>
           Cloud Name: <span style={{ color: '#1890ff' }}>{cloudName}</span>
         </h4>
-        <Button
-          type="primary"
-          onClick={handleNext}
-          style={{ width: 120, visibility: 'visible' }}
-          disabled={!allApplied || deployLoading}
-          loading={deployLoading}
+      <Button
+        type="primary"
+        onClick={handleNext}
+        style={{ width: 120, visibility: 'visible' }}
+        disabled={!allApplied || deployLoading}
+        loading={deployLoading}
+      >
+        Deploy
+      </Button>
+    </div>
+    <Divider />
+    {/* VIP input below Cloud Name */}
+    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+      <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-start', alignItems: 'center' }}>
+        {/* <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Enter VIP:</span> */}
+        <Form.Item
+          validateStatus={vipError ? 'error' : ''}
+          help={vipError}
+          style={{ marginBottom: 0 }}
+          required
+          label={
+            <span>
+              Enter VIP&nbsp;
+              <Tooltip placement="top" title="Virtual IP Address" >
+                <InfoCircleOutlined style={{
+                  color: "#1890ff", fontSize: "14px", height: "12px",
+                  width: "12px"
+                }} />
+              </Tooltip>
+            </span>
+          }
+          rules={[
+            { required: true, message: 'VIP is required' },
+          ]}
         >
-          Deploy
-        </Button>
-      </div>
-      <Divider />
-      {/* VIP input below Cloud Name */}
-      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
-        <Form layout="inline" style={{ width: '100%', justifyContent: 'flex-start', alignItems: 'center' }}>
-          {/* <span style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Enter VIP:</span> */}
+          <Input
+            style={{ width: 200 }}
+            placeholder="Enter VIP (IP address)"
+            value={vip}
+            onChange={(e) => {
+              const val = e.target.value;
+              setVip(val);
+              sessionStorage.setItem('sv_vip', val);
+              if (!val) {
+                setVipError('Required');
+              } else if (!ipRegex.test(val)) {
+                setVipError('Invalid IP address');
+              } else {
+                setVipError('');
+              }
+            }}
+          />
+        </Form.Item>
+      </Form>
+      {/* Optional Provider network fields (all-or-none) */}
+      <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 12, flexWrap: 'nowrap', overflowX: 'auto' }}>
+          <span style={{ whiteSpace: 'nowrap' }}>Provider Network&nbsp;<Tooltip placement="bottom" title="Provider Network" >
+            <InfoCircleOutlined style={{
+              color: "#1890ff", fontSize: "14px", height: "12px",
+              width: "12px"
+            }} />
+          </Tooltip>&nbsp;:</span>
           <Form.Item
-            validateStatus={vipError ? 'error' : ''}
-            help={vipError}
+            name="cidr"
             style={{ marginBottom: 0 }}
-            required
-            label={
-              <span>
-                Enter VIP&nbsp;
-                <Tooltip placement="top" title="Virtual IP Address" >
-                  <InfoCircleOutlined style={{
-                    color: "#1890ff", fontSize: "14px", height: "12px",
-                    width: "12px"
-                  }} />
-                </Tooltip>
-              </span>
-            }
             rules={[
-              { required: true, message: 'VIP is required' },
+              {
+                pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
+                message: 'Invalid CIDR format (e.g. 192.168.1.0/24)',
+              },
             ]}
           >
-            <Input
-              style={{ width: 200 }}
-              placeholder="Enter VIP (IP address)"
-              value={vip}
-              onChange={(e) => {
-                const val = e.target.value;
-                setVip(val);
-                sessionStorage.setItem('sv_vip', val);
-                if (!val) {
-                  setVipError('Required');
-                } else if (!ipRegex.test(val)) {
-                  setVipError('Invalid IP address');
-                } else {
-                  setVipError('');
-                }
-              }}
-            />
+            <Input placeholder="Enter CIDR (optional)" style={{ width: 160 }} />
           </Form.Item>
-        </Form>
-        {/* Optional Provider network fields (all-or-none) */}
-        <Form form={Providerform} layout="inline" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 12, flexWrap: 'nowrap', overflowX: 'auto' }}>
-            <span style={{ whiteSpace: 'nowrap' }}>Provider Network&nbsp;<Tooltip placement="bottom" title="Provider Network" >
-              <InfoCircleOutlined style={{
-                color: "#1890ff", fontSize: "14px", height: "12px",
-                width: "12px"
-              }} />
-            </Tooltip>&nbsp;:</span>
-            <Form.Item
-              name="cidr"
-              style={{ marginBottom: 0 }}
-              rules={[
-                {
-                  pattern: /^(([0-9]{1,3}\.){3}[0-9]{1,3})\/([0-9]|[1-2][0-9]|3[0-2])$/,
-                  message: 'Invalid CIDR format (e.g. 192.168.1.0/24)',
-                },
-              ]}
-            >
-              <Input placeholder="Enter CIDR (optional)" style={{ width: 160 }} />
-            </Form.Item>
 
-            <Form.Item
-              name="gateway"
-              style={{ marginBottom: 0 }}
-              rules={[
-                {
-                  pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                  message: 'Invalid IP address',
-                },
-              ]}
-            >
-              <Input placeholder="Enter Gateway (optional)" style={{ width: 160 }} />
-            </Form.Item>
+          <Form.Item
+            name="gateway"
+            style={{ marginBottom: 0 }}
+            rules={[
+              {
+                pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                message: 'Invalid IP address',
+              },
+            ]}
+          >
+            <Input placeholder="Enter Gateway (optional)" style={{ width: 160 }} />
+          </Form.Item>
 
-            <Form.Item
-              name="startingIp"
-              style={{ marginBottom: 0 }}
-              rules={[
-                {
-                  pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                  message: 'Invalid IP address',
-                },
-              ]}
-            >
-              <Input placeholder="Enter Starting IP (optional)" style={{ width: 160 }} />
-            </Form.Item>
+          <Form.Item
+            name="startingIp"
+            style={{ marginBottom: 0 }}
+            rules={[
+              {
+                pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                message: 'Invalid IP address',
+              },
+            ]}
+          >
+            <Input placeholder="Enter Starting IP (optional)" style={{ width: 160 }} />
+          </Form.Item>
 
-            <Form.Item
-              name="endingIp"
-              style={{ marginBottom: 0 }}
-              rules={[
-                {
-                  pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
-                  message: 'Invalid IP address',
-                },
-              ]}
-            >
-              <Input placeholder="Enter Ending IP (optional)" style={{ width: 160 }} />
-            </Form.Item>
-          </div>
-        </Form>
-        {/* End Provider form */}
-        <Divider />
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {forms.map((form, idx) => (
-            <Spin spinning={cardStatus[idx]?.loading} tip="Applying network changes & restarting node...">
-              <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <Radio.Group
-                      value={form.configType}
-                      onChange={e => handleConfigTypeChange(idx, e.target.value)}
-                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                    >
-                      <Radio value="default">Default</Radio>
-                      <Radio value="segregated">Segregated</Radio>
-                    </Radio.Group>
-                    <Checkbox
-                      checked={form.useBond}
-                      onChange={e => handleUseBondChange(idx, e.target.checked)}
-                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                    >
-                      Bond
-                    </Checkbox>
-                  </div>
-                  <Button
-                    onClick={() => fetchNodeData(form.ip)}
-                    size="small"
-                    type="default"
-                    style={{ width: 120 }}
+          <Form.Item
+            name="endingIp"
+            style={{ marginBottom: 0 }}
+            rules={[
+              {
+                pattern: /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/,
+                message: 'Invalid IP address',
+              },
+            ]}
+          >
+            <Input placeholder="Enter Ending IP (optional)" style={{ width: 160 }} />
+          </Form.Item>
+        </div>
+      </Form>
+      {/* End Provider form */}
+      <Divider />
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        {forms.map((form, idx) => (
+          <Spin spinning={cardStatus[idx]?.loading} tip="Applying network changes & restarting node...">
+            <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <Radio.Group
+                    value={form.configType}
+                    onChange={e => handleConfigTypeChange(idx, e.target.value)}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
                   >
-                    Refetch Data
-                  </Button>
+                    <Radio value="default">Default</Radio>
+                    <Radio value="segregated">Segregated</Radio>
+                  </Radio.Group>
+                  <Checkbox
+                    checked={form.useBond}
+                    onChange={e => handleUseBondChange(idx, e.target.checked)}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  >
+                    Bond
+                  </Checkbox>
                 </div>
-                <Table
-                  columns={getColumns(form, idx)}
-                  dataSource={form.tableData}
-                  pagination={false}
-                  bordered
+                <Button
+                  onClick={() => fetchNodeData(form.ip)}
                   size="small"
-                  scroll={{ x: true }}
-                  rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
-                />
+                  type="default"
+                  style={{ width: 120 }}
+                >
+                  Refetch Data
+                </Button>
+              </div>
+              <Table
+                columns={getColumns(form, idx)}
+                dataSource={form.tableData}
+                pagination={false}
+                bordered
+                size="small"
+                scroll={{ x: true }}
+                rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
+              />
 
-                {/* Default Gateway Field */}
-                <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
-                  <Form.Item
-                    label="Default Gateway"
-                    validateStatus={form.defaultGatewayError ? 'error' : ''}
-                    help={form.defaultGatewayError}
-                    required
-                    style={{ minWidth: 220 }}
+              {/* Default Gateway Field */}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
+                <Form.Item
+                  label="Default Gateway"
+                  validateStatus={form.defaultGatewayError ? 'error' : ''}
+                  help={form.defaultGatewayError}
+                  required
+                  style={{ minWidth: 220 }}
+                >
+                  <Input
+                    value={form.defaultGateway}
+                    placeholder="Enter Default Gateway"
+                    onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Select Disk"
+                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
+                  validateStatus={form.diskError ? 'error' : ''}
+                  help={form.diskError}
+                  style={{ minWidth: 220 }}
+                >
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select disk(s)"
+                    value={form.selectedDisks || []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    onChange={value => handleDiskChange(idx, value)}
+                    optionLabelProp="label"
                   >
-                    <Input
-                      value={form.defaultGateway}
-                      placeholder="Enter Default Gateway"
-                      onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
-                      style={{ width: 200 }}
-                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                    />
-                  </Form.Item>
-                  <Form.Item
-                    label="Select Disk"
-                    required
-                    validateStatus={form.diskError ? 'error' : ''}
-                    help={form.diskError}
-                    style={{ minWidth: 220 }}
+                    {(nodeDisks[form.ip] || []).map(disk => (
+                      <Option
+                        key={disk.wwn || disk}
+                        value={disk.wwn || disk}
+                        label={disk.display || disk}
+                      >
+                        {disk.display || disk}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <Form.Item
+                  label="Select Role"
+                  required
+                  validateStatus={form.roleError ? 'error' : ''}
+                  help={form.roleError}
+                  style={{ minWidth: 220 }}
+                >
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select role(s)"
+                    value={form.selectedRoles || []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
+                    onChange={value => handleRoleChange(idx, value)}
                   >
-                    <Select
-                      mode="multiple"
-                      allowClear
-                      placeholder="Select disk(s)"
-                      value={form.selectedDisks || []}
-                      style={{ width: 200 }}
-                      disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                      onChange={value => handleDiskChange(idx, value)}
-                      optionLabelProp="label"
-                    >
-                      {(nodeDisks[form.ip] || []).map(disk => (
-                        <Option
+                    <Option value="Control">Control</Option>
+                    <Option value="Compute">Compute</Option>
+                    <Option value="Storage">Storage</Option>
+                    <Option value="Monitoring">Monitoring</Option>
+                  </Select>
+                </Form.Item>
+              </div>
+              {/* License Details Display - all in one line */}
+              <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
+                <span>{form.licenseType || '-'}</span>
+                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
+                <span>{form.licensePeriod || '-'}</span>
+                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
+                <span>{form.licenseCode || '-'}</span>
+              </div>
+              <Divider />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
+                {!cardStatus[idx]?.applied && (
+                  <Button danger onClick={() => handleRemoveNode(idx)} style={{ width: '130px', display: 'flex' }} disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}>
+                    Remove Node
+                  </Button>
+                )}
+                <Button type="primary" onClick={() => handleNext(idx)} style={{ width: '130px', display: 'flex' }} disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}>
+                  Next
+                </Button>
+              </div>
+              <Divider />
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
+                <Form.Item
+                  label="Select Disk"
+                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
+                  validateStatus={form.diskError ? 'error' : ''}
+                  help={form.diskError}
+                  style={{ minWidth: 220 }}
+                >
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select disk(s)"
+                    value={form.selectedDisks || []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    onChange={value => handleDiskChange(idx, value)}
+                    optionLabelProp="label"
+                  >
+                    {(nodeDisks[form.ip] || []).map(disk => (
+                      <Option
                           key={disk.wwn || disk}
                           value={disk.wwn || disk}
                           label={disk.display || disk}

@@ -23,7 +23,7 @@ CLIENT_UUID=$(curl -k -s -X GET "https://${HOST_IP}:9090/admin/realms/${REALM}/c
   -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[0].id')
 
 # Build new redirect URI
-NEW_REDIRECT="https://${HOST_IP}:3000/*"
+NEW_REDIRECT="https://${HOST_IP}:1010/*"
 
 # Update client in Keycloak
 curl -k -s -X PUT "https://${HOST_IP}:9090/admin/realms/${REALM}/clients/${CLIENT_UUID}" \

@@ -78,7 +78,7 @@ const AppLayout = ({ children }) => {
     // "/siem": "8",
     // "/noc": "9",
     "/lifecyclemgmt": "10",
-    "/migration": "11",
+    // "/migration": "11",
     // "/compliance": "12",
     // "/marketplace": "13",
     // "/setting": "14",
@@ -208,15 +208,15 @@ const AppLayout = ({ children }) => {
         </Link>
       ),
     },
-    {
-      key: "11",
-      icon: <TruckOutlined />,
-      label: (
-        <Link to="/migration" style={{ textDecoration: "none" }}>
-          Migration
-        </Link>
-      ),
-    },
+    // {
+    //   key: "11",
+    //   icon: <TruckOutlined />,
+    //   label: (
+    //     <Link to="/migration" style={{ textDecoration: "none" }}>
+    //       Migration
+    //     </Link>
+    //   ),
+    // },
     // {
     //   key: "12",
     //   icon: <CheckCircleOutlined />,
