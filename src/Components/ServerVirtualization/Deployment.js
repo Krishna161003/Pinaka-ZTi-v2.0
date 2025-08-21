@@ -1511,6 +1511,25 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       return;
     }
 
+    // Per-node validation: ensure roles selected and disks selected for Storage role
+    for (let i = 0; i < forms.length; i++) {
+      const f = forms[i] || {};
+      // Each node must have at least one role
+      if (!Array.isArray(f.selectedRoles) || f.selectedRoles.length === 0) {
+        setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, roleError: 'At least one role required' } : ff));
+        message.error(`Node ${f.ip || i + 1}: please select at least one role.`);
+        return;
+      }
+      // If Storage role is selected, at least one disk must be chosen
+      if (Array.isArray(f.selectedRoles) && f.selectedRoles.includes('Storage')) {
+        if (!Array.isArray(f.selectedDisks) || f.selectedDisks.length === 0) {
+          setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, diskError: 'At least one disk required' } : ff));
+          message.error(`Node ${f.ip || i + 1}: please select at least one disk for Storage role.`);
+          return;
+        }
+      }
+    }
+
     // Validate role combinations across nodes: the union of roles across ALL nodes must equal an allowed combo
     const unionRoles = normalizeRoles(forms.flatMap(f => f?.selectedRoles || []));
     const isUnionAllowed = isAllowedCombo(unionRoles);
