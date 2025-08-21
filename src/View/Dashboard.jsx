@@ -513,10 +513,10 @@ const Dashboard = () => {
   const [cloudStats, setCloudStats] = useState({
     instances: 0,
     volumes: 0,
-    vcpuUsed: 2,
-    vcpuTotal: 10,
-    memUsedGiB: 2,
-    memTotalGiB: 10,
+    vcpuUsed: 0,
+    vcpuTotal: 0,
+    memUsedGiB: 0,
+    memTotalGiB: 0,
   });
 
   // Small usage bar component used in the table for vCPU and Memory
@@ -1147,7 +1147,7 @@ const Dashboard = () => {
                 <Col className="gutter-row" span={7} style={performancewidgetStyle}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Latency</span>
+                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Network Traffic</span>
                       <Select
                         style={{ width: 100 }}
                         value={selectedInterface}
@@ -1245,11 +1245,11 @@ const Dashboard = () => {
                         xField="date"
                         yField="memory"
                         height={180}
-                        color="#1890ff"
+                        color="#52c41a"
                         point={{
                           size: 4,
                           style: {
-                            fill: '#1890ff',
+                            fill: '#52c41a',
                             stroke: '#fff',
                             lineWidth: 1,
                           },
