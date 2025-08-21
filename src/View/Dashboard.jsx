@@ -1245,11 +1245,11 @@ const Dashboard = () => {
                         xField="date"
                         yField="memory"
                         height={180}
-                        color="#52c41a"
+                        color="#1890ff"
                         point={{
                           size: 4,
                           style: {
-                            fill: '#52c41a',
+                            fill: '#1890ff',
                             stroke: '#fff',
                             lineWidth: 1,
                           },
