@@ -290,7 +290,10 @@ const ServiceStatus = () => {
       const ips = Array.isArray(res.data)
         ? res.data
         : (Array.isArray(res.data?.ips) ? res.data.ips : []);
-      const uniq = Array.from(new Set(ips.filter(Boolean)));
+      const filtered = (ips || [])
+        .map((x) => (x == null ? '' : String(x).trim()))
+        .filter((x) => x && x !== hostIP);
+      const uniq = Array.from(new Set(filtered));
       setNodeOptions(['All', ...uniq]);
       setHasDeployedServers(uniq.length > 0);
     } catch (e) {
