@@ -1219,18 +1219,15 @@ const Dashboard = () => {
                         data={cpuHistory}
                         xField="date"
                         yField="cpu"
-                        height={180}
-                        meta={{
-                          cpu: { min: 0, max: 100, alias: 'CPU (%)' },
-                          date: { type: 'time', mask: 'HH:mm:ss' }
-                        }}
                         yAxis={{
                           min: 0,
                           max: 100,
-                          label: { formatter: (v) => `${v}%` }
+                          label: { formatter: (v) => v + '%' }
+                        }}
+                        meta={{
+                          cpu: { min: 0, max: 100 }
                         }}
                       />
-
                     </div>
                   </div>
                 </Col>
@@ -1263,14 +1260,13 @@ const Dashboard = () => {
                         xField="date"
                         yField="memory"
                         height={180}
-                        meta={{
-                          memory: { min: 0, max: 100, alias: 'Memory (%)' },
-                          date: { type: 'time', mask: 'HH:mm:ss' }
-                        }}
                         yAxis={{
                           min: 0,
                           max: 100,
-                          label: { formatter: (v) => `${v}%` }
+                          label: { formatter: (v) => v + '%' }
+                        }}
+                        meta={{
+                          memory: { min: 0, max: 100 }
                         }}
                       />
 
