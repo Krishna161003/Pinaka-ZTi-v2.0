@@ -36,6 +36,22 @@ const Lifecyclemgmt = () => {
     localStorage.setItem('lm_history', JSON.stringify(items || []));
   };
 
+  // Fetch lifecycle history from Node backend (fallback to localStorage on error)
+  const fetchHistoryFromServer = async () => {
+    try {
+      const res = await fetch(`https://${hostIP}:5000/api/lifecycle-history`);
+      if (!res.ok) throw new Error('history request failed');
+      const data = await res.json();
+      const rows = Array.isArray(data?.rows) ? data.rows : [];
+      setHistory(rows);
+      persistHistory(rows);
+    } catch (e) {
+      // Fallback to localStorage
+      const v = localStorage.getItem('lm_history');
+      try { setHistory(v ? JSON.parse(v) : []); } catch { setHistory([]); }
+    }
+  };
+
   const addHistoryItem = (jid, data) => {
     if (!jid || !data) return;
     setHistory(prev => {
@@ -70,6 +86,8 @@ const Lifecyclemgmt = () => {
         if (data.state === 'succeeded') {
           message.success('Script finished successfully');
           addHistoryItem(jid, data);
+          // Also refresh from server to reflect persisted DB history
+          fetchHistoryFromServer();
         }
         if (data.state === 'failed') message.error(`Script failed: ${data.message || 'Unknown error'}`);
         lastStateRef.current = data.state;
@@ -103,12 +121,22 @@ const Lifecyclemgmt = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load history when switching to History tab
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistoryFromServer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   const uploadProps = {
     name: 'file',
     multiple: false,
     maxCount: 1,
     accept: '.zip',
     action: `https://${hostIP}:2020/upload`,
+    // Send host_ip along with the multipart form so Flask can forward to Node
+    data: { host_ip: hostIP },
     disabled: isRunning,
     beforeUpload(file) {
       if (isRunning) {
@@ -242,10 +270,7 @@ const Lifecyclemgmt = () => {
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                         <Button
                           aria-label="Refresh"
-                          onClick={() => {
-                            const v = localStorage.getItem('lm_history');
-                            try { setHistory(v ? JSON.parse(v) : []); } catch { setHistory([]); }
-                          }}
+                          onClick={fetchHistoryFromServer}
                           icon={<SyncOutlined />}
                           style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
                         >

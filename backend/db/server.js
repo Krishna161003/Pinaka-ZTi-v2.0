@@ -737,12 +737,89 @@ db.connect((err) => {
     });
     console.log("Deployed Server table ensured...");
   });
+
+  // Create lifecycle_history table for Lifecycle Management History tab
+  const lifecycleHistoryTableSQL = `
+    CREATE TABLE IF NOT EXISTS lifecycle_history (
+      id VARCHAR(64) PRIMARY KEY,           -- Job/History ID (from lifecycle job)
+      info VARCHAR(512),                    -- Patch Info / description
+      date DATETIME,                        -- Date/time of completion
+      user_id CHAR(36) NULL,                -- Optional: who triggered it
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+  `;
+  db.query(lifecycleHistoryTableSQL, (err, result) => {
+    if (err) throw err;
+    console.log("Lifecycle_history table checked/created...");
+  });
   
   // Set up periodic check for expired licenses (run every hour)
   setInterval(checkAndUpdateExpiredLicenses, 60 * 60 * 1000); // 60 minutes * 60 seconds * 1000 milliseconds
   
   // Also run the check once on startup
   setTimeout(checkAndUpdateExpiredLicenses, 5000); // Run after 5 seconds to ensure DB is ready
+});
+
+// Insert lifecycle management history item
+app.post('/api/lifecycle-history', (req, res) => {
+  try {
+    const { id, info, date, user_id } = req.body || {};
+    if (!id || !info) {
+      return res.status(400).json({ error: 'id and info are required' });
+    }
+    // Allow date to be ISO string, epoch, or omit (defaults to now)
+    let dateVal;
+    if (!date) {
+      dateVal = new Date();
+    } else if (typeof date === 'number') {
+      // seconds or milliseconds
+      dateVal = new Date(date < 10_000_000_000 ? date * 1000 : date);
+    } else {
+      dateVal = new Date(date);
+    }
+    const sql = `
+      INSERT INTO lifecycle_history (id, info, date, user_id)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        info = VALUES(info),
+        date = VALUES(date),
+        user_id = VALUES(user_id)
+    `;
+    db.query(sql, [id, info, dateVal, user_id || null], (err) => {
+      if (err) {
+        console.error('Error inserting lifecycle history:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      return res.status(200).json({ message: 'Lifecycle history stored' });
+    });
+  } catch (e) {
+    console.error('Unexpected error in POST /api/lifecycle-history:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Fetch lifecycle management history items
+app.get('/api/lifecycle-history', (req, res) => {
+  try {
+    const { user_id } = req.query || {};
+    let sql = 'SELECT id, info, date FROM lifecycle_history';
+    const params = [];
+    if (user_id) {
+      sql += ' WHERE user_id = ?';
+      params.push(user_id);
+    }
+    sql += ' ORDER BY date DESC, created_at DESC';
+    db.query(sql, params, (err, rows) => {
+      if (err) {
+        console.error('Error fetching lifecycle history:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      return res.json({ rows: rows || [] });
+    });
+  } catch (e) {
+    console.error('Unexpected error in GET /api/lifecycle-history:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Helper to get the latest in-progress deployment for a user
