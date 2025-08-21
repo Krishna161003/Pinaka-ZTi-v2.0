@@ -1209,7 +1209,7 @@ const Dashboard = () => {
                   </div>
                 </Col>
               </Row>
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "270px" }}>
+              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "290px" }}>
                 <Col
                   className="gutter-row"
                   span={11} // Each column takes up 7 spans
