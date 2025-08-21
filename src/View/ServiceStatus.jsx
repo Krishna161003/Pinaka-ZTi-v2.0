@@ -244,6 +244,7 @@ const ServiceStatus = () => {
   // Dropdown data: real nodes fetched from backend, services remain static for now
   const [nodeOptions, setNodeOptions] = React.useState(['All']);
   const [nodeLoading, setNodeLoading] = React.useState(false);
+  const [hasDeployedServers, setHasDeployedServers] = React.useState(false);
   const DUMMY_SERVICE_OPTIONS = ['All', 'octavia','nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
   const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
   const nodeSelectOptions = React.useMemo(() => (
@@ -291,9 +292,11 @@ const ServiceStatus = () => {
         : (Array.isArray(res.data?.ips) ? res.data.ips : []);
       const uniq = Array.from(new Set(ips.filter(Boolean)));
       setNodeOptions(['All', ...uniq]);
+      setHasDeployedServers(uniq.length > 0);
     } catch (e) {
       // Fallback to just 'All' on error
       setNodeOptions(['All']);
+      setHasDeployedServers(false);
     } finally {
       setNodeLoading(false);
     }
@@ -355,14 +358,14 @@ const ServiceStatus = () => {
 
   // Operations actions
   const reconfigureService = () => {
-    if (opsBusy) return;
+    if (opsBusy || !hasDeployedServers) return;
     setSelectedNodes([]);
     setSelectedServices([]);
     setReconfigureOpen(true);
   };
 
   const databaseRecovery = () => {
-    if (opsBusy) return;
+    if (opsBusy || !hasDeployedServers) return;
     setDbRecoveryOpen(true);
   };
 
@@ -627,7 +630,7 @@ const ServiceStatus = () => {
                       size="middle"
                       aria-label="Reconfigure Service"
                       onClick={reconfigureService}
-                      disabled={opsBusy}
+                      disabled={opsBusy || !hasDeployedServers}
                       style={{ width: 160, flex: '0 0 auto' }}
                     >
                       Reconfigure Service
@@ -637,7 +640,7 @@ const ServiceStatus = () => {
                       size="middle"
                       aria-label="Database Recovery"
                       onClick={databaseRecovery}
-                      disabled={opsBusy}
+                      disabled={opsBusy || !hasDeployedServers}
                       style={{ width: 160, flex: '0 0 auto' }}
                     >
                       Database Recovery
