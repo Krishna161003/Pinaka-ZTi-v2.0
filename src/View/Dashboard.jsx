@@ -868,7 +868,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <span style={{ fontSize: "16px", fontWeight: "600", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
+                    <h4 style={{ fontSize: "16px", fontWeight: "600", userSelect: "none", textAlign: "center" }}>Cloud Name</h4>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
                     <span style={{ 
