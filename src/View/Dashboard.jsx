@@ -59,6 +59,8 @@ const { Content } = Layout;
 const Dashboard = () => {
   // For error notification on backend fetch failure
   const lastErrorIpRef = useRef(null);
+  // For cloud resource-usage error gating
+  const resourceErrorShownRef = useRef(false);
   // Node SSH status
   const [nodeStatus, setNodeStatus] = useState('Loading');
 
@@ -552,6 +554,36 @@ const Dashboard = () => {
       volumes: cloudStats.volumes,
     }
   ];
+
+  // Fetch cloud resource usage for the table (from Flask /resource-usage)
+  useEffect(() => {
+    resourceErrorShownRef.current = false; // reset gate per host
+    let cancelled = false;
+    const fetchResourceUsage = async () => {
+      try {
+        const res = await fetch(`https://${hostIP}:2020/resource-usage`);
+        const data = await res.json();
+        if (!cancelled && data && !data.error) {
+          setCloudStats({
+            instances: Number(data.instances) || 0,
+            volumes: Number(data.volumes_in_use) || 0,
+            vcpuUsed: Number(data.vcpu?.used) || 0,
+            vcpuTotal: Number(data.vcpu?.total) || 0,
+            memUsedGiB: Number(data.memory?.used) || 0,
+            memTotalGiB: Number(data.memory?.total) || 0,
+          });
+        }
+      } catch (e) {
+        if (!cancelled && !resourceErrorShownRef.current) {
+          message.error(`Failed to fetch cloud resource usage from ${selectedHostIP}`);
+          resourceErrorShownRef.current = true;
+        }
+      }
+    };
+    fetchResourceUsage();
+    const interval = setInterval(fetchResourceUsage, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [selectedHostIP]);
 
   // Keep filtered containers in sync with search text and containers; persist page
   useEffect(() => {
