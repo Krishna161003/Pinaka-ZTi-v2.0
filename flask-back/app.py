@@ -45,10 +45,22 @@ def add_memory_history(mem_percent):
     })
 
 def get_cpu_history():
-    return list(timestamped_cpu_history)
+    return [
+        {
+            "timestamp": entry["timestamp"],
+            "cpu": entry["cpu"] * 100 if entry["cpu"] <= 1.5 else entry["cpu"],
+        }
+        for entry in timestamped_cpu_history
+    ]
 
 def get_memory_history():
-    return list(timestamped_memory_history)
+    return [
+        {
+            "timestamp": entry["timestamp"],
+            "memory": entry["memory"] * 100 if entry["memory"] <= 1.5 else entry["memory"],
+        }
+        for entry in timestamped_memory_history
+    ]
 
 # Add bandwidth history
 last_bandwidth = {'rx': 0, 'tx': 0, 'timestamp': 0}
