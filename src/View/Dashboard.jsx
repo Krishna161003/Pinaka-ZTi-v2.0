@@ -1208,7 +1208,7 @@ const Dashboard = () => {
                         meta={{
                           date: { type: 'time', mask: 'HH:mm:ss' },
                           cpu: {
-                            min: 0,
+                            min: 10,
                             max: 100,
                             tickInterval: 20,
                           }
@@ -1217,7 +1217,7 @@ const Dashboard = () => {
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          min: 0,
+                          min: 10,
                           max: 100,
                           tickCount: 6,
                           nice: false,
@@ -1268,7 +1268,7 @@ const Dashboard = () => {
                         meta={{
                           date: { type: 'time', mask: 'HH:mm:ss' },
                           memory: {
-                            min: 0,
+                            min: 10,
                             max: 100,
                             tickInterval: 20,
                           }
@@ -1277,7 +1277,7 @@ const Dashboard = () => {
                           label: {
                             formatter: (v) => `${v}%`,
                           },
-                          min: 0,
+                          min: 10,
                           max: 100,
                           tickInterval: 20,
                         }}
