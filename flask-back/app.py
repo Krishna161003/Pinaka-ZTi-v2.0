@@ -1508,12 +1508,27 @@ def store_deployment_configs():
         # If list, expect each item to have a unique 'ip' or 'hostname'
         node_items = [(str(i+1), node) for i, node in enumerate(data)]
 
-    # Directory to store configs (must match node_deployment_progress)
+    # Directory to store configs
     configs_dir = pathlib.Path('/home/pinaka/.pinaka_wd/cluster/nodes/')
-    configs_dir.mkdir(exist_ok=True)
+    configs_dir.mkdir(parents=True, exist_ok=True)
+
+    # Find the highest numbered node file present
+    existing_files = sorted(configs_dir.glob("node_*.json"))
+    if existing_files:
+        numbers = []
+        for f in existing_files:
+            try:
+                num_str = f.stem.split("_")[1]
+                numbers.append(int(num_str))
+            except Exception:
+                continue
+        start_idx = max(numbers) + 1 if numbers else 1
+    else:
+        start_idx = 1
+
     results = []
-    for idx, (node_key, node_cfg) in enumerate(node_items, 1):
-        fname = f"node_{idx:02d}.json"
+    for offset, (node_key, node_cfg) in enumerate(node_items):
+        fname = f"node_{start_idx + offset:02d}.json"
         fpath = configs_dir / fname
         try:
             with open(fpath, 'w') as f:
@@ -1521,7 +1536,21 @@ def store_deployment_configs():
             results.append({'node': node_key, 'file': str(fpath), 'status': 'success'})
         except Exception as e:
             results.append({'node': node_key, 'file': str(fpath), 'status': 'error', 'error': str(e)})
-    return jsonify({'results': results, 'success': all(r['status']== 'success' for r in results)})
+
+    # ✅ After writing configs, create the deployment_in_progress marker
+    markers_dir = pathlib.Path('/home/pinaka/.pinaka_wd/.markers/deplyment_status/')
+    markers_dir.mkdir(parents=True, exist_ok=True)
+    marker_file = markers_dir / "deployment_in_progress"
+    try:
+        marker_file.touch(exist_ok=True)   # create empty file if not already there
+    except Exception as e:
+        results.append({'marker_file': str(marker_file), 'status': 'error', 'error': str(e)})
+
+    return jsonify({
+        'results': results,
+        'marker': str(marker_file),
+        'success': all(r['status'] == 'success' for r in results)
+    })
 
 # -------------------------------------------------------------------------
 
@@ -1693,27 +1722,28 @@ def check_ssh_status():
         'message': 'SSH polling in progress'
     })
 
+
+
 @app.route('/node-deployment-progress', methods=['GET'])
 def node_deployment_progress():
     try:
-        configs_dir = pathlib.Path('/home/pinaka/.pinaka_wd/cluster/nodes/')
-        if not configs_dir.exists():
-            # No folder means no pending node_* files → consider completed
+        configs_dir = pathlib.Path('/home/pinaka/.pinaka_wd/.markers/deplyment_status/')
+        marker_file = configs_dir / "deployment_in_progress"
+
+        if marker_file.exists():   # Deployment in progress
             return jsonify({
-                'in_progress': False,
-                'files': []
+                "in_progress": True
             })
-        node_files = sorted([p.name for p in configs_dir.glob('node_*') if p.is_file()])
-        in_progress = len(node_files) > 0
-        return jsonify({
-            'in_progress': in_progress,
-            'files': node_files
-        })
+        else:   # Deployment completed
+            return jsonify({
+                "in_progress": False
+            })
+
     except Exception as e:
-        # On error, default to not in progress but include the error for visibility
+        # Default to not in progress but report error for visibility
         return jsonify({
-            'in_progress': False,
-            'error': str(e)
+            "in_progress": False,
+            "error": str(e)
         })
 
 #--------------------------------------------License Update Start------------------------------------------------
@@ -1721,18 +1751,9 @@ def node_deployment_progress():
 @app.route("/apply-license", methods=["POST"])
 def apply_license():
     """
-    Accepts license details and SSHes to the target server to persist them.
-    This endpoint ONLY performs the SSH write; DB updates are handled by the frontend.
-    If SSH write fails, returns error.
-
-    Expected JSON:
-    {
-      server_ip,
-      license_code, license_type, license_period,
-      ssh_username? (default: pinakasupport),
-      ssh_key_path? (default: /home/pinaka/ps_key.pem),
-      remote_path? (default: /opt/pinaka/license/license.json)
-    }
+    Updates license details inside an existing remote JSON file.
+    Only replaces license_code, license_type, and license_period keys.
+    Keeps all other fields intact.
     """
     try:
         data = request.get_json(force=True) or {}
@@ -1746,6 +1767,7 @@ def apply_license():
         ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
         remote_path = data.get("remote_path", "/home/pinaka/.pinaka_wd/license/license.json")
 
+        # Validate required fields
         missing = [k for k, v in {
             "server_ip": server_ip,
             "license_code": license_code,
@@ -1755,53 +1777,59 @@ def apply_license():
         if missing:
             return jsonify({"success": False, "message": f"Missing required fields: {', '.join(missing)}"}), 400
 
-        # 1) SSH to target and store license file
         try:
+            # --- SSH Setup ---
             key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(hostname=server_ip, username=ssh_username, pkey=key, timeout=30)
 
-            remote_dir = os.path.dirname(remote_path)
-            # Ensure directory exists and is writable
-            stdin, stdout, stderr = ssh.exec_command(f"sudo mkdir -p {remote_dir}")
-            exit_code = stdout.channel.recv_exit_status()
-            if exit_code != 0:
-                raise RuntimeError(f"mkdir failed: {stderr.read().decode().strip()}")
-
             sftp = ssh.open_sftp()
-            tmp_path = f"/tmp/license-{int(time.time())}.json"
-            payload = {
+
+            # --- Step 1: Download existing license file ---
+            try:
+                with sftp.open(remote_path, "r") as f:
+                    existing_data = json.load(f)
+            except FileNotFoundError:
+                existing_data = {}  # if file doesn’t exist, start fresh
+
+            # --- Step 2: Update the license fields ---
+            existing_data.update({
                 "license_code": license_code,
                 "license_type": license_type,
                 "license_period": license_period,
-                "updated_at": datetime.utcnow().isoformat() + "Z",
-            }
-            data_bytes = json.dumps(payload, indent=2).encode("utf-8")
-            f = sftp.file(tmp_path, "w")
-            f.write(data_bytes)
-            f.flush()
-            f.close()
+            })
+
+            # --- Step 3: Write back to a temp file ---
+            tmp_path = f"/tmp/license-{int(time.time())}.json"
+            with sftp.file(tmp_path, "w") as f:
+                f.write(json.dumps(existing_data, indent=2))
+                f.flush()
             sftp.chmod(tmp_path, 0o644)
-            # Move into place atomically (may require sudo)
+
+            # --- Step 4: Move into place atomically with sudo ---
             stdin, stdout, stderr = ssh.exec_command(
                 f"sudo mv {tmp_path} {remote_path} && sudo chmod 644 {remote_path}"
             )
             exit_code = stdout.channel.recv_exit_status()
             if exit_code != 0:
                 raise RuntimeError(f"move/chmod failed: {stderr.read().decode().strip()}")
+
             sftp.close()
             ssh.close()
+
         except Exception as e:
             return jsonify({
                 "success": False,
-                "message": f"Failed to store license on server {server_ip}: {str(e)}"
+                "message": f"Failed to update license on server {server_ip}: {str(e)}"
             }), 500
-        # DB update is handled by the frontend after a successful SSH apply.
 
+        # ✅ New response
         return jsonify({
             "success": True,
-            "message": "License stored on server"
+            "message": "License updated successfully on server",
+            "server_ip": server_ip,
+            "updated_fields": ["license_code", "license_type", "license_period"]
         }), 200
 
     except Exception as e:
