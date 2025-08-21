@@ -1191,16 +1191,7 @@ const Dashboard = () => {
                     </div>
                     <div style={{ height: '180px' }}>
                       <Line
-                        data={[
-                          { date: '00:00', cpu: 20 },
-                          { date: '03:00', cpu: 45 },
-                          { date: '06:00', cpu: 28 },
-                          { date: '09:00', cpu: 65 },
-                          { date: '12:00', cpu: 75 },
-                          { date: '15:00', cpu: 52 },
-                          { date: '18:00', cpu: 38 },
-                          { date: '21:00', cpu: 25 },
-                        ]}
+                        data={cpuHistory}
                         xField="date"
                         yField="cpu"
                         height={180}
@@ -1249,17 +1240,8 @@ const Dashboard = () => {
                       Usage: {memoryData.toFixed(1)}%
                     </div>
                     <div style={{ height: '180px' }}>
-                      <Line
-                        data={[
-                          { date: '00:00', memory: 30 },
-                          { date: '03:00', memory: 55 },
-                          { date: '06:00', memory: 48 },
-                          { date: '09:00', memory: 75 },
-                          { date: '12:00', memory: 82 },
-                          { date: '15:00', memory: 65 },
-                          { date: '18:00', memory: 58 },
-                          { date: '21:00', memory: 42 },
-                        ]}
+                        <Line
+                        data={memoryHistory}
                         xField="date"
                         yField="memory"
                         height={180}
