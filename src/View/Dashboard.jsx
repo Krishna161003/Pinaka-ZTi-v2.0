@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import Layout1 from "../Components/layout";
-import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message } from "antd";
+import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
+import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
 import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.jpeg";
-import cloud from "../Images/cloud-computing_660475.png";
 import squad from "../Images/Squadron.png";
 import osd from "../Images/OSD.jpeg";
 import { Area, Line } from '@ant-design/plots';
@@ -71,6 +71,7 @@ const Dashboard = () => {
   const [currentBandwidth, setCurrentBandwidth] = useState(0);
   const [chartData, setChartData] = useState([]);
   const [healthStatus, setHealthStatus] = useState("Loading");
+  const [healthDetails, setHealthDetails] = useState({ metrics: null, thresholds: null, reasons: [] });
   const [memoryData, setMemoryData] = useState(0);
   const [totalMemory, setTotalMemory] = useState(0);
   const [usedMemory, setUsedMemory] = useState(0);
@@ -443,9 +444,16 @@ const Dashboard = () => {
     const fetchHealth = async () => {
       try {
         const res = await axios.get(`https://${selectedHostIP}:2020/check-health`);
-        setHealthStatus(res.data.status.toUpperCase());
+        const data = res.data || {};
+        setHealthStatus((data.status || 'ERROR').toUpperCase());
+        setHealthDetails({
+          metrics: data.metrics || null,
+          thresholds: data.thresholds || null,
+          reasons: Array.isArray(data.reasons) ? data.reasons : []
+        });
       } catch (err) {
         setHealthStatus("ERROR");
+        setHealthDetails({ metrics: null, thresholds: null, reasons: [] });
       }
     };
 
@@ -498,6 +506,52 @@ const Dashboard = () => {
   const [dockerError, setDockerError] = useState("");
   // Persisted docker search text
   const [dockerSearchText, setDockerSearchText] = useState(() => sessionStorage.getItem('docker_search_text') || '');
+
+  // Cloud resources summary for the table below the Cloud card
+  const [cloudStats, setCloudStats] = useState({
+    instances: 0,
+    volumes: 0,
+    vcpuUsed: 2,
+    vcpuTotal: 10,
+    memUsedGiB: 2,
+    memTotalGiB: 10,
+  });
+
+  // Small usage bar component used in the table for vCPU and Memory
+  const UsageBar = ({ used = 0, total = 0, color = '#4c8dff' }) => {
+    if (!total || total <= 0) {
+      return <span style={{ color: '#8c8c8c' }}>N/A</span>;
+    }
+    const pct = Math.max(0, Math.min(100, (used / total) * 100));
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Tooltip title={`${pct.toFixed(2)}%`}>
+          <div style={{ width: 180, height: 6, background: '#eaeef5', borderRadius: 4, overflow: 'hidden', cursor: 'pointer' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: color }} />
+          </div>
+        </Tooltip>
+        <span style={{ fontSize: 12, color: '#2c3e50' }}>{used} / {total}</span>
+      </div>
+    );
+  };
+
+  // Columns and data for Cloud resources table
+  const cloudTableColumns = [
+    { title: 'Instances', dataIndex: 'instances', key: 'instances', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'vCPU (Core)', dataIndex: 'vcpu', key: 'vcpu', width: '30%', render: (vcpu) => <UsageBar used={vcpu?.used} total={vcpu?.total} color="#4c8dff" /> },
+    { title: 'Configured Memory (GiB)', dataIndex: 'memory', key: 'memory', width: '30%', render: (mem) => <UsageBar used={mem?.used} total={mem?.total} color="#4c8dff" /> },
+    { title: 'Volumes', dataIndex: 'volumes', key: 'volumes', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+  ];
+
+  const cloudTableData = [
+    {
+      key: 'summary',
+      instances: cloudStats.instances,
+      vcpu: { used: cloudStats.vcpuUsed, total: cloudStats.vcpuTotal },
+      memory: { used: cloudStats.memUsedGiB, total: cloudStats.memTotalGiB },
+      volumes: cloudStats.volumes,
+    }
+  ];
 
   // Keep filtered containers in sync with search text and containers; persist page
   useEffect(() => {
@@ -773,30 +827,6 @@ const Dashboard = () => {
       <Layout>
         <Content>
           <div>
-            {/* Cloud section - Full width */}
-            <Row gutter={16} style={{ margin: "0 18px 0 20px" }}>
-              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%' } : { ...style, width: '100%' }}
-                onClick={() => navigateToIaasTab("1")}
-                onMouseEnter={() => setHoveredCard('cloud')}
-                onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={cloud} alt="cloud--v1" style={{ width: "64px", height: "64px", userSelect: "none" }} />
-                    <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Cloud</span>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "50px" }}>
-                    <span style={{ 
-                      fontSize: "24px", 
-                      fontWeight: "600", 
-                      color: "#1890ff", 
-                      userSelect: "none",
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px'
-                    }}>{cloudName || 'N/A'}</span>
-                  </div>
-                </div>
-              </Col>
-            </Row>
 
             {/* Second row: Flight Deck, Squadron, and OSD */}
             <Row gutter={16} justify="space-between" style={{ marginLeft: "20px", marginTop: "5px" }}>
@@ -876,6 +906,47 @@ const Dashboard = () => {
                 </div>
               </Col>
             </Row>
+            {/* Cloud section - Full width (moved below) */}
+            <Row gutter={16} style={{ margin: "0 18px 0 20px" }}>
+              <Col span={24} style={hoveredCard === 'cloud' ? { ...hoverStyle, width: '100%', padding: '12px 16px', marginTop: '10px' } : { ...style, width: '100%', padding: '12px 16px', marginTop: '10px' }}
+                onClick={() => navigateToIaasTab("1")}
+                onMouseEnter={() => setHoveredCard('cloud')}
+                onMouseLeave={() => setHoveredCard(null)}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "60px", justifyContent: "center", marginLeft: "20px" }}>
+                    <span style={{ fontSize: "20px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "30px" }}>
+                    <span style={{ 
+                      fontSize: "20px", 
+                      fontWeight: "600", 
+                      color: "#1890ff", 
+                      userSelect: "none",
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>{cloudName || 'N/A'}</span>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+            {/* Cloud resources summary table */}
+            <div
+              style={{
+                marginTop: 10,
+                padding: 16,
+                background: colorBgContainer,
+                marginLeft: "20px",
+                marginRight: "17px",
+              }}
+            >
+              <Table
+                columns={cloudTableColumns}
+                dataSource={cloudTableData}
+                pagination={false}
+                size="small"
+                rowKey="key"
+              />
+            </div>
             <div
               style={{
                 marginTop: 10,
@@ -970,18 +1041,57 @@ const Dashboard = () => {
                 </Col>
                 <Col className="gutter-row" span={7} style={performancewidgetStyle}>
                   <div>
-                    <span
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "500",
-                        marginLeft: "1px",
-                        userSelect: "none",
-                        display: "block",
-                        marginBottom: "8px"
-                      }}
-                    >
-                      Health Check
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: "500",
+                          marginLeft: "1px",
+                          userSelect: "none",
+                        }}
+                      >
+                        Health Check
+                      </span>
+                      <Tooltip
+                        placement="right"
+                        title={(() => {
+                          const reasons = healthDetails.reasons || [];
+                          const m = healthDetails.metrics || {};
+                          const t = healthDetails.thresholds || {};
+                          const lines = [];
+                          if (reasons.length > 0) {
+                            reasons.forEach(r => {
+                              lines.push(`${r.metric}: ${r.level} — actual ${r.actual}% > ${r.level === 'CRITICAL' ? (t[r.metric?.toLowerCase()]?.critical ?? r.threshold) : (t[r.metric?.toLowerCase()]?.warning ?? r.threshold)}%`);
+                            });
+                          } else if (healthStatus === 'GOOD') {
+                            lines.push('All metrics are below warning thresholds');
+                          }
+                          // Show current vs thresholds
+                          const metricsBlock = [
+                            typeof m.cpu_usage_percent === 'number' ? `CPU: ${m.cpu_usage_percent}% (warn ${t.cpu?.warning ?? '—'}%, crit ${t.cpu?.critical ?? '—'}%)` : null,
+                            typeof m.memory_usage_percent === 'number' ? `Memory: ${m.memory_usage_percent}% (warn ${t.memory?.warning ?? '—'}%, crit ${t.memory?.critical ?? '—'}%)` : null,
+                            typeof m.disk_usage_percent === 'number' ? `Disk: ${m.disk_usage_percent}% (warn ${t.disk?.warning ?? '—'}%, crit ${t.disk?.critical ?? '—'}%)` : null,
+                          ].filter(Boolean);
+                          return (
+                            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                              <div style={{ fontWeight: 600, marginBottom: 4 }}>Status: {healthStatus}</div>
+                              {lines.length > 0 && (
+                                <div style={{ marginBottom: 4 }}>
+                                  {lines.map((l, i) => (<div key={i}>{l}</div>))}
+                                </div>
+                              )}
+                              {metricsBlock.length > 0 && (
+                                <div>
+                                  {metricsBlock.map((l, i) => (<div key={i}>{l}</div>))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      >
+                        <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                      </Tooltip>
+                    </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div
                       style={{
@@ -1005,7 +1115,7 @@ const Dashboard = () => {
                 <Col className="gutter-row" span={7} style={performancewidgetStyle}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Bandwidth Latency</span>
+                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Latency</span>
                       <Select
                         style={{ width: 100 }}
                         value={selectedInterface}
