@@ -1172,11 +1172,11 @@ const Dashboard = () => {
                   </div>
                 </Col>
               </Row>
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "270px" }}>
+              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px" }}>
                 <Col
                   className="gutter-row"
                   span={11} // Each column takes up 7 spans
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, padding: '10px 14px' }}
                 >
                   <div>
                     <span
@@ -1189,52 +1189,18 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      CPU Usage Trend
+                      CPU Usage
                     </span>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Current: {cpuData.toFixed(1)}%
-                    </div>
-                    <div style={{ height: '180px' }}>
-                      <Line
-                        data={cpuHistory}
-                        xField="date"
-                        yField="cpu"
-                        height={180}
-                        color="#1890ff"
-                        point={{
-                          size: 4,
-                          style: {
-                            fill: '#1890ff',
-                            stroke: '#fff',
-                            lineWidth: 1,
-                          },
-                        }}
-                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, nice: true, label: { autoRotate: true } }}
-                        meta={{
-                          date: { type: 'time', mask: 'HH:mm:ss' },
-                          cpu: {
-                            min: 0,
-                            max: 100,
-                          }
-                        }}
-                        yAxis={{
-                          label: {
-                            formatter: (v) => `${v}%`,
-                          },
-                          min: 0,
-                          max: 100,
-                          ticks: [10, 30, 50, 70, 100],
-                          nice: false,
-                        }}
-                      />
+                    <Divider style={{ margin: "0 0 8px 0" }} />
+                    <div style={{ fontSize: 22, color: '#333', marginTop: -6, fontWeight: 600 }}>
+                      {cpuData.toFixed(1)}%
                     </div>
                   </div>
                 </Col>
                 <Col
                   className="gutter-row"
                   span={11} // Each column takes up 7 spans
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, padding: '10px 14px' }}
                 >
                   <div>
                     <span
@@ -1247,45 +1213,12 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      Memory Usage Trend
+                      Memory Usage
                     </span>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Used: {usedMemory} MB / {totalMemory} MB
-                      Usage: {memoryData.toFixed(1)}%
-                    </div>
-                    <div style={{ height: '180px' }}>
-                        <Line
-                        data={memoryHistory}
-                        xField="date"
-                        yField="memory"
-                        height={180}
-                        color="#52c41a"
-                        point={{
-                          size: 4,
-                          style: {
-                            fill: '#52c41a',
-                            stroke: '#fff',
-                            lineWidth: 1,
-                          },
-                        }}
-                        xAxis={{ type: 'time', mask: 'HH:mm:ss', tickCount: 6, nice: true, label: { autoRotate: true } }}
-                        meta={{
-                          date: { type: 'time', mask: 'HH:mm:ss' },
-                          memory: {
-                            min: 0,
-                            max: 100,
-                          }
-                        }}
-                        yAxis={{
-                          label: {
-                            formatter: (v) => `${v}%`,
-                          },
-                          min: 0,
-                          max: 100,
-                          ticks: [10, 30, 50, 70, 100],
-                        }}
-                      />
+                    <Divider style={{ margin: "0 0 8px 0" }} />
+                    <div style={{ fontSize: 14, color: '#333' }}>
+                      <div style={{ marginBottom: 4 }}>Used: <strong>{usedMemory}</strong> MB / <strong>{totalMemory}</strong> MB</div>
+                      <div style={{ fontSize: 22, fontWeight: 600 }}>{memoryData.toFixed(1)}%</div>
                     </div>
                   </div>
                 </Col>
