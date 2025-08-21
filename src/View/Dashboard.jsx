@@ -279,7 +279,7 @@ const Dashboard = () => {
       point: {
         shapeField: 'circle',
         sizeField: 2,
-        stroke: '#52c41a',
+        color: '#52c41a',
       },
       style: {
         lineWidth: 1,
