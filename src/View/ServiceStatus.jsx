@@ -472,20 +472,51 @@ const ServiceStatus = () => {
       `[${new Date().toLocaleTimeString()}] Stop Containers triggered. Nodes: ${nodes.join(', ')}, Services: ${services.length ? services.join(', ') : 'ALL'}`
     ]));
 
-    const jobs = [];
-    if (services.length === 0) {
-      nodes.forEach((n) => jobs.push({ action: 'stop_node', node: n }));
-    } else {
-      nodes.forEach((n) => services.forEach((s) => jobs.push({ action: 'stop_node_service', node: n, service: s })));
-    }
-
+    // SSH-based control: ignore service filter for now and operate on all containers on each node
     try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
     setOpsBusy(true);
     setStopOpen(false);
-    const results = await Promise.allSettled(jobs.map((p) => runKolla(p)));
-    const anyStarted = results.some(r => r.status === 'fulfilled' && r.value && r.value.job_id);
-    if (!anyStarted) { saveJobIds([]); }
-    await fetchOperationLogs();
+
+    const requests = nodes.map((n) => (
+      axios.post(`https://${hostIP}:2020/docker/control`, {
+        server_ip: n,
+        action: 'stop'
+      }, { headers: { 'Content-Type': 'application/json' } })
+    ));
+
+    const results = await Promise.allSettled(requests);
+
+    results.forEach((r, idx) => {
+      const n = nodes[idx];
+      if (r.status === 'fulfilled') {
+        const data = r.value?.data || {};
+        setOperationLogs((prev) => ([
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] /docker/control stop on ${n}: ${data.success ? 'success' : 'failed'}${data.message ? ` - ${data.message}` : ''}`
+        ]));
+        const details = Array.isArray(data.details) ? data.details : [];
+        details.forEach((d) => {
+          const parts = [
+            d.cmd ? `cmd=${d.cmd}` : null,
+            (typeof d.exit_code === 'number') ? `exit=${d.exit_code}` : null,
+            d.stdout ? `stdout=${d.stdout}` : null,
+            d.stderr ? `stderr=${d.stderr}` : null,
+          ].filter(Boolean).join(' | ');
+          if (parts) {
+            setOperationLogs((prev) => ([...prev, `  ${parts}`]));
+          }
+        });
+      } else {
+        const msg = r.reason?.message || String(r.reason || 'Unknown error');
+        setOperationLogs((prev) => ([
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] /docker/control stop on ${n}: error - ${msg}`
+        ]));
+      }
+    });
+
+    // Clear busy state after all SSH requests settle
+    saveJobIds([]);
   };
 
   // Restart containers handlers
@@ -510,20 +541,51 @@ const ServiceStatus = () => {
       `[${new Date().toLocaleTimeString()}] Restart Containers triggered. Nodes: ${nodes.join(', ')}, Services: ${services.length ? services.join(', ') : 'ALL'}`
     ]));
 
-    const jobs = [];
-    if (services.length === 0) {
-      nodes.forEach((n) => jobs.push({ action: 'restart_node', node: n }));
-    } else {
-      nodes.forEach((n) => services.forEach((s) => jobs.push({ action: 'restart_node_service', node: n, service: s })));
-    }
-
+    // SSH-based control: ignore service filter for now and operate on all containers on each node
     try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
     setOpsBusy(true);
     setRestartOpen(false);
-    const results = await Promise.allSettled(jobs.map((p) => runKolla(p)));
-    const anyStarted = results.some(r => r.status === 'fulfilled' && r.value && r.value.job_id);
-    if (!anyStarted) { saveJobIds([]); }
-    await fetchOperationLogs();
+
+    const requests = nodes.map((n) => (
+      axios.post(`https://${hostIP}:2020/docker/control`, {
+        server_ip: n,
+        action: 'restart'
+      }, { headers: { 'Content-Type': 'application/json' } })
+    ));
+
+    const results = await Promise.allSettled(requests);
+
+    results.forEach((r, idx) => {
+      const n = nodes[idx];
+      if (r.status === 'fulfilled') {
+        const data = r.value?.data || {};
+        setOperationLogs((prev) => ([
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] /docker/control restart on ${n}: ${data.success ? 'success' : 'failed'}${data.message ? ` - ${data.message}` : ''}`
+        ]));
+        const details = Array.isArray(data.details) ? data.details : [];
+        details.forEach((d) => {
+          const parts = [
+            d.cmd ? `cmd=${d.cmd}` : null,
+            (typeof d.exit_code === 'number') ? `exit=${d.exit_code}` : null,
+            d.stdout ? `stdout=${d.stdout}` : null,
+            d.stderr ? `stderr=${d.stderr}` : null,
+          ].filter(Boolean).join(' | ');
+          if (parts) {
+            setOperationLogs((prev) => ([...prev, `  ${parts}`]));
+          }
+        });
+      } else {
+        const msg = r.reason?.message || String(r.reason || 'Unknown error');
+        setOperationLogs((prev) => ([
+          ...prev,
+          `[${new Date().toLocaleTimeString()}] /docker/control restart on ${n}: error - ${msg}`
+        ]));
+      }
+    });
+
+    // Clear busy state after all SSH requests settle
+    saveJobIds([]);
   };
 
   const clearOperationLogs = () => setOperationLogs([]);

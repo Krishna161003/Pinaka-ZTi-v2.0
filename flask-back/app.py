@@ -1942,6 +1942,79 @@ def enforce_expired():
         }), 500
 #--------------------------------------------License Enforcement End-------------------------------------------
 
+#--------------------------------------------Docker Remote Control Start-------------------------------------------
+@app.route("/docker/control", methods=["POST"])
+def docker_control():
+    """
+    SSH to a target server and stop or restart Docker containers.
+    Body JSON:
+      {
+        "server_ip": "10.0.0.10",            # required
+        "action": "stop" | "restart",        # required
+        "ssh_username": "pinakasupport",     # optional (default)
+        "ssh_key_path": "/home/pinaka/.pinaka_wd/key/ps_key.pem"  # optional (default)
+      }
+
+    Behavior:
+      - stop:     stop all running containers (does NOT disable Docker service)
+      - restart:  restart all currently running containers (docker restart)
+    Returns JSON { success, server_ip, action, details: [ {cmd, exit_code, stdout, stderr} ] }
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        server_ip = data.get("server_ip")
+        action = data.get("action")
+        if not server_ip:
+            return jsonify({"success": False, "message": "Missing required field: server_ip"}), 400
+        if action not in ("stop", "restart"):
+            return jsonify({"success": False, "message": "Invalid action. Use 'stop' or 'restart'"}), 400
+
+        ssh_username = data.get("ssh_username", "pinakasupport")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
+
+        # Establish SSH
+        key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=server_ip, username=ssh_username, pkey=key, timeout=30)
+
+        exec_logs = []
+
+        def run(cmd: str, tolerate_failure: bool = False):
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            out = stdout.read().decode().strip()
+            err = stderr.read().decode().strip()
+            code = stdout.channel.recv_exit_status()
+            exec_logs.append({"cmd": cmd, "exit_code": code, "stdout": out, "stderr": err})
+            if code != 0 and not tolerate_failure:
+                raise RuntimeError(f"Command failed ({code}): {cmd} | {err}")
+
+        try:
+            if action == "stop":
+                # Stop all running containers (no error if none)
+                run("sudo bash -lc 'docker ps -q | xargs -r docker stop'", tolerate_failure=True)
+            elif action == "restart":
+                # Restart all currently running containers
+                run("sudo bash -lc 'ids=$(docker ps -q); [ -n \"$ids\" ] && docker restart $ids || true'", tolerate_failure=True)
+        finally:
+            ssh.close()
+
+        return jsonify({
+            "success": True,
+            "message": f"Action '{action}' executed on {server_ip}",
+            "server_ip": server_ip,
+            "action": action,
+            "details": exec_logs,
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Failed to execute docker control: {str(e)}"
+        }), 500
+
+#--------------------------------------------Docker Remote Control End-------------------------------------------
+
 #--------------------------------------------Openstack Operation Start-------------------------------------------
 @app.route("/resource-usage", methods=["GET"])
 def get_resource_usage():
@@ -2139,9 +2212,6 @@ def build_kolla_command(action: str,
     Supported actions:
       - mariadb_recovery
       - reconfigure_all | reconfigure_node | reconfigure_service | reconfigure_node_service
-      - stop_all | stop_node | stop_service | stop_node_service
-      - start_all | start_node | start_service | start_node_service
-      - restart_all | restart_node | restart_service | restart_node_service
     """
     base = f"kolla-ansible -i {INVENTORY}"
 
@@ -2166,65 +2236,7 @@ def build_kolla_command(action: str,
             raise ValueError("Missing 'node' or 'service' for action 'reconfigure_node_service'")
         return f"{base} reconfigure --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
 
-    # Stop containers
-    if action == "stop_all":
-        return f"{base} stop"
-
-    if action == "stop_node":
-        if not node:
-            raise ValueError("Missing 'node' for action 'stop_node'")
-        return f"{base} stop --limit {shlex.quote(node)}"
-
-    if action == "stop_service":
-        if not service:
-            raise ValueError("Missing 'service' for action 'stop_service'")
-        return f"{base} stop --tags {shlex.quote(service)}"
-
-    if action == "stop_node_service":
-        if not node or not service:
-            raise ValueError("Missing 'node' or 'service' for action 'stop_node_service'")
-        return f"{base} stop --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
-
-    # Start containers
-    if action == "start_all":
-        return f"{base} start"
-
-    if action == "start_node":
-        if not node:
-            raise ValueError("Missing 'node' for action 'start_node'")
-        return f"{base} start --limit {shlex.quote(node)}"
-
-    if action == "start_service":
-        if not service:
-            raise ValueError("Missing 'service' for action 'start_service'")
-        return f"{base} start --tags {shlex.quote(service)}"
-
-    if action == "start_node_service":
-        if not node or not service:
-            raise ValueError("Missing 'node' or 'service' for action 'start_node_service'")
-        return f"{base} start --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
-
-    # Restart (stop then start) containers
-    if action == "restart_all":
-        return f"{base} stop && {base} start"
-
-    if action == "restart_node":
-        if not node:
-            raise ValueError("Missing 'node' for action 'restart_node'")
-        return f"{base} stop --limit {shlex.quote(node)} && {base} start --limit {shlex.quote(node)}"
-
-    if action == "restart_service":
-        if not service:
-            raise ValueError("Missing 'service' for action 'restart_service'")
-        return f"{base} stop --tags {shlex.quote(service)} && {base} start --tags {shlex.quote(service)}"
-
-    if action == "restart_node_service":
-        if not node or not service:
-            raise ValueError("Missing 'node' or 'service' for action 'restart_node_service'")
-        return (
-            f"{base} stop --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
-            f" && {base} start --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
-        )
+    
 
     raise ValueError(f"Unsupported action '{action}'")
 
@@ -2291,10 +2303,7 @@ def kolla_run():
     Body JSON:
       {
         "action": "mariadb_recovery" |
-                  "reconfigure_all" | "reconfigure_node" | "reconfigure_service" | "reconfigure_node_service" |
-                  "stop_all" | "stop_node" | "stop_service" | "stop_node_service" |
-                  "start_all" | "start_node" | "start_service" | "start_node_service" |
-                  "restart_all" | "restart_node" | "restart_service" | "restart_node_service",
+                  "reconfigure_all" | "reconfigure_node" | "reconfigure_service" | "reconfigure_node_service",
         "node": "FD-001",         # optional, required for node actions
         "service": "nova"         # optional, required for service actions
       }
