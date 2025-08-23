@@ -175,13 +175,19 @@ const Lifecyclemgmt = () => {
         message.error('Only .zip files are allowed.');
         return Upload.LIST_IGNORE; // prevent upload and adding to list
       }
+      // Enforce filename prefix requirement
+      const hasValidPrefix = /^zti-2\.0-/.test(file.name);
+      if (!hasValidPrefix) {
+        message.error('Filename must start with "zti-2.0-".');
+        return Upload.LIST_IGNORE; // prevent upload and adding to list
+      }
       return true;
     },
     onChange(info) {
       const { status } = info.file;
       // Keep only valid .zip and only the latest one
       const latestZipOnly = info.fileList
-        .filter(f => /\.zip$/i.test(f.name))
+        .filter(f => /\.zip$/i.test(f.name) && /^zti-2\.0-/.test(f.name))
         .slice(-1);
       setFileList(latestZipOnly);
 
@@ -266,7 +272,7 @@ const Lifecyclemgmt = () => {
                           <InboxOutlined />
                         </p>
                         <p className="ant-upload-text">Click or drag .zip file(s) to this area to upload</p>
-                        <p className="ant-upload-hint">Only .zip files are allowed.</p>
+                        <p className="ant-upload-hint">Only .zip files starting with "zti-2.0-" are allowed.</p>
                       </Dragger>
                       {jobId && (
                         <div style={{ marginTop: 16 }}>

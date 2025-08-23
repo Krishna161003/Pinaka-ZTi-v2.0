@@ -10,6 +10,25 @@ const bcrypt = require("bcrypt"); // Import bcrypt library
 const { customAlphabet } = require('nanoid'); // Import nanoid for generating unique IDs
 require("dotenv").config(); // Load environment variables
 const axios = require('axios');
+const os = require('os');
+
+// Helper to get the primary local IPv4 address (non-internal)
+function getLocalIP() {
+  try {
+    const nets = os.networkInterfaces();
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] || []) {
+        if ((net.family === 'IPv4' || net.family === 4) && !net.internal) {
+          return net.address;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not determine local IP:', e.message);
+  }
+  return '127.0.0.1';
+}
+
 
 // Helper function to calculate end date based on license period (number of days)
 function calculateEndDate(licensePeriod) {
@@ -75,7 +94,7 @@ function checkAndUpdateExpiredLicenses() {
 
         // 3) Enforce on Flask for each affected server IP
         try {
-          const flaskHost = process.env.FLASK_HOST || process.env.REACT_APP_HOST_IP || '127.0.0.1';
+          const flaskHost = getLocalIP();
           const flaskPort = process.env.FLASK_PORT || 2020;
           const https = require('https');
           const agent = new https.Agent({ rejectUnauthorized: false });
@@ -87,24 +106,69 @@ function checkAndUpdateExpiredLicenses() {
             return;
           }
 
-          console.log(`Enforcing license expiration on ${uniqueIps.length} server(s) via Flask...`);
+          // Build IP -> server_id(s) map for later status updates
+          const ipToServerIds = {};
+          for (const t of targets) {
+            if (!t.serverip) continue;
+            if (!ipToServerIds[t.serverip]) ipToServerIds[t.serverip] = new Set();
+            if (t.server_id) ipToServerIds[t.serverip].add(t.server_id);
+          }
+
+          console.log(`Enforcing license expiration on ${uniqueIps.length} server(s) via Flask...`, { host: flaskHost, port: flaskPort });
 
           const results = await Promise.allSettled(
-            uniqueIps.map(ip =>
-              axios.post(`https://${flaskHost}:${flaskPort}/license/enforce-expired`, { server_ip: ip }, {
-                headers: { 'Content-Type': 'application/json' },
-                httpsAgent: agent,
-                timeout: 30_000,
-              })
-            )
+            uniqueIps.map(async (ip) => {
+              const maxAttempts = 3;
+              let lastErr = null;
+              for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                  const resp = await axios.post(`https://${flaskHost}:${flaskPort}/license/enforce-expired`, { server_ip: ip }, {
+                    headers: { 'Content-Type': 'application/json' },
+                    httpsAgent: agent,
+                    timeout: 30_000,
+                  });
+                  console.log(JSON.stringify({ event: 'license_enforcement_call', ip, attempt, success: true, status: resp.status }));
+                  return { ip, data: resp.data };
+                } catch (err) {
+                  lastErr = err;
+                  console.warn(JSON.stringify({ event: 'license_enforcement_call', ip, attempt, success: false, error: err?.message }));
+                  // Exponential backoff: 500ms, 1000ms (1s), 2000ms (2s)
+                  const delay = Math.pow(2, attempt - 1) * 500;
+                  await new Promise(r => setTimeout(r, delay));
+                }
+              }
+              throw { ip, error: lastErr };
+            })
           );
 
-          const successes = results.filter(r => r.status === 'fulfilled').length;
+          const successIPs = results.filter(r => r.status === 'fulfilled').map(r => r.value.ip);
           const failures = results.filter(r => r.status === 'rejected');
-          console.log(`License enforcement completed: ${successes} success, ${failures.length} failed`);
+          console.log(`License enforcement completed: ${successIPs.length} success, ${failures.length} failed`);
           if (failures.length > 0) {
-            failures.slice(0, 3).forEach((f, i) => console.warn(`Enforcement failure ${i + 1}:`, f.reason?.message || f.reason));
+            failures.slice(0, 3).forEach((f, i) => console.warn(`Enforcement failure ${i + 1}:`, f.reason?.error?.message || f.reason?.message || f.reason));
             if (failures.length > 3) console.warn(`...and ${failures.length - 3} more failures`);
+          }
+
+          // Update disable_enforced=1 for successfully enforced servers
+          if (successIPs.length > 0) {
+            const successServerIds = [];
+            for (const ip of successIPs) {
+              const idSet = ipToServerIds[ip];
+              if (idSet && idSet.size) {
+                for (const id of idSet) successServerIds.push(id);
+              }
+            }
+            const uniqueServerIds = [...new Set(successServerIds)].filter(Boolean);
+            if (uniqueServerIds.length > 0) {
+              const updSql = `UPDATE License SET disable_enforced = 1 WHERE license_status = 'expired' AND server_id IN (?)`;
+              db.query(updSql, [uniqueServerIds], (enfErr, enfRes) => {
+                if (enfErr) {
+                  console.error('Error updating disable_enforced for servers:', enfErr);
+                } else {
+                  console.log(`Marked disable_enforced=1 for ${uniqueServerIds.length} server(s)`);
+                }
+              });
+            }
           }
         } catch (e) {
           console.error('Error during license enforcement calls:', e);
@@ -768,6 +832,13 @@ db.connect((err) => {
       db.query("ALTER TABLE License ADD COLUMN end_date DATE NULL", (altErr) => {
         if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
           console.warn("Could not ensure 'end_date' column on License:", altErr.message);
+        }
+      });
+
+      // Ensure disable_enforced flag exists to mark enforcement completion
+      db.query("ALTER TABLE License ADD COLUMN disable_enforced TINYINT(1) DEFAULT 0", (altErr) => {
+        if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
+          console.warn("Could not ensure 'disable_enforced' column on License:", altErr.message);
         }
       });
 

@@ -1765,7 +1765,7 @@ def apply_license():
 
         ssh_username = data.get("ssh_username", "pinakasupport")
         ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
-        remote_path = data.get("remote_path", "/home/pinaka/.pinaka_wd/license/license.json")
+        remote_path = data.get("remote_path", "/home/pinaka/.pinaka_wd/.scripts/data.json")
 
         # Validate required fields
         missing = [k for k, v in {
@@ -1794,16 +1794,46 @@ def apply_license():
                 existing_data = {}  # if file doesn’t exist, start fresh
 
             # --- Step 2: Update the license fields ---
-            existing_data.update({
-                "license_code": license_code,
-                "license_type": license_type,
-                "license_period": license_period,
-            })
+            # Support both object and array-of-objects JSON structures.
+            content_to_write = None
+            try:
+                if isinstance(existing_data, list):
+                    updated_list = []
+                    for item in existing_data:
+                        if isinstance(item, dict):
+                            item.update({
+                                "license_code": license_code,
+                                "license_type": license_type,
+                                "license_period": license_period,
+                            })
+                        updated_list.append(item)
+                    content_to_write = updated_list
+                elif isinstance(existing_data, dict):
+                    existing_data.update({
+                        "license_code": license_code,
+                        "license_type": license_type,
+                        "license_period": license_period,
+                    })
+                    content_to_write = existing_data
+                else:
+                    # Unknown structure: create a minimal object preserving nothing else
+                    content_to_write = {
+                        "license_code": license_code,
+                        "license_type": license_type,
+                        "license_period": license_period,
+                    }
+            except Exception:
+                # Fallback to minimal object if any unexpected structure issues occur
+                content_to_write = {
+                    "license_code": license_code,
+                    "license_type": license_type,
+                    "license_period": license_period,
+                }
 
             # --- Step 3: Write back to a temp file ---
             tmp_path = f"/tmp/license-{int(time.time())}.json"
             with sftp.file(tmp_path, "w") as f:
-                f.write(json.dumps(existing_data, indent=2))
+                f.write(json.dumps(content_to_write, indent=2))
                 f.flush()
             sftp.chmod(tmp_path, 0o644)
 
@@ -1814,6 +1844,22 @@ def apply_license():
             exit_code = stdout.channel.recv_exit_status()
             if exit_code != 0:
                 raise RuntimeError(f"move/chmod failed: {stderr.read().decode().strip()}")
+
+            # --- Step 5: Enable/start docker service and start all containers ---
+            docker_exec_logs = []
+            def run(cmd: str):
+                _stdin, _stdout, _stderr = ssh.exec_command(cmd)
+                _out = _stdout.read().decode().strip()
+                _err = _stderr.read().decode().strip()
+                _code = _stdout.channel.recv_exit_status()
+                docker_exec_logs.append({"cmd": cmd, "exit_code": _code, "stdout": _out, "stderr": _err})
+                if _code != 0:
+                    raise RuntimeError(f"Command failed ({_code}): {cmd} | {_err}")
+
+            # Enable and start the Docker service, then start any stopped containers
+            run("sudo systemctl enable docker")
+            run("sudo systemctl start docker")
+            run("sudo bash -lc 'docker ps -aq | xargs -r docker start'")
 
             sftp.close()
             ssh.close()
@@ -1827,15 +1873,74 @@ def apply_license():
         # ✅ New response
         return jsonify({
             "success": True,
-            "message": "License updated successfully on server",
+            "message": "License updated; Docker service enabled/started and containers started",
             "server_ip": server_ip,
-            "updated_fields": ["license_code", "license_type", "license_period"]
+            "updated_fields": ["license_code", "license_type", "license_period"],
+            "docker_actions": docker_exec_logs
         }), 200
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Bad Request: {str(e)}"}), 400
 
 #--------------------------------------------License Update End--------------------------------------------------
+
+#--------------------------------------------License Enforcement Start-----------------------------------------
+@app.route("/license/enforce-expired", methods=["POST"])
+def enforce_expired():
+    """
+    Enforce license expiration by disabling Docker on the target server.
+    Expects JSON payload: { "server_ip": "<ip>", optional "ssh_username", optional "ssh_key_path" }
+    Steps:
+      - Stop all running Docker containers (ignore if none are running)
+      - Stop and disable the Docker service
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        server_ip = data.get("server_ip")
+        if not server_ip:
+            return jsonify({"success": False, "message": "Missing required field: server_ip"}), 400
+
+        ssh_username = data.get("ssh_username", "pinakasupport")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
+
+        # Establish SSH
+        key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=server_ip, username=ssh_username, pkey=key, timeout=30)
+
+        exec_logs = []
+        def run(cmd: str, tolerate_failure: bool = False):
+            stdin, stdout, stderr = ssh.exec_command(cmd)
+            out = stdout.read().decode().strip()
+            err = stderr.read().decode().strip()
+            code = stdout.channel.recv_exit_status()
+            exec_logs.append({"cmd": cmd, "exit_code": code, "stdout": out, "stderr": err})
+            if code != 0 and not tolerate_failure:
+                raise RuntimeError(f"Command failed ({code}): {cmd} | {err}")
+
+        try:
+            # Stop all containers (if any). Use bash -lc to ensure piping works under sudo.
+            run("sudo bash -lc 'docker ps -aq | xargs -r docker stop'", tolerate_failure=True)
+            # Stop and disable Docker service
+            run("sudo systemctl stop docker")
+            run("sudo systemctl disable docker")
+        finally:
+            ssh.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Docker containers stopped and Docker service disabled",
+            "server_ip": server_ip,
+            "details": exec_logs
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Failed to enforce disable on {data.get('server_ip', 'unknown')}: {str(e)}"
+        }), 500
+#--------------------------------------------License Enforcement End-------------------------------------------
 
 #--------------------------------------------Openstack Operation Start-------------------------------------------
 @app.route("/resource-usage", methods=["GET"])
@@ -2033,10 +2138,10 @@ def build_kolla_command(action: str,
     Build the kolla-ansible command line for the requested action.
     Supported actions:
       - mariadb_recovery
-      - reconfigure_all
-      - reconfigure_node
-      - reconfigure_service
-      - reconfigure_node_service
+      - reconfigure_all | reconfigure_node | reconfigure_service | reconfigure_node_service
+      - stop_all | stop_node | stop_service | stop_node_service
+      - start_all | start_node | start_service | start_node_service
+      - restart_all | restart_node | restart_service | restart_node_service
     """
     base = f"kolla-ansible -i {INVENTORY}"
 
@@ -2060,6 +2165,66 @@ def build_kolla_command(action: str,
         if not node or not service:
             raise ValueError("Missing 'node' or 'service' for action 'reconfigure_node_service'")
         return f"{base} reconfigure --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
+
+    # Stop containers
+    if action == "stop_all":
+        return f"{base} stop"
+
+    if action == "stop_node":
+        if not node:
+            raise ValueError("Missing 'node' for action 'stop_node'")
+        return f"{base} stop --limit {shlex.quote(node)}"
+
+    if action == "stop_service":
+        if not service:
+            raise ValueError("Missing 'service' for action 'stop_service'")
+        return f"{base} stop --tags {shlex.quote(service)}"
+
+    if action == "stop_node_service":
+        if not node or not service:
+            raise ValueError("Missing 'node' or 'service' for action 'stop_node_service'")
+        return f"{base} stop --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
+
+    # Start containers
+    if action == "start_all":
+        return f"{base} start"
+
+    if action == "start_node":
+        if not node:
+            raise ValueError("Missing 'node' for action 'start_node'")
+        return f"{base} start --limit {shlex.quote(node)}"
+
+    if action == "start_service":
+        if not service:
+            raise ValueError("Missing 'service' for action 'start_service'")
+        return f"{base} start --tags {shlex.quote(service)}"
+
+    if action == "start_node_service":
+        if not node or not service:
+            raise ValueError("Missing 'node' or 'service' for action 'start_node_service'")
+        return f"{base} start --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
+
+    # Restart (stop then start) containers
+    if action == "restart_all":
+        return f"{base} stop && {base} start"
+
+    if action == "restart_node":
+        if not node:
+            raise ValueError("Missing 'node' for action 'restart_node'")
+        return f"{base} stop --limit {shlex.quote(node)} && {base} start --limit {shlex.quote(node)}"
+
+    if action == "restart_service":
+        if not service:
+            raise ValueError("Missing 'service' for action 'restart_service'")
+        return f"{base} stop --tags {shlex.quote(service)} && {base} start --tags {shlex.quote(service)}"
+
+    if action == "restart_node_service":
+        if not node or not service:
+            raise ValueError("Missing 'node' or 'service' for action 'restart_node_service'")
+        return (
+            f"{base} stop --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
+            f" && {base} start --limit {shlex.quote(node)} --tags {shlex.quote(service)}"
+        )
 
     raise ValueError(f"Unsupported action '{action}'")
 
@@ -2125,8 +2290,11 @@ def kolla_run():
     Start a kolla-ansible action in the background and return immediately.
     Body JSON:
       {
-        "action": "mariadb_recovery" | "reconfigure_all" | "reconfigure_node" |
-                  "reconfigure_service" | "reconfigure_node_service",
+        "action": "mariadb_recovery" |
+                  "reconfigure_all" | "reconfigure_node" | "reconfigure_service" | "reconfigure_node_service" |
+                  "stop_all" | "stop_node" | "stop_service" | "stop_node_service" |
+                  "start_all" | "start_node" | "start_service" | "start_node_service" |
+                  "restart_all" | "restart_node" | "restart_service" | "restart_node_service",
         "node": "FD-001",         # optional, required for node actions
         "service": "nova"         # optional, required for service actions
       }

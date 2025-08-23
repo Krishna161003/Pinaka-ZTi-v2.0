@@ -240,6 +240,13 @@ const ServiceStatus = () => {
   const [selectedServices, setSelectedServices] = React.useState([]);
   // Database recovery modal state
   const [dbRecoveryOpen, setDbRecoveryOpen] = React.useState(false);
+  // Stop/Restart containers modal states
+  const [stopOpen, setStopOpen] = React.useState(false);
+  const [restartOpen, setRestartOpen] = React.useState(false);
+  const [selectedStopNodes, setSelectedStopNodes] = React.useState([]);
+  const [selectedStopServices, setSelectedStopServices] = React.useState([]);
+  const [selectedRestartNodes, setSelectedRestartNodes] = React.useState([]);
+  const [selectedRestartServices, setSelectedRestartServices] = React.useState([]);
 
   // Dropdown data: real nodes fetched from backend, services remain static for now
   const [nodeOptions, setNodeOptions] = React.useState(['All']);
@@ -253,6 +260,10 @@ const ServiceStatus = () => {
   const serviceSelectOptions = React.useMemo(() => (
     serviceOptions.map(v => ({ label: v, value: v, disabled: selectedServices.includes('All') && v !== 'All' }))
   ), [serviceOptions, selectedServices]);
+  // For Stop/Restart modals: node dropdown must exclude 'All'
+  const nodeSelectOptionsNoAll = React.useMemo(() => (
+    (nodeOptions || []).filter(v => v !== 'All').map(v => ({ label: v, value: v }))
+  ), [nodeOptions]);
 
   // Handle multiselect semantics for services: 'All' is exclusive/default
   const handleServicesChange = (vals) => {
@@ -371,6 +382,18 @@ const ServiceStatus = () => {
     if (opsBusy || !hasDeployedServers) return;
     setDbRecoveryOpen(true);
   };
+  const stopContainers = () => {
+    if (opsBusy || !hasDeployedServers) return;
+    setSelectedStopNodes([]);
+    setSelectedStopServices([]);
+    setStopOpen(true);
+  };
+  const restartContainers = () => {
+    if (opsBusy || !hasDeployedServers) return;
+    setSelectedRestartNodes([]);
+    setSelectedRestartServices([]);
+    setRestartOpen(true);
+  };
 
   const handleReconfigureConfirm = async () => {
     const nodes = (selectedNodes.includes('All') || selectedNodes.length === 0) ? [] : selectedNodes;
@@ -425,6 +448,82 @@ const ServiceStatus = () => {
     } finally {
       await fetchOperationLogs();
     }
+  };
+
+  // Stop containers handlers
+  const handleStopNodesChange = (vals) => {
+    if (!Array.isArray(vals)) { setSelectedStopNodes([]); return; }
+    setSelectedStopNodes(vals);
+  };
+  const handleStopServicesChange = (vals) => {
+    if (!Array.isArray(vals) || vals.length === 0) { setSelectedStopServices([]); return; }
+    if (vals.includes('All')) { setSelectedStopServices(['All']); } else { setSelectedStopServices(vals); }
+  };
+  const handleStopConfirm = async () => {
+    const nodes = selectedStopNodes;
+    if (!nodes.length) {
+      setOperationLogs((prev) => ([...prev, `[${new Date().toLocaleTimeString()}] Please select at least one node to Stop.`]));
+      return;
+    }
+    const services = (selectedStopServices.includes('All') || selectedStopServices.length === 0) ? [] : selectedStopServices;
+
+    setOperationLogs((prev) => ([
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Stop Containers triggered. Nodes: ${nodes.join(', ')}, Services: ${services.length ? services.join(', ') : 'ALL'}`
+    ]));
+
+    const jobs = [];
+    if (services.length === 0) {
+      nodes.forEach((n) => jobs.push({ action: 'stop_node', node: n }));
+    } else {
+      nodes.forEach((n) => services.forEach((s) => jobs.push({ action: 'stop_node_service', node: n, service: s })));
+    }
+
+    try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+    setOpsBusy(true);
+    setStopOpen(false);
+    const results = await Promise.allSettled(jobs.map((p) => runKolla(p)));
+    const anyStarted = results.some(r => r.status === 'fulfilled' && r.value && r.value.job_id);
+    if (!anyStarted) { saveJobIds([]); }
+    await fetchOperationLogs();
+  };
+
+  // Restart containers handlers
+  const handleRestartNodesChange = (vals) => {
+    if (!Array.isArray(vals)) { setSelectedRestartNodes([]); return; }
+    setSelectedRestartNodes(vals);
+  };
+  const handleRestartServicesChange = (vals) => {
+    if (!Array.isArray(vals) || vals.length === 0) { setSelectedRestartServices([]); return; }
+    if (vals.includes('All')) { setSelectedRestartServices(['All']); } else { setSelectedRestartServices(vals); }
+  };
+  const handleRestartConfirm = async () => {
+    const nodes = selectedRestartNodes;
+    if (!nodes.length) {
+      setOperationLogs((prev) => ([...prev, `[${new Date().toLocaleTimeString()}] Please select at least one node to Restart.`]));
+      return;
+    }
+    const services = (selectedRestartServices.includes('All') || selectedRestartServices.length === 0) ? [] : selectedRestartServices;
+
+    setOperationLogs((prev) => ([
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Restart Containers triggered. Nodes: ${nodes.join(', ')}, Services: ${services.length ? services.join(', ') : 'ALL'}`
+    ]));
+
+    const jobs = [];
+    if (services.length === 0) {
+      nodes.forEach((n) => jobs.push({ action: 'restart_node', node: n }));
+    } else {
+      nodes.forEach((n) => services.forEach((s) => jobs.push({ action: 'restart_node_service', node: n, service: s })));
+    }
+
+    try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+    setOpsBusy(true);
+    setRestartOpen(false);
+    const results = await Promise.allSettled(jobs.map((p) => runKolla(p)));
+    const anyStarted = results.some(r => r.status === 'fulfilled' && r.value && r.value.job_id);
+    if (!anyStarted) { saveJobIds([]); }
+    await fetchOperationLogs();
   };
 
   const clearOperationLogs = () => setOperationLogs([]);
@@ -648,6 +747,26 @@ const ServiceStatus = () => {
                     >
                       Database Recovery
                     </Button>
+                    <Button
+                      type="primary"
+                      size="middle"
+                      aria-label="Stop Docker Containers"
+                      onClick={stopContainers}
+                      disabled={opsBusy || !hasDeployedServers}
+                      style={{ width: 180, flex: '0 0 auto' }}
+                    >
+                      Stop Containers
+                    </Button>
+                    <Button
+                      type="primary"
+                      size="middle"
+                      aria-label="Restart Docker Containers"
+                      onClick={restartContainers}
+                      disabled={opsBusy || !hasDeployedServers}
+                      style={{ width: 180, flex: '0 0 auto' }}
+                    >
+                      Restart Containers
+                    </Button>
                     {opsBusy && <span style={{ color: '#1677ff' }}>Operation in progress…</span>}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: "15px 0 0 0" }}>
@@ -697,6 +816,84 @@ const ServiceStatus = () => {
                         mode="multiple"
                         value={selectedServices}
                         onChange={handleServicesChange}
+                        style={{ width: '100%' }}
+                        placeholder="Select service(s)"
+                        maxTagCount="responsive"
+                        options={serviceSelectOptions}
+                      />
+                    </div>
+                  </div>
+                </Modal>
+
+                <Modal
+                  title="Stop Docker Containers"
+                  open={stopOpen}
+                  onOk={handleStopConfirm}
+                  onCancel={() => setStopOpen(false)}
+                  okText="Stop"
+                  cancelText="Cancel"
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || selectedStopNodes.length === 0 }}
+                  cancelButtonProps={{ style: { width: 100 } }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ marginBottom: 6, fontWeight: 500 }}>Select Node</div>
+                      <Select
+                        mode="multiple"
+                        value={selectedStopNodes}
+                        onChange={handleStopNodesChange}
+                        style={{ width: '100%' }}
+                        loading={nodeLoading}
+                        placeholder="Select node(s)"
+                        maxTagCount="responsive"
+                        options={nodeSelectOptionsNoAll}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ marginBottom: 6, fontWeight: 500 }}>Select OpenStack Service</div>
+                      <Select
+                        mode="multiple"
+                        value={selectedStopServices}
+                        onChange={handleStopServicesChange}
+                        style={{ width: '100%' }}
+                        placeholder="Select service(s)"
+                        maxTagCount="responsive"
+                        options={serviceSelectOptions}
+                      />
+                    </div>
+                  </div>
+                </Modal>
+
+                <Modal
+                  title="Restart Docker Containers"
+                  open={restartOpen}
+                  onOk={handleRestartConfirm}
+                  onCancel={() => setRestartOpen(false)}
+                  okText="Restart"
+                  cancelText="Cancel"
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || selectedRestartNodes.length === 0 }}
+                  cancelButtonProps={{ style: { width: 100 } }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ marginBottom: 6, fontWeight: 500 }}>Select Node</div>
+                      <Select
+                        mode="multiple"
+                        value={selectedRestartNodes}
+                        onChange={handleRestartNodesChange}
+                        style={{ width: '100%' }}
+                        loading={nodeLoading}
+                        placeholder="Select node(s)"
+                        maxTagCount="responsive"
+                        options={nodeSelectOptionsNoAll}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ marginBottom: 6, fontWeight: 500 }}>Select OpenStack Service</div>
+                      <Select
+                        mode="multiple"
+                        value={selectedRestartServices}
+                        onChange={handleRestartServicesChange}
                         style={{ width: '100%' }}
                         placeholder="Select service(s)"
                         maxTagCount="responsive"

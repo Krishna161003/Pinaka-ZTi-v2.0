@@ -618,7 +618,7 @@ const Dashboard = () => {
         }
       } catch (e) {
         if (!cancelled && !resourceErrorShownRef.current) {
-          message.error(`Failed to fetch cloud resource usage from ${selectedHostIP}`);
+          console.error(`Failed to fetch cloud resource usage from ${hostIP}`);
           resourceErrorShownRef.current = true;
         }
       }
