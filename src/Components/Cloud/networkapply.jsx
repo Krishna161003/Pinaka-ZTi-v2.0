@@ -301,7 +301,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     if (savedForms) {
       try {
         const forms = JSON.parse(savedForms);
-        // Merge license details into saved forms and normalize selectedDisks to strings
+        // Merge license details into saved forms and normalize fields
         return forms.map(form => ({
           ...form,
           licenseType: licenseDetailsMap[form.ip]?.type || form.licenseType || '-',
@@ -316,6 +316,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 return String(d ?? '');
               })
             : [],
+          // Ensure roles are an array of strings
+          selectedRoles: Array.isArray(form.selectedRoles)
+            ? form.selectedRoles.filter(Boolean)
+            : (typeof form.selectedRoles === 'string' && form.selectedRoles.length > 0
+                ? form.selectedRoles.split(',').map(s => s.trim()).filter(Boolean)
+                : []),
         }));
       } catch (e) {
         console.error('Failed to parse saved forms:', e);
@@ -926,21 +932,27 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       message.error('Default Gateway must be a valid IP address.');
       return;
     }
-    // Validate disks
-    if (!form.selectedDisks || form.selectedDisks.length === 0) {
-      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: 'At least one disk required' } : f));
-      message.error('Please select at least one disk.');
-      return;
-    } else {
-      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
-    }
-    // Validate roles
+    // Validate roles first
     if (!form.selectedRoles || form.selectedRoles.length === 0) {
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: 'At least one role required' } : f));
       message.error('Please select at least one role.');
       return;
     } else {
       setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, roleError: '' } : f));
+    }
+    // Validate disks only if 'Storage' role is selected
+    const requiresDisks = Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage');
+    if (requiresDisks) {
+      if (!form.selectedDisks || form.selectedDisks.length === 0) {
+        setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: 'At least one disk required' } : f));
+        message.error('Please select at least one disk.');
+        return;
+      } else {
+        setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
+      }
+    } else {
+      // Not required; clear any stale disk error
+      setForms(prev => prev.map((f, i) => i === nodeIdx ? { ...f, diskError: '' } : f));
     }
     // Submit logic here (API call or sessionStorage)
     // Immediately disable fields/table by setting loading=true; show button loader too
