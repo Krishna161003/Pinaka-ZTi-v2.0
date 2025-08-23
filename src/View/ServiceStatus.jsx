@@ -515,8 +515,19 @@ const ServiceStatus = () => {
       }
     });
 
-    // Clear busy state after all SSH requests settle
-    saveJobIds([]);
+    // Clear busy state after all SSH requests settle, but do not wipe any active kolla job ids
+    try {
+      const ids = getJobIds();
+      if (ids.length === 0) {
+        try { localStorage.removeItem(OPS_BUSY_KEY); } catch (_) { /* no-op */ }
+        setOpsBusy(false);
+      } else {
+        try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+        setOpsBusy(true);
+      }
+    } catch (_) {
+      setOpsBusy(false);
+    }
   };
 
   // Restart containers handlers
@@ -584,8 +595,19 @@ const ServiceStatus = () => {
       }
     });
 
-    // Clear busy state after all SSH requests settle
-    saveJobIds([]);
+    // Clear busy state after all SSH requests settle, but do not wipe any active kolla job ids
+    try {
+      const ids = getJobIds();
+      if (ids.length === 0) {
+        try { localStorage.removeItem(OPS_BUSY_KEY); } catch (_) { /* no-op */ }
+        setOpsBusy(false);
+      } else {
+        try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+        setOpsBusy(true);
+      }
+    } catch (_) {
+      setOpsBusy(false);
+    }
   };
 
   const clearOperationLogs = () => setOperationLogs([]);
