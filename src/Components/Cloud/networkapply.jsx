@@ -342,6 +342,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
   const [forms, setForms] = useState(getInitialForms);
   // Global deploy button loading state
   const [deployLoading, setDeployLoading] = useState(false);
+  // Force-enable selectors to allow corrections after validation failure
+  const [forceEnableRoles, setForceEnableRoles] = useState({});
+  const [forceEnableDisks, setForceEnableDisks] = useState({});
 
   // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
   useEffect(() => {
@@ -527,7 +530,17 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
   }
   function handleRoleChange(idx, value) {
-    setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedRoles: value, roleError: '' } : f));
+    setForms(prev => prev.map((f, i) => {
+      if (i !== idx) return f;
+      const hasStorage = Array.isArray(value) && value.includes('Storage');
+      return {
+        ...f,
+        selectedRoles: value,
+        roleError: '',
+        // If Storage is not selected, disk selection is not mandatory; clear any prior disk error
+        diskError: hasStorage ? f.diskError : ''
+      };
+    }));
   }
 
   function generateRows(configType, useBond) {
@@ -1401,6 +1414,11 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       if (Array.isArray(f.selectedRoles) && f.selectedRoles.includes('Storage')) {
         if (!Array.isArray(f.selectedDisks) || f.selectedDisks.length === 0) {
           setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, diskError: 'At least one disk required' } : ff));
+          // Enable both selectors so user can correct immediately even if card was applied
+          if (f.ip) {
+            setForceEnableDisks(prev => ({ ...prev, [f.ip]: true }));
+            setForceEnableRoles(prev => ({ ...prev, [f.ip]: true }));
+          }
           message.error(`Node ${f.ip || i + 1}: please select at least one disk for Storage role.`);
           return;
         }
@@ -1452,6 +1470,18 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       setDeployLoading(false);
       return;
     }
+
+    // All validations above passed: clear force-enable flags so selectors can re-disable on this Deploy
+    setForceEnableRoles(prev => {
+      const next = { ...prev };
+      forms.forEach(f => { if (f?.ip) next[f.ip] = false; });
+      return next;
+    });
+    setForceEnableDisks(prev => {
+      const next = { ...prev };
+      forms.forEach(f => { if (f?.ip) next[f.ip] = false; });
+      return next;
+    });
 
     // Transform configs for backend storage, now that we know deployedCount
   // Reuse hostnames assigned during Network Apply; allocate unique for any missing starting from deployedCount+1
@@ -1674,7 +1704,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 </Form.Item>
                 <Form.Item
                   label="Select Disk"
-                  required
+                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
                   validateStatus={form.diskError ? 'error' : ''}
                   help={form.diskError}
                   style={{ minWidth: 220 }}
@@ -1685,7 +1715,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     placeholder="Select disk(s)"
                     value={Array.isArray(form.selectedDisks) ? form.selectedDisks : []}
                     style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
                     onChange={value => handleDiskChange(idx, value)}
                     optionLabelProp="label"
                   >
@@ -1713,7 +1743,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     placeholder="Select role(s)"
                     value={form.selectedRoles || []}
                     style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
                     onChange={value => handleRoleChange(idx, value)}
                   >
                     <Option value="Control">Control</Option>

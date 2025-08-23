@@ -469,16 +469,6 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   function handleDiskChange(idx, value) {
     setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
-    // Clear force-enable for disks once a valid selection is made
-    try {
-      const ip = forms[idx]?.ip;
-      if (ip) {
-        setForceEnableDisks(prev => ({
-          ...prev,
-          [ip]: Array.isArray(value) && value.length > 0 ? false : (prev[ip] ?? true),
-        }));
-      }
-    } catch (_) { }
   }
 
   function handleRoleChange(idx, value) {
@@ -496,12 +486,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       if (updatedForm?.ip) {
         storeFormData(updatedForm.ip, updatedForm);
       }
-      // Toggle force-enable state depending on validity
-      const valid = isAllowedCombo(value);
-      setForceEnableRoles(prevForce => ({
-        ...prevForce,
-        [updatedForm.ip]: valid ? false : true,
-      }));
+      // Do NOT toggle force-enable here; keep selectors enabled until next Deploy click
       return next;
     });
   }
@@ -1535,7 +1520,10 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       // Each node must have at least one role
       if (!Array.isArray(f.selectedRoles) || f.selectedRoles.length === 0) {
         setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, roleError: 'At least one role required' } : ff));
-        if (f.ip) setForceEnableRoles(prev => ({ ...prev, [f.ip]: true }));
+        if (f.ip) {
+          setForceEnableRoles(prev => ({ ...prev, [f.ip]: true }));
+          setForceEnableDisks(prev => ({ ...prev, [f.ip]: true }));
+        }
         message.error(`Node ${f.ip || i + 1}: please select at least one role.`);
         return;
       }
@@ -1543,7 +1531,10 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       if (Array.isArray(f.selectedRoles) && f.selectedRoles.includes('Storage')) {
         if (!Array.isArray(f.selectedDisks) || f.selectedDisks.length === 0) {
           setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, diskError: 'At least one disk required' } : ff));
-          if (f.ip) setForceEnableDisks(prev => ({ ...prev, [f.ip]: true }));
+          if (f.ip) {
+            setForceEnableDisks(prev => ({ ...prev, [f.ip]: true }));
+            setForceEnableRoles(prev => ({ ...prev, [f.ip]: true }));
+          }
           message.error(`Node ${f.ip || i + 1}: please select at least one disk for Storage role.`);
           return;
         }
@@ -1560,6 +1551,12 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       })));
       // Force-enable role selectors even if cards were applied
       setForceEnableRoles(prev => {
+        const next = { ...prev };
+        forms.forEach(f => { if (f?.ip) next[f.ip] = true; });
+        return next;
+      });
+      // Also enable disk selectors for consistency
+      setForceEnableDisks(prev => {
         const next = { ...prev };
         forms.forEach(f => { if (f?.ip) next[f.ip] = true; });
         return next;
@@ -1609,6 +1606,18 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       setDeployLoading(false);
       return;
     }
+
+    // All validations passed: clear force-enable flags so selectors can disable on this Deploy click
+    setForceEnableRoles(prev => {
+      const next = { ...prev };
+      forms.forEach(f => { if (f?.ip) next[f.ip] = false; });
+      return next;
+    });
+    setForceEnableDisks(prev => {
+      const next = { ...prev };
+      forms.forEach(f => { if (f?.ip) next[f.ip] = false; });
+      return next;
+    });
 
     // Transform configs for backend storage
     // Use the same hostnames assigned during Network Apply; allocate unique for any missing
