@@ -256,7 +256,7 @@ const Lifecyclemgmt = () => {
                           aria-label="Refresh"
                           onClick={() => jobId && fetchStatusOnce(jobId)}
                           icon={<SyncOutlined spin={polling} />}
-                          style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
+                          style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
                         >
                           Refresh
                         </Button>
@@ -296,7 +296,7 @@ const Lifecyclemgmt = () => {
                           aria-label="Refresh"
                           onClick={fetchHistoryFromServer}
                           icon={<SyncOutlined />}
-                          style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20, width: '95px' }}
+                          style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
                         >
                           Refresh
                         </Button>
@@ -316,7 +316,7 @@ const Lifecyclemgmt = () => {
                               onClick={() => record?.id && downloadLog(record.id)}
                               disabled={!record?.id}
                               icon={<DownloadOutlined />}
-                              style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20 }}
+                              style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
                             >
                               Log
                             </Button>
