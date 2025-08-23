@@ -305,7 +305,7 @@ const ServiceStatus = () => {
   const [nodeOptions, setNodeOptions] = React.useState(['All']);
   const [nodeLoading, setNodeLoading] = React.useState(false);
   const [hasDeployedServers, setHasDeployedServers] = React.useState(false);
-  const DUMMY_SERVICE_OPTIONS = ['All', 'octavia','nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
+  const DUMMY_SERVICE_OPTIONS = ['All', 'octavia','octavia_worker','nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
   const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
   const nodeSelectOptions = React.useMemo(() => (
     nodeOptions.map(v => ({ label: v, value: v, disabled: selectedNodes.includes('All') && v !== 'All' }))
