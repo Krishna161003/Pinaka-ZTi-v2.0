@@ -1951,13 +1951,14 @@ def docker_control():
       {
         "server_ip": "10.0.0.10",            # required
         "action": "stop" | "restart",        # required
+        "services": ["neutron-server", "nova-compute"],  # optional; if omitted or empty, affects ALL running containers
         "ssh_username": "pinakasupport",     # optional (default)
         "ssh_key_path": "/home/pinaka/.pinaka_wd/key/ps_key.pem"  # optional (default)
       }
 
     Behavior:
-      - stop:     stop all running containers (does NOT disable Docker service)
-      - restart:  restart all currently running containers (docker restart)
+      - stop:     stop targeted containers (or all if no services provided)
+      - restart:  restart targeted containers (or all if no services provided)
     Returns JSON { success, server_ip, action, details: [ {cmd, exit_code, stdout, stderr} ] }
     """
     try:
@@ -1971,6 +1972,26 @@ def docker_control():
 
         ssh_username = data.get("ssh_username", "pinakasupport")
         ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
+        services = data.get("services")
+        if isinstance(services, list):
+            # Normalize service tokens to match kolla container names (hyphen vs underscore)
+            norm_tokens = []
+            for s in services:
+                try:
+                    s = str(s)
+                except Exception:
+                    continue
+                # keep only safe chars, allow hyphen/underscore and alnum
+                base = re.sub(r"[^A-Za-z0-9_-]", "", s)
+                if not base:
+                    continue
+                # match both '-' and '_' using a character class
+                token = base.replace('-', '[-_]').replace('__', '_')
+                norm_tokens.append(token)
+            # Build grep -E pattern like: (nova[-_]compute|neutron[-_]server)
+            services_pattern = f"({'|'.join(norm_tokens)})" if norm_tokens else None
+        else:
+            services_pattern = None
 
         # Establish SSH
         key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
@@ -1991,11 +2012,29 @@ def docker_control():
 
         try:
             if action == "stop":
-                # Stop all running containers (no error if none)
-                run("sudo bash -lc 'docker ps -q | xargs -r docker stop'", tolerate_failure=True)
+                if services_pattern:
+                    # Stop only matching containers by name
+                    cmd = (
+                        f"sudo bash -lc '"
+                        f"docker ps --format \"{{{{.Names}}}}\" | grep -Ei \"{services_pattern}\" | xargs -r docker stop"
+                        f"'"
+                    )
+                    run(cmd, tolerate_failure=True)
+                else:
+                    # Stop all running containers (no error if none)
+                    run("sudo bash -lc 'docker ps -q | xargs -r docker stop'", tolerate_failure=True)
             elif action == "restart":
-                # Restart all currently running containers
-                run("sudo bash -lc 'ids=$(docker ps -q); [ -n \"$ids\" ] && docker restart $ids || true'", tolerate_failure=True)
+                if services_pattern:
+                    # Restart only matching containers by name
+                    cmd = (
+                        f"sudo bash -lc '"
+                        f"docker ps --format \"{{{{.Names}}}}\" | grep -Ei \"{services_pattern}\" | xargs -r docker restart"
+                        f"'"
+                    )
+                    run(cmd, tolerate_failure=True)
+                else:
+                    # Restart all currently running containers
+                    run("sudo bash -lc 'ids=$(docker ps -q); [ -n \"$ids\" ] && docker restart $ids || true'", tolerate_failure=True)
         finally:
             ssh.close()
 

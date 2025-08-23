@@ -525,7 +525,7 @@ const ServiceStatus = () => {
       `[${new Date().toLocaleTimeString()}] Stop Containers triggered. Nodes: ${nodes.join(', ')}, Services: ${services.length ? services.join(', ') : 'ALL'}`
     ]));
 
-    // SSH-based control: ignore service filter for now and operate on all containers on each node
+    // SSH-based control: pass selected services (empty means ALL)
     try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
     setOpsBusy(true);
     setStopOpen(false);
@@ -536,7 +536,8 @@ const ServiceStatus = () => {
     const requests = nodes.map((n) => (
       axios.post(`https://${hostIP}:2020/docker/control`, {
         server_ip: n,
-        action: 'stop'
+        action: 'stop',
+        ...(services.length ? { services } : {})
       }, { headers: { 'Content-Type': 'application/json' } })
     ));
 
@@ -622,7 +623,8 @@ const ServiceStatus = () => {
     const requests = nodes.map((n) => (
       axios.post(`https://${hostIP}:2020/docker/control`, {
         server_ip: n,
-        action: 'restart'
+        action: 'restart',
+        ...(services.length ? { services } : {})
       }, { headers: { 'Content-Type': 'application/json' } })
     ));
 
