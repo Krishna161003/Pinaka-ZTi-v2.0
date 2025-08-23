@@ -283,6 +283,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [deployLoading, setDeployLoading] = useState(false);
   // When validation fails, force-enable Roles selector on specific nodes (keyed by node ip)
   const [forceEnableRoles, setForceEnableRoles] = useState({});
+  const [forceEnableDisks, setForceEnableDisks] = useState({});
 
   // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
   useEffect(() => {
@@ -468,7 +469,18 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   function handleDiskChange(idx, value) {
     setForms(prev => prev.map((f, i) => i === idx ? { ...f, selectedDisks: value, diskError: '' } : f));
+    // Clear force-enable for disks once a valid selection is made
+    try {
+      const ip = forms[idx]?.ip;
+      if (ip) {
+        setForceEnableDisks(prev => ({
+          ...prev,
+          [ip]: Array.isArray(value) && value.length > 0 ? false : (prev[ip] ?? true),
+        }));
+      }
+    } catch (_) { }
   }
+
   function handleRoleChange(idx, value) {
     setForms(prev => {
       const hasStorage = Array.isArray(value) && value.includes('Storage');
@@ -689,6 +701,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           if (ip) delete next[ip];
           return next;
         });
+        setForceEnableDisks(prev => {
+          const next = { ...prev };
+          if (ip) delete next[ip];
+          return next;
+        });
         setNodeDisks(prev => {
           const next = { ...prev };
           if (ip && next[ip]) delete next[ip];
@@ -827,6 +844,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 return next;
               });
               setForceEnableRoles(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
+              setForceEnableDisks(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
 
               // Inform parent to restore into earlier tabs
               try {
@@ -1517,6 +1535,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       // Each node must have at least one role
       if (!Array.isArray(f.selectedRoles) || f.selectedRoles.length === 0) {
         setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, roleError: 'At least one role required' } : ff));
+        if (f.ip) setForceEnableRoles(prev => ({ ...prev, [f.ip]: true }));
         message.error(`Node ${f.ip || i + 1}: please select at least one role.`);
         return;
       }
@@ -1524,6 +1543,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       if (Array.isArray(f.selectedRoles) && f.selectedRoles.includes('Storage')) {
         if (!Array.isArray(f.selectedDisks) || f.selectedDisks.length === 0) {
           setForms(prev => prev.map((ff, idx) => idx === i ? { ...ff, diskError: 'At least one disk required' } : ff));
+          if (f.ip) setForceEnableDisks(prev => ({ ...prev, [f.ip]: true }));
           message.error(`Node ${f.ip || i + 1}: please select at least one disk for Storage role.`);
           return;
         }
@@ -1923,7 +1943,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     placeholder="Select disk(s)"
                     value={form.selectedDisks || []}
                     style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
                     onChange={value => handleDiskChange(idx, value)}
                     optionLabelProp="label"
                   >
