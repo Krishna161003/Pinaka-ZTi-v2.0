@@ -2368,7 +2368,7 @@ def upload_file():
                 })
             save_job_status(job_id, status)
 
-            # On success, push lifecycle history to Node backend
+            # On success, push lifecycle history (including logs) to Node backend
             if status.get("state") == "succeeded":
                 try:
                     info_line = None
@@ -2381,11 +2381,19 @@ def upload_file():
                     if not info_line:
                         info_line = "Patch applied"
 
+                    # Combine README, STDOUT, and STDERR into a single log text
+                    log_text = (
+                        "=== README ===\n" + (status.get("readme", "") or "") +
+                        "\n\n=== STDOUT ===\n" + (status.get("output", "") or "") +
+                        "\n\n=== STDERR ===\n" + (status.get("errors", "") or "")
+                    )
+
                     payload = {
                         "id": job_id,
                         "info": info_line,
                         # finished_at is epoch seconds; Node accepts number and normalizes
                         "date": status.get("finished_at") or int(time.time()),
+                        "log": log_text,
                     }
                     url = f"https://{host_ip}:5000/api/lifecycle-history"
                     # Best-effort; ignore SSL in local dev and time out quickly

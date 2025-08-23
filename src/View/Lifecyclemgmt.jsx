@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, message, Upload, Button, Alert, Tabs, Table } from 'antd';
-import { InboxOutlined, SyncOutlined } from '@ant-design/icons';
+import { InboxOutlined, SyncOutlined, DownloadOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 const { Dragger } = Upload;
@@ -49,6 +49,30 @@ const Lifecyclemgmt = () => {
       // Fallback to localStorage
       const v = localStorage.getItem('lm_history');
       try { setHistory(v ? JSON.parse(v) : []); } catch { setHistory([]); }
+    }
+  };
+
+  // Download lifecycle log by id as a .log file
+  const downloadLog = async (id) => {
+    if (!id) return;
+    try {
+      const res = await fetch(`https://${hostIP}:5000/api/lifecycle-history/${id}/log`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        message.error(j?.error || 'No log found for this item');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lifecycle_${id}.log`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      message.error('Failed to download log');
     }
   };
 
@@ -286,6 +310,17 @@ const Lifecyclemgmt = () => {
                             const d = v ? new Date(v) : null;
                             return d && !isNaN(d) ? d.toLocaleString() : '-';
                           } },
+                          { title: 'Log', key: 'log', width: 120, render: (_t, record) => (
+                            <Button
+                              aria-label="Download Log"
+                              onClick={() => record?.id && downloadLog(record.id)}
+                              disabled={!record?.id}
+                              icon={<DownloadOutlined />}
+                              style={{ borderColor: '#1890ff', color: '#1890ff', borderRadius: 20 }}
+                            >
+                              Log
+                            </Button>
+                          ) },
                         ]}
                         dataSource={(history || []).map((h, idx) => ({ key: h.id || String(idx), ...h }))}
                         pagination={{ pageSize: 10 }}

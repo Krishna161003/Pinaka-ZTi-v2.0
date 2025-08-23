@@ -92,9 +92,9 @@ app.use(
   })
 );
 
-app.use(bodyParser.json());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use("/api", loginRoutes); // Use the login routes
 app.use("/api", authRoutes);
@@ -745,12 +745,20 @@ db.connect((err) => {
       info VARCHAR(512),                    -- Patch Info / description
       date DATETIME,                        -- Date/time of completion
       user_id CHAR(36) NULL,                -- Optional: who triggered it
+      log LONGTEXT NULL,                    -- Combined stdout/stderr/readme log
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;
   `;
   db.query(lifecycleHistoryTableSQL, (err, result) => {
     if (err) throw err;
     console.log("Lifecycle_history table checked/created...");
+
+    // Ensure 'log' column exists for existing databases (ignore duplicate/unsupported errors)
+    db.query("ALTER TABLE lifecycle_history ADD COLUMN log LONGTEXT NULL", (altErr) => {
+      if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
+        console.warn("Could not ensure 'log' column on lifecycle_history:", altErr.message);
+      }
+    });
   });
   
   // Set up periodic check for expired licenses (run every hour)
@@ -763,7 +771,7 @@ db.connect((err) => {
 // Insert lifecycle management history item
 app.post('/api/lifecycle-history', (req, res) => {
   try {
-    const { id, info, date, user_id } = req.body || {};
+    const { id, info, date, user_id, log } = req.body || {};
     if (!id || !info) {
       return res.status(400).json({ error: 'id and info are required' });
     }
@@ -778,14 +786,15 @@ app.post('/api/lifecycle-history', (req, res) => {
       dateVal = new Date(date);
     }
     const sql = `
-      INSERT INTO lifecycle_history (id, info, date, user_id)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO lifecycle_history (id, info, date, user_id, log)
+      VALUES (?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         info = VALUES(info),
         date = VALUES(date),
-        user_id = VALUES(user_id)
+        user_id = VALUES(user_id),
+        log = VALUES(log)
     `;
-    db.query(sql, [id, info, dateVal, user_id || null], (err) => {
+    db.query(sql, [id, info, dateVal, user_id || null, log || null], (err) => {
       if (err) {
         console.error('Error inserting lifecycle history:', err);
         return res.status(500).json({ error: 'Database error' });
@@ -818,6 +827,33 @@ app.get('/api/lifecycle-history', (req, res) => {
     });
   } catch (e) {
     console.error('Unexpected error in GET /api/lifecycle-history:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Fetch the stored lifecycle log for a given history id as a downloadable .log file
+app.get('/api/lifecycle-history/:id/log', (req, res) => {
+  try {
+    const { id } = req.params || {};
+    if (!id) {
+      return res.status(400).json({ error: 'id is required' });
+    }
+    const sql = 'SELECT log FROM lifecycle_history WHERE id = ? LIMIT 1';
+    db.query(sql, [id], (err, rows) => {
+      if (err) {
+        console.error('Error fetching lifecycle log:', err);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      const logText = rows && rows[0] ? rows[0].log : null;
+      if (!logText) {
+        return res.status(404).json({ error: 'Log not found' });
+      }
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="lifecycle-${id}.log"`);
+      return res.status(200).send(logText);
+    });
+  } catch (e) {
+    console.error('Unexpected error in GET /api/lifecycle-history/:id/log:', e);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
