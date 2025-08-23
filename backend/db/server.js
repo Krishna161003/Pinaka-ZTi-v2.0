@@ -9,6 +9,7 @@ const nodemailer = require("nodemailer"); // Import nodemailer library
 const bcrypt = require("bcrypt"); // Import bcrypt library
 const { customAlphabet } = require('nanoid'); // Import nanoid for generating unique IDs
 require("dotenv").config(); // Load environment variables
+const axios = require('axios');
 
 // Helper function to calculate end date based on license period (number of days)
 function calculateEndDate(licensePeriod) {
@@ -33,22 +34,83 @@ function calculateEndDate(licensePeriod) {
 
 // Helper function to check and update expired licenses
 function checkAndUpdateExpiredLicenses() {
-  const today = new Date().toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
-  
-  const updateExpiredSQL = `
-    UPDATE License 
-    SET license_status = 'expired' 
-    WHERE license_status = 'activated' 
-    AND end_date IS NOT NULL 
-    AND end_date < ?
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  // 1) Find licenses that have just expired (transition candidates)
+  const selectToExpireSQL = `
+    SELECT L.license_code, L.server_id, DS.serverip
+    FROM License L
+    LEFT JOIN deployed_server DS ON DS.serverid = L.server_id
+    WHERE L.license_status = 'activated'
+      AND L.end_date IS NOT NULL
+      AND L.end_date < ?
   `;
-  
-  db.query(updateExpiredSQL, [today], (err, result) => {
-    if (err) {
-      console.error('Error updating expired licenses:', err);
-    } else if (result.affectedRows > 0) {
-      console.log(`Updated ${result.affectedRows} expired license(s)`);
+
+  db.query(selectToExpireSQL, [today], (selErr, rows) => {
+    if (selErr) {
+      console.error('Error selecting licenses to expire:', selErr);
+      return;
     }
+
+    const targets = Array.isArray(rows) ? rows.filter(r => !!r.serverip) : [];
+
+    // 2) Mark them as expired
+    const updateExpiredSQL = `
+      UPDATE License
+      SET license_status = 'expired'
+      WHERE license_status = 'activated'
+        AND end_date IS NOT NULL
+        AND end_date < ?
+    `;
+
+    db.query(updateExpiredSQL, [today], async (updErr, result) => {
+      if (updErr) {
+        console.error('Error updating expired licenses:', updErr);
+        return;
+      }
+
+      const affected = result?.affectedRows || 0;
+      if (affected > 0) {
+        console.log(`Updated ${affected} expired license(s)`);
+
+        // 3) Enforce on Flask for each affected server IP
+        try {
+          const flaskHost = process.env.FLASK_HOST || process.env.REACT_APP_HOST_IP || '127.0.0.1';
+          const flaskPort = process.env.FLASK_PORT || 2020;
+          const https = require('https');
+          const agent = new https.Agent({ rejectUnauthorized: false });
+
+          // De-duplicate server IPs to avoid multiple calls per server
+          const uniqueIps = [...new Set(targets.map(t => t.serverip))];
+          if (uniqueIps.length === 0) {
+            console.log('No server IPs associated with expired licenses to enforce.');
+            return;
+          }
+
+          console.log(`Enforcing license expiration on ${uniqueIps.length} server(s) via Flask...`);
+
+          const results = await Promise.allSettled(
+            uniqueIps.map(ip =>
+              axios.post(`https://${flaskHost}:${flaskPort}/license/enforce-expired`, { server_ip: ip }, {
+                headers: { 'Content-Type': 'application/json' },
+                httpsAgent: agent,
+                timeout: 30_000,
+              })
+            )
+          );
+
+          const successes = results.filter(r => r.status === 'fulfilled').length;
+          const failures = results.filter(r => r.status === 'rejected');
+          console.log(`License enforcement completed: ${successes} success, ${failures.length} failed`);
+          if (failures.length > 0) {
+            failures.slice(0, 3).forEach((f, i) => console.warn(`Enforcement failure ${i + 1}:`, f.reason?.message || f.reason));
+            if (failures.length > 3) console.warn(`...and ${failures.length - 3} more failures`);
+          }
+        } catch (e) {
+          console.error('Error during license enforcement calls:', e);
+        }
+      }
+    });
   });
 
 // Fetch deployed server IPs for a given cloudname (and optional user filter)

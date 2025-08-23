@@ -668,6 +668,9 @@ const SquadronNodesTable = () => {
                       <a href={`https://${modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
                         https://{modalRecord.serverip}
                       </a>
+                      <div style={{ marginTop: 4, color: '#666' }}>
+                        Username: <span style={{ userSelect: 'text' }}>admin</span>
+                      </div>
                       <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
                         <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
@@ -684,6 +687,7 @@ const SquadronNodesTable = () => {
                           <a href={`https://${modalRecord.serverip}:8443/`} target="_blank" rel="noopener noreferrer">
                             https://{modalRecord.serverip}:8443/
                           </a>
+                          <div style={{ marginTop: 4, color: '#666' }}>Username: <span style={{ userSelect: 'text' }}>admin</span></div>
                           <div style={{ marginTop: 4, color: '#666' }}>Password: -</div>
                         </div>
                       ) : <span>No URL</span>}</li>
@@ -697,6 +701,9 @@ const SquadronNodesTable = () => {
                       <a href={`https://${modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
                         https://{modalRecord.serverip}:7000/
                       </a>
+                      <div style={{ marginTop: 4, color: '#666' }}>
+                        Username: <span style={{ userSelect: 'text' }}>admin</span>
+                      </div>
                       <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
                         <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
@@ -711,6 +718,9 @@ const SquadronNodesTable = () => {
                       <a href={`https://${modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
                         https://{modalRecord.serverip}:5601/
                       </a>
+                      <div style={{ marginTop: 4, color: '#666' }}>
+                        Username: <span style={{ userSelect: 'text' }}>opensearch</span>
+                      </div>
                       <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
                         <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
@@ -871,6 +881,9 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}
                 </a>
+                <div style={{ marginTop: 4, color: '#666' }}>
+                  Username: <span style={{ userSelect: 'text' }}>admin</span>
+                </div>
                 <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
                   <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
@@ -885,6 +898,7 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}:8443/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}:8443/
                 </a>
+                <div style={{ marginTop: 4, color: '#666' }}>Username: <span style={{ userSelect: 'text' }}>admin</span></div>
                 <div style={{ marginTop: 4, color: '#666' }}>Password: </div>
               </div>
             ) : <span>No URL</span>}</li>
@@ -896,6 +910,9 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}:7000/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}:7000/
                 </a>
+                <div style={{ marginTop: 4, color: '#666' }}>
+                  Username: <span style={{ userSelect: 'text' }}>admin</span>
+                </div>
                 <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
                   <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
@@ -910,6 +927,9 @@ const CloudDeploymentsTable = () => {
                 <a href={`https://${modalCredentials.server_vip}:5601/`} target="_blank" rel="noopener noreferrer">
                   https://{modalCredentials.server_vip}:5601/
                 </a>
+                <div style={{ marginTop: 4, color: '#666' }}>
+                  Username: <span style={{ userSelect: 'text' }}>opensearch</span>
+                </div>
                 <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
                   <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
