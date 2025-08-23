@@ -174,6 +174,59 @@ const ServiceStatus = () => {
     } catch (_) { /* no-op */ }
     setOpsBusy(ids.length > 0);
   }, []);
+
+  // Persist SSH-based in-flight operations to keep state across navigation
+  const SSH_INFLIGHT_KEY = 'service_ops_ssh_inflight';
+  const getSshInflight = React.useCallback(() => {
+    try { return JSON.parse(localStorage.getItem(SSH_INFLIGHT_KEY) || '[]'); } catch (_) { return []; }
+  }, []);
+  const saveSshInflight = React.useCallback((items) => {
+    try { localStorage.setItem(SSH_INFLIGHT_KEY, JSON.stringify(items || [])); } catch (_) { /* no-op */ }
+  }, []);
+  const addSshInflight = React.useCallback((entries) => {
+    if (!Array.isArray(entries) || entries.length === 0) return;
+    const cur = getSshInflight();
+    const map = new Map(cur.map(e => [`${e.action}:${e.node}`, e]));
+    entries.forEach(e => { if (e && e.action && e.node) map.set(`${e.action}:${e.node}`, { ...e, startedAt: e.startedAt || Date.now() }); });
+    const next = Array.from(map.values());
+    saveSshInflight(next);
+  }, [getSshInflight, saveSshInflight]);
+  const removeSshInflightBy = React.useCallback((predicate) => {
+    const cur = getSshInflight();
+    const next = cur.filter(e => { try { return !predicate(e); } catch (_) { return true; } });
+    saveSshInflight(next);
+  }, [getSshInflight, saveSshInflight]);
+  // TTL prune for SSH inflight entries in case user navigates away during requests
+  const SSH_INFLIGHT_TTL_MS = 2 * 60 * 1000; // 2 minutes
+  const pruneSshInflight = React.useCallback(() => {
+    try {
+      const now = Date.now();
+      const cur = getSshInflight();
+      const next = cur.filter(e => {
+        const t = typeof e?.startedAt === 'number' ? e.startedAt : null;
+        return t == null ? true : (now - t) < SSH_INFLIGHT_TTL_MS;
+      });
+      if (next.length !== cur.length) saveSshInflight(next);
+    } catch (_) { /* no-op */ }
+  }, [getSshInflight, saveSshInflight]);
+  const updateBusyFromStores = React.useCallback(() => {
+    try {
+      // prune stale SSH entries before computing busy state
+      pruneSshInflight();
+      const jobIds = getJobIds();
+      const inflight = getSshInflight();
+      const busy = (Array.isArray(jobIds) && jobIds.length > 0) || (Array.isArray(inflight) && inflight.length > 0);
+      if (busy) {
+        try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
+        setOpsBusy(true);
+      } else {
+        try { localStorage.removeItem(OPS_BUSY_KEY); } catch (_) { /* no-op */ }
+        setOpsBusy(false);
+      }
+    } catch (_) {
+      setOpsBusy(false);
+    }
+  }, [getJobIds, getSshInflight, pruneSshInflight]);
   const markJobStarted = React.useCallback((jobId) => {
     if (!jobId) return;
     const ids = getJobIds();
@@ -477,6 +530,9 @@ const ServiceStatus = () => {
     setOpsBusy(true);
     setStopOpen(false);
 
+    // Persist SSH in-flight entries
+    addSshInflight(nodes.map(n => ({ action: 'stop', node: n, startedAt: Date.now() })));
+
     const requests = nodes.map((n) => (
       axios.post(`https://${hostIP}:2020/docker/control`, {
         server_ip: n,
@@ -488,46 +544,49 @@ const ServiceStatus = () => {
 
     results.forEach((r, idx) => {
       const n = nodes[idx];
+      const ts = new Date().toLocaleTimeString();
       if (r.status === 'fulfilled') {
         const data = r.value?.data || {};
         setOperationLogs((prev) => ([
           ...prev,
-          `[${new Date().toLocaleTimeString()}] /docker/control stop on ${n}: ${data.success ? 'success' : 'failed'}${data.message ? ` - ${data.message}` : ''}`
+          `[${ts}] ==== BEGIN stop on ${n} ====`,
+          `[${ts}] /docker/control stop on ${n}: ${data.success ? 'success' : 'failed'}${data.message ? ` - ${data.message}` : ''}`
         ]));
         const details = Array.isArray(data.details) ? data.details : [];
         details.forEach((d) => {
-          const parts = [
+          const meta = [
             d.cmd ? `cmd=${d.cmd}` : null,
             (typeof d.exit_code === 'number') ? `exit=${d.exit_code}` : null,
-            d.stdout ? `stdout=${d.stdout}` : null,
-            d.stderr ? `stderr=${d.stderr}` : null,
           ].filter(Boolean).join(' | ');
-          if (parts) {
-            setOperationLogs((prev) => ([...prev, `  ${parts}`]));
+          if (meta) {
+            setOperationLogs((prev) => ([...prev, `  ${meta}`]));
           }
+          const stdout = typeof d.stdout === 'string' ? d.stdout.split('\n') : [];
+          stdout.forEach((line) => {
+            if (line && line.trim().length) {
+              setOperationLogs((prev) => ([...prev, `  stdout> ${line}`]));
+            }
+          });
+          const stderr = typeof d.stderr === 'string' ? d.stderr.split('\n') : [];
+          stderr.forEach((line) => {
+            if (line && line.trim().length) {
+              setOperationLogs((prev) => ([...prev, `  stderr> ${line}`]));
+            }
+          });
         });
+        setOperationLogs((prev) => ([...prev, `[${ts}] ==== END stop on ${n} ====`]));
       } else {
         const msg = r.reason?.message || String(r.reason || 'Unknown error');
         setOperationLogs((prev) => ([
           ...prev,
-          `[${new Date().toLocaleTimeString()}] /docker/control stop on ${n}: error - ${msg}`
+          `[${ts}] /docker/control stop on ${n}: error - ${msg}`
         ]));
       }
     });
 
-    // Clear busy state after all SSH requests settle, but do not wipe any active kolla job ids
-    try {
-      const ids = getJobIds();
-      if (ids.length === 0) {
-        try { localStorage.removeItem(OPS_BUSY_KEY); } catch (_) { /* no-op */ }
-        setOpsBusy(false);
-      } else {
-        try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
-        setOpsBusy(true);
-      }
-    } catch (_) {
-      setOpsBusy(false);
-    }
+    // Remove SSH in-flight and reconcile busy state
+    removeSshInflightBy(e => e.action === 'stop' && nodes.includes(e.node));
+    updateBusyFromStores();
   };
 
   // Restart containers handlers
@@ -557,6 +616,9 @@ const ServiceStatus = () => {
     setOpsBusy(true);
     setRestartOpen(false);
 
+    // Persist SSH in-flight entries
+    addSshInflight(nodes.map(n => ({ action: 'restart', node: n, startedAt: Date.now() })));
+
     const requests = nodes.map((n) => (
       axios.post(`https://${hostIP}:2020/docker/control`, {
         server_ip: n,
@@ -568,46 +630,48 @@ const ServiceStatus = () => {
 
     results.forEach((r, idx) => {
       const n = nodes[idx];
+      const ts = new Date().toLocaleTimeString();
       if (r.status === 'fulfilled') {
         const data = r.value?.data || {};
         setOperationLogs((prev) => ([
           ...prev,
-          `[${new Date().toLocaleTimeString()}] /docker/control restart on ${n}: ${data.success ? 'success' : 'failed'}${data.message ? ` - ${data.message}` : ''}`
+          `[${ts}] ==== BEGIN restart on ${n} ====`,
+          `[${ts}] /docker/control restart on ${n}: ${data.success ? 'success' : 'failed'}${data.message ? ` - ${data.message}` : ''}`
         ]));
         const details = Array.isArray(data.details) ? data.details : [];
         details.forEach((d) => {
-          const parts = [
+          const meta = [
             d.cmd ? `cmd=${d.cmd}` : null,
             (typeof d.exit_code === 'number') ? `exit=${d.exit_code}` : null,
-            d.stdout ? `stdout=${d.stdout}` : null,
-            d.stderr ? `stderr=${d.stderr}` : null,
           ].filter(Boolean).join(' | ');
-          if (parts) {
-            setOperationLogs((prev) => ([...prev, `  ${parts}`]));
+          if (meta) {
+            setOperationLogs((prev) => ([...prev, `  ${meta}`]));
           }
+          const stdout = typeof d.stdout === 'string' ? d.stdout.split('\n') : [];
+          stdout.forEach((line) => {
+            if (line && line.trim().length) {
+              setOperationLogs((prev) => ([...prev, `  stdout> ${line}`]));
+            }
+          });
+          const stderr = typeof d.stderr === 'string' ? d.stderr.split('\n') : [];
+          stderr.forEach((line) => {
+            if (line && line.trim().length) {
+              setOperationLogs((prev) => ([...prev, `  stderr> ${line}`]));
+            }
+          });
         });
+        setOperationLogs((prev) => ([...prev, `[${ts}] ==== END restart on ${n} ====`]));
       } else {
         const msg = r.reason?.message || String(r.reason || 'Unknown error');
         setOperationLogs((prev) => ([
           ...prev,
-          `[${new Date().toLocaleTimeString()}] /docker/control restart on ${n}: error - ${msg}`
+          `[${ts}] /docker/control restart on ${n}: error - ${msg}`
         ]));
       }
     });
-
-    // Clear busy state after all SSH requests settle, but do not wipe any active kolla job ids
-    try {
-      const ids = getJobIds();
-      if (ids.length === 0) {
-        try { localStorage.removeItem(OPS_BUSY_KEY); } catch (_) { /* no-op */ }
-        setOpsBusy(false);
-      } else {
-        try { localStorage.setItem(OPS_BUSY_KEY, '1'); } catch (_) { /* no-op */ }
-        setOpsBusy(true);
-      }
-    } catch (_) {
-      setOpsBusy(false);
-    }
+    // Remove SSH in-flight and reconcile busy state
+    removeSshInflightBy(e => e.action === 'restart' && nodes.includes(e.node));
+    updateBusyFromStores();
   };
 
   const clearOperationLogs = () => setOperationLogs([]);
@@ -620,12 +684,20 @@ const ServiceStatus = () => {
     } else {
       stopLogStream();
     }
+    // Reconcile busy state from stores on tab switch
+    updateBusyFromStores();
     return () => {
       // cleanup on unmount or tab switch
       stopLogStream();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
+
+  // On initial mount, reconcile busy state from stores
+  React.useEffect(() => {
+    updateBusyFromStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll terminal to bottom on new logs
   React.useEffect(() => {
