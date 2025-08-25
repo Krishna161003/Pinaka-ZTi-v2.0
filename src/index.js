@@ -4,13 +4,19 @@ import './index.css';
 import reportWebVitals from './reportWebVitals';
 import { RouterProvider } from 'react-router-dom';
 import {router} from './router/index';
+import './utils/sslCertInterceptors';
+import SSLCertModal from './Components/SSLCertModal';
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <RouterProvider router={router}>  
-    </RouterProvider>
+    <>
+      <RouterProvider router={router}>  
+      </RouterProvider>
+      {/* Global SSL certificate acceptance helper */}
+      <SSLCertModal />
+    </>
   </React.StrictMode>
 );
 
