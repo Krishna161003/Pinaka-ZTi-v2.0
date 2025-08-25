@@ -20,19 +20,64 @@ export default function SSLCertModal() {
   const cooldownUntilRef = useRef(0); // timestamp ms; ignore events before this time
   const lastPayloadRef = useRef(null); // keep the latest event while debouncing
   const okOriginsRef = useRef(new Set()); // origins that have been verified reachable (SSL accepted)
+  const storageKey = 'ssl_ok_origins';
+
+  // Load persisted OK origins on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          okOriginsRef.current = new Set(arr.filter(Boolean));
+        }
+      }
+    } catch (_) {}
+  }, []);
+
+  const persistOkOrigins = () => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(Array.from(okOriginsRef.current)));
+    } catch (_) {}
+  };
 
   useEffect(() => {
-    // Subscribe once and show immediately on network/SSL/CORS errors
-    const unsub = onSSLError((p) => {
+    // Subscribe once; probe origin before showing to avoid popups after SSL is accepted
+    const unsub = onSSLError(async (p) => {
       lastPayloadRef.current = p || null;
       const now = Date.now();
       if (now < cooldownUntilRef.current) return; // still in cooldown
 
       const origin = p?.origin || null;
+      const url = p?.url || null;
       // If this origin has already been verified ok (SSL accepted), do nothing
       if (origin && okOriginsRef.current.has(origin)) return;
 
-      // Update payload and open immediately
+      // 1) Probe the exact URL with no-cors: if it succeeds, it's a CORS-only failure → suppress
+      if (url) {
+        try {
+          await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+          if (origin) {
+            okOriginsRef.current.add(origin);
+            persistOkOrigins();
+          }
+          return;
+        } catch (_) { /* continue to origin probe */ }
+      }
+
+      // 2) Probe the origin: if reachable (SSL accepted), suppress popup and mark OK
+      if (origin) {
+        try {
+          await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+          okOriginsRef.current.add(origin);
+          persistOkOrigins();
+          return;
+        } catch (_) {
+          // Both URL and origin probes failed → likely SSL trust/server unreachable → show modal
+        }
+      }
+
+      // Show the modal
       setPayload(p || null);
       if (!visible) setVisible(true);
     });
@@ -91,11 +136,10 @@ export default function SSLCertModal() {
           message="Your browser blocked requests to the backend (possible SSL trust or CORS policy)."
           description={
             <>
-              <div>If it's SSL trust: open the backend origin below and accept the certificate.</div>
-              <div>If it's CORS: ensure the backend sends Access-Control-Allow-Origin for the frontend's origin.</div>
-              {displayOrigin && (
+              <div>Open the backend once and accept the certificate.</div>
+              {(payload?.origin || payload?.url) && (
                 <div style={{ marginTop: 8 }}>
-                  Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{displayOrigin}</Text>
+                  Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{payload?.origin ? (payload.origin + '/') : payload?.url}</Text>
                 </div>
               )}
             </>
