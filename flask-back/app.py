@@ -1,3 +1,9 @@
+# ls -l $(which python3)
+# /usr/bin/python3 -> python3.11
+
+# sudo setcap cap_net_raw+ep /usr/bin/python3.11
+
+
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from datetime import datetime

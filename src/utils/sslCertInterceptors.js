@@ -3,15 +3,24 @@
 
 import axios from 'axios';
 
-// Simple event bus
+// Simple event bus with last-event replay (short TTL)
 const listeners = new Set();
+let lastPayload = null;
+let lastAt = 0;
+const LAST_TTL_MS = 8000; // replay last error within 8s
 
 export function onSSLError(listener) {
   listeners.add(listener);
+  // Replay the latest SSL/network error if it is recent
+  if (lastPayload && (Date.now() - lastAt) <= LAST_TTL_MS) {
+    try { listener(lastPayload); } catch (_) {}
+  }
   return () => listeners.delete(listener);
 }
 
 function emitSSLError(payload) {
+  lastPayload = payload;
+  lastAt = Date.now();
   for (const l of Array.from(listeners)) {
     try { l(payload); } catch (_) {}
   }

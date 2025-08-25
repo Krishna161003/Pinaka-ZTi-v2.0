@@ -50,36 +50,43 @@ export default function SSLCertModal() {
 
       const origin = p?.origin || null;
       const url = p?.url || null;
-      // If this origin has already been verified ok (SSL accepted), do nothing
-      if (origin && okOriginsRef.current.has(origin)) return;
-
-      // 1) Probe the exact URL with no-cors: if it succeeds, it's a CORS-only failure → suppress
-      if (url) {
-        try {
-          await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-          if (origin) {
+      // Always re-probe even if previously marked OK. If probe fails, drop from OK set and show modal.
+      const probe = async () => {
+        // 1) Probe the exact URL with no-cors: if it succeeds, it's a CORS-only failure → suppress
+        if (url) {
+          try {
+            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+            if (origin) {
+              okOriginsRef.current.add(origin);
+              persistOkOrigins();
+            }
+            return true;
+          } catch (_) { /* continue to origin probe */ }
+        }
+        // 2) Probe the origin
+        if (origin) {
+          try {
+            await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
             okOriginsRef.current.add(origin);
             persistOkOrigins();
-          }
-          return;
-        } catch (_) { /* continue to origin probe */ }
-      }
-
-      // 2) Probe the origin: if reachable (SSL accepted), suppress popup and mark OK
-      if (origin) {
-        try {
-          await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-          okOriginsRef.current.add(origin);
-          persistOkOrigins();
-          return;
-        } catch (_) {
-          // Both URL and origin probes failed → likely SSL trust/server unreachable → show modal
+            return true;
+          } catch (_) { /* fallthrough */ }
         }
-      }
+        return false;
+      };
 
-      // Show the modal
-      setPayload(p || null);
-      if (!visible) setVisible(true);
+      const ok = await probe();
+      if (ok) {
+        return;
+      } else {
+        if (origin && okOriginsRef.current.has(origin)) {
+          okOriginsRef.current.delete(origin);
+          persistOkOrigins();
+        }
+        // Show the modal
+        setPayload(p || null);
+        if (!visible) setVisible(true);
+      }
     });
     return () => {
       unsub();
