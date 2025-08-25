@@ -1406,7 +1406,7 @@ app.get('/api/squadron-nodes', (req, res) => {
         role: row.role,
         licensecode: row.license_code || null,
         credentialUrl: row.serverip ? `https://${row.serverip}/` : null,
-        vip: row.server_vip || null,
+        server_vip: row.server_vip || null,
         createdAt: row.datetime
       }));
 
