@@ -665,8 +665,8 @@ const SquadronNodesTable = () => {
                 <ul style={{ marginBottom: 8 }}>
                   <li>{modalRecord?.serverip ? (
                     <div>
-                      <a href={`https://${modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.serverip}
+                      <a href={`https://${modalRecord.server_vip}`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.server_vip}
                       </a>
                       <div style={{ marginTop: 4, color: '#666' }}>
                         Username: <span style={{ userSelect: 'text' }}>admin</span>
@@ -698,8 +698,8 @@ const SquadronNodesTable = () => {
                 <ul style={{ marginBottom: 8 }}>
                   <li>{modalRecord?.serverip ? (
                     <div>
-                      <a href={`https://${modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.serverip}:7000/
+                      <a href={`https://${modalRecord.server_vip}:7000/`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.server_vip}:7000/
                       </a>
                       <div style={{ marginTop: 4, color: '#666' }}>
                         Username: <span style={{ userSelect: 'text' }}>admin</span>
@@ -715,8 +715,8 @@ const SquadronNodesTable = () => {
                 <ul style={{ marginBottom: 0 }}>
                   <li>{modalRecord?.serverip ? (
                     <div>
-                      <a href={`https://${modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.serverip}:5601/
+                      <a href={`https://${modalRecord.server_vip}:5601/`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.server_vip}:5601/
                       </a>
                       <div style={{ marginTop: 4, color: '#666' }}>
                         Username: <span style={{ userSelect: 'text' }}>opensearch</span>
