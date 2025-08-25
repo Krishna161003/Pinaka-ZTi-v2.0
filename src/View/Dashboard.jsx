@@ -1157,7 +1157,7 @@ const Dashboard = () => {
 
                               {metricRows.length > 0 && (
                                 <div style={{ marginBottom: 8 }}>
-                                  <table style={{ borderCollapse: 'collapse', width: '900px' }}>
+                                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                                     <thead>
                                       <tr>
                                         <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
