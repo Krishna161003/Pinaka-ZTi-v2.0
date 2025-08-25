@@ -2519,7 +2519,7 @@ def upload_file():
 
             # Run script
             result = subprocess.run(
-                ["sudo", "bash", upgrade_script],
+                ["bash", upgrade_script],
                 cwd=pinaka_folder,
                 capture_output=True,
                 text=True,
