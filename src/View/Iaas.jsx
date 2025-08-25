@@ -663,10 +663,10 @@ const SquadronNodesTable = () => {
               <>
                 <b>{idx++}. Squadron</b>
                 <ul style={{ marginBottom: 8 }}>
-                  <li>{modalRecord?.serverip ? (
+                  <li>{(modalRecord?.server_vip || modalRecord?.serverip) ? (
                     <div>
-                      <a href={`https://${modalRecord.server_vip}`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.server_vip}
+                      <a href={`https://${modalRecord.server_vip || modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.server_vip || modalRecord.serverip}
                       </a>
                       <div style={{ marginTop: 4, color: '#666' }}>
                         Username: <span style={{ userSelect: 'text' }}>admin</span>
@@ -696,10 +696,10 @@ const SquadronNodesTable = () => {
                 )}
                 <b>{idx++}. Monitoring</b>
                 <ul style={{ marginBottom: 8 }}>
-                  <li>{modalRecord?.serverip ? (
+                  <li>{(modalRecord?.server_vip || modalRecord?.serverip) ? (
                     <div>
-                      <a href={`https://${modalRecord.server_vip}:7000/`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.server_vip}:7000/
+                      <a href={`https://${modalRecord.server_vip || modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.server_vip || modalRecord.serverip}:7000/
                       </a>
                       <div style={{ marginTop: 4, color: '#666' }}>
                         Username: <span style={{ userSelect: 'text' }}>admin</span>
@@ -713,10 +713,10 @@ const SquadronNodesTable = () => {
                 </ul>
                 <b>{idx++}. Diagnosis Dashboard</b>
                 <ul style={{ marginBottom: 0 }}>
-                  <li>{modalRecord?.serverip ? (
+                  <li>{(modalRecord?.server_vip || modalRecord?.serverip) ? (
                     <div>
-                      <a href={`https://${modalRecord.server_vip}:5601/`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.server_vip}:5601/
+                      <a href={`https://${modalRecord.server_vip || modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
+                        https://{modalRecord.server_vip || modalRecord.serverip}:5601/
                       </a>
                       <div style={{ marginTop: 4, color: '#666' }}>
                         Username: <span style={{ userSelect: 'text' }}>opensearch</span>
