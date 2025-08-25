@@ -1130,34 +1130,81 @@ const Dashboard = () => {
                       <Tooltip
                         placement="right"
                         title={(() => {
-                          const reasons = healthDetails.reasons || [];
+                          const reasons = Array.isArray(healthDetails.reasons) ? healthDetails.reasons : [];
                           const m = healthDetails.metrics || {};
                           const t = healthDetails.thresholds || {};
-                          const lines = [];
-                          if (reasons.length > 0) {
-                            reasons.forEach(r => {
-                              lines.push(`${r.metric}: ${r.level} — actual ${r.actual}% > ${r.level === 'CRITICAL' ? (t[r.metric?.toLowerCase()]?.critical ?? r.threshold) : (t[r.metric?.toLowerCase()]?.warning ?? r.threshold)}%`);
-                            });
-                          } else if (healthStatus === 'GOOD') {
-                            lines.push('All metrics are below warning thresholds');
-                          }
-                          // Show current vs thresholds
-                          const metricsBlock = [
-                            typeof m.cpu_usage_percent === 'number' ? `CPU: ${m.cpu_usage_percent}% (warn ${t.cpu?.warning ?? '—'}%, crit ${t.cpu?.critical ?? '—'}%)` : null,
-                            typeof m.memory_usage_percent === 'number' ? `Memory: ${m.memory_usage_percent}% (warn ${t.memory?.warning ?? '—'}%, crit ${t.memory?.critical ?? '—'}%)` : null,
-                            typeof m.disk_usage_percent === 'number' ? `Disk: ${m.disk_usage_percent}% (warn ${t.disk?.warning ?? '—'}%, crit ${t.disk?.critical ?? '—'}%)` : null,
+
+                          const makeRow = (label, actual, thr) => {
+                            if (typeof actual !== 'number' || isNaN(actual)) return null;
+                            const warn = typeof thr?.warning === 'number' ? thr.warning : null;
+                            const crit = typeof thr?.critical === 'number' ? thr.critical : null;
+                            let level = 'N/A';
+                            if (crit !== null && actual >= crit) level = 'CRITICAL';
+                            else if (warn !== null && actual >= warn) level = 'WARNING';
+                            else if (warn !== null || crit !== null) level = 'GOOD';
+                            return { label, actual, warn, crit, level };
+                          };
+
+                          const metricRows = [
+                            makeRow('CPU', m.cpu_usage_percent, t.cpu),
+                            makeRow('Memory', m.memory_usage_percent, t.memory),
+                            makeRow('Disk', m.disk_usage_percent, t.disk),
                           ].filter(Boolean);
+
                           return (
-                            <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-                              <div style={{ fontWeight: 600, marginBottom: 4 }}>Status: {healthStatus}</div>
-                              {lines.length > 0 && (
-                                <div style={{ marginBottom: 4 }}>
-                                  {lines.map((l, i) => (<div key={i}>{l}</div>))}
+                            <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 360 }}>
+                              <div style={{ fontWeight: 600, marginBottom: 6 }}>Status: {healthStatus}</div>
+
+                              {metricRows.length > 0 && (
+                                <div style={{ marginBottom: 8 }}>
+                                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                                    <thead>
+                                      <tr>
+                                        <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
+                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Actual (%)</th>
+                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Warning (%)</th>
+                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Critical (%)</th>
+                                        <th style={{ textAlign: 'center', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Level</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {metricRows.map((r, idx) => (
+                                        <tr key={idx}>
+                                          <td style={{ padding: '4px 6px' }}>{r.label}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(r.actual).toFixed(1)}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.warn ?? '—'}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.crit ?? '—'}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: r.level === 'CRITICAL' ? '#f5222d' : (r.level === 'WARNING' ? '#faad14' : '#52c41a') }}>{r.level}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
                               )}
-                              {metricsBlock.length > 0 && (
+
+                              {reasons.length > 0 && (
                                 <div>
-                                  {metricsBlock.map((l, i) => (<div key={i}>{l}</div>))}
+                                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Reasons</div>
+                                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                                    <thead>
+                                      <tr>
+                                        <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
+                                        <th style={{ textAlign: 'center', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Level</th>
+                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Actual (%)</th>
+                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Threshold (%)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {reasons.map((r, i) => (
+                                        <tr key={i}>
+                                          <td style={{ padding: '4px 6px' }}>{r.metric}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: r.level === 'CRITICAL' ? '#f5222d' : (r.level === 'WARNING' ? '#faad14' : '#52c41a') }}>{r.level}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{typeof r.actual === 'number' ? r.actual.toFixed(1) : r.actual}</td>
+                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.threshold ?? '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                 </div>
                               )}
                             </div>
