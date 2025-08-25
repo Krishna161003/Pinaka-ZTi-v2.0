@@ -22,56 +22,21 @@ export default function SSLCertModal() {
   const okOriginsRef = useRef(new Set()); // origins that have been verified reachable (SSL accepted)
 
   useEffect(() => {
-    // Subscribe once
+    // Subscribe once and show immediately on network/SSL/CORS errors
     const unsub = onSSLError((p) => {
       lastPayloadRef.current = p || null;
       const now = Date.now();
       if (now < cooldownUntilRef.current) return; // still in cooldown
 
       const origin = p?.origin || null;
-
       // If this origin has already been verified ok (SSL accepted), do nothing
       if (origin && okOriginsRef.current.has(origin)) return;
 
-      // Update payload immediately so UI shows correct origin when it opens
+      // Update payload and open immediately
       setPayload(p || null);
-
-      // If already visible, don't schedule another
-      if (visible) return;
-
-      // Reset any existing debounce
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-
-      // Debounce 5s, then probe the origin with no-cors to confirm SSL still blocks
-      debounceTimerRef.current = setTimeout(async () => {
-        debounceTimerRef.current = null;
-        // Skip if cooldown started or already visible
-        if (Date.now() < cooldownUntilRef.current || visible) return;
-
-        // If we have an origin, try probing it; if probe resolves, mark origin ok and do not show modal
-        if (origin) {
-          try {
-            await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-            okOriginsRef.current.add(origin);
-            return; // reachable (likely cert accepted); suppress popup
-          } catch (_) {
-            // Probe failed; proceed to show modal
-          }
-        }
-
-        // Still failing; show the modal
-        setPayload(lastPayloadRef.current);
-        setVisible(true);
-      }, 5000);
+      if (!visible) setVisible(true);
     });
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
       unsub();
     };
   }, [visible]);
@@ -105,20 +70,21 @@ export default function SSLCertModal() {
       title={
         <span>
           <WarningOutlined style={{ color: '#faad14', marginRight: 8 }} />
-          Backend connection blocked by SSL
+          Backend connection blocked (SSL/CORS)
         </span>
       }
     >
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         <Alert
           type="warning"
-          message="Your browser blocked requests to the backend because its SSL certificate is not trusted yet."
+          message="Your browser blocked requests to the backend (possible SSL trust or CORS policy)."
           description={
             <>
-              <div>Open the backend once and accept the certificate.</div>
+              <div>If it's SSL trust: open the backend origin below and accept the certificate.</div>
+              <div>If it's CORS: ensure the backend sends Access-Control-Allow-Origin for the frontend's origin.</div>
               {(payload?.origin || payload?.url) && (
                 <div style={{ marginTop: 8 }}>
-                  Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{payload?.origin ? (payload.origin + '/') : payload?.url}</Text>
+                  Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{payload?.url || (payload?.origin ? (payload.origin + '/') : '')}</Text>
                 </div>
               )}
             </>
