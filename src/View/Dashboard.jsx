@@ -1129,6 +1129,7 @@ const Dashboard = () => {
                       </span>
                       <Tooltip
                         placement="right"
+                        overlayInnerStyle={{ width: 520, maxWidth: 520 }}
                         title={(() => {
                           const reasons = Array.isArray(healthDetails.reasons) ? healthDetails.reasons : [];
                           const m = healthDetails.metrics || {};
@@ -1152,7 +1153,7 @@ const Dashboard = () => {
                           ].filter(Boolean);
 
                           return (
-                            <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: 360 }}>
+                            <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
                               <div style={{ fontWeight: 600, marginBottom: 6 }}>Status: {healthStatus}</div>
 
                               {metricRows.length > 0 && (
