@@ -1386,25 +1386,7 @@ app.get('/api/squadron-nodes', (req, res) => {
   if (!userId) return res.json([]);
 
   const nodeQuery = `
-    SELECT
-      serverid,
-      serverip,
-      role,
-      license_code,
-      COALESCE(
-        server_vip,
-        (
-          SELECT ds2.server_vip
-          FROM deployed_server ds2
-          WHERE ds2.cloudname = deployed_server.cloudname
-            AND ds2.server_vip IS NOT NULL
-            AND ds2.server_vip <> ''
-          ORDER BY ds2.datetime ASC
-          LIMIT 1
-        )
-      ) AS server_vip,
-      cloudname,
-      datetime
+    SELECT serverid, serverip, role, license_code, server_vip, datetime
     FROM deployed_server
     WHERE user_id = ? AND (role IS NULL OR role NOT LIKE '%host%')
     ORDER BY datetime DESC
@@ -1424,8 +1406,7 @@ app.get('/api/squadron-nodes', (req, res) => {
         role: row.role,
         licensecode: row.license_code || null,
         credentialUrl: row.serverip ? `https://${row.serverip}/` : null,
-        server_vip: row.server_vip || null,
-        cloudname: row.cloudname || null,
+        vip: row.server_vip || null,
         createdAt: row.datetime
       }));
 

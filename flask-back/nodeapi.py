@@ -726,10 +726,15 @@ def system_utilization_history():
 
 def get_available_interfaces():
     try:
-        with open('/proc/net/dev', 'r') as f:
-            lines = f.readlines()[2:]  # Skip headers
-            interfaces = [line.strip().split(':')[0].strip() for line in lines]
-            return interfaces
+        interfaces = []
+        for iface in os.listdir("/sys/class/net/"):
+            # Ignore loopback
+            if iface == "lo":
+                continue
+            real_path = os.path.realpath(f"/sys/class/net/{iface}")
+            if "/devices/virtual/" not in real_path and os.path.exists(f"/sys/class/net/{iface}/device"):
+                interfaces.append(iface)
+        return interfaces
     except Exception:
         return []
 
