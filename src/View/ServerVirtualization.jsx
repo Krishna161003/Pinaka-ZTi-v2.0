@@ -284,7 +284,7 @@ const App = () => {
 
   return (
     <Zti>
-      <h2 style={{ userSelect: "none" }}>Server Virtualization</h2>
+      <h2 style={{ userSelect: "none" }}>Add ZTi Cloud</h2>
       <Tabs
         destroyInactiveTabPane={false}
         activeKey={activeTab}

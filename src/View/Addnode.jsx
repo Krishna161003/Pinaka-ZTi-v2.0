@@ -208,9 +208,9 @@ const App = () => {
 
   return (
     <Zti>
-      <h2>Add Node</h2>
+      <h2>Add Squadron Node</h2>
       <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key)}>
-        <Tabs.TabPane tab="Discovery" key="1" disabled={disabledTabs["1"]}>
+        <Tabs.TabPane tab="Discover" key="1" disabled={disabledTabs["1"]}>
           {/*
             Pass discoveryResults and setDiscoveryResults to Discovery.
             In Discovery, use discoveryResults as the source of truth for results.
@@ -225,7 +225,7 @@ const App = () => {
             }}
           />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Node Validation" key="2" disabled={disabledTabs["2"]}>
+        <Tabs.TabPane tab="Validate" key="2" disabled={disabledTabs["2"]}>
           {/*
             Pass validationResults and setValidationResults to NodeValidation.
             In NodeValidation, use validationResults as the source of truth for results.
@@ -250,7 +250,7 @@ const App = () => {
             }}
           />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="License Activate" key="3" disabled={disabledTabs["3"]}>
+        <Tabs.TabPane tab="Activate" key="3" disabled={disabledTabs["3"]}>
           {/*
             Pass licenseActivationResults and setLicenseActivationResults to LicenseActivation.
             In LicenseActivation, use licenseActivationResults as the source of truth for results.
@@ -308,7 +308,7 @@ const App = () => {
             }}
           />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Network Apply" key="4" disabled={disabledTabs["4"]}>
+        <Tabs.TabPane tab="Deploy" key="4" disabled={disabledTabs["4"]}>
           <NetworkApply onGoToReport={() => {
             // Disable tabs 1-4 and enable tab 5, then navigate without full reload
             setDisabledTabs(prev => ({ ...prev, '1': true, '2': true, '3': true, '4': true, '5': false }));

@@ -92,7 +92,7 @@ export default function Zti({ children }) {
                 userSelect: "none",
               }}
             >
-              Server Virtualization
+              Add ZTi Cloud
             </span>
           </div>
         </Col>
@@ -118,7 +118,7 @@ export default function Zti({ children }) {
                   userSelect: "none"
                 }}
               >
-                Add Node
+                Add Squadron Node
               </span>
             </div>
           </Tooltip>
