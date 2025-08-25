@@ -1167,23 +1167,52 @@ const Dashboard = () => {
                         <InfoCircleOutlined style={{ color: '#1890ff' }} />
                       </Tooltip>
                     </div>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: '80px',
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        color: statusStyle.color,
-                        // backgroundColor: statusStyle.background,
-                        // border: `1px solid ${statusStyle.border}`,
-                        borderRadius: '6px',
-                        textAlign: 'center'
-                      }}
-                    >
-                      {healthStatus}
+                    <Divider style={{ margin: "0 0 12px 0" }} />
+                    <div>
+                      <div style={{ marginBottom: 8 }}>
+                        <Badge
+                          status={healthStatus === 'GOOD' ? 'success' : healthStatus === 'WARNING' ? 'warning' : healthStatus === 'CRITICAL' ? 'error' : 'default'}
+                          text={healthStatus}
+                        />
+                      </div>
+                      <Table
+                        size="small"
+                        pagination={false}
+                        rowKey="metric"
+                        columns={[
+                          { title: 'Metric', dataIndex: 'metric', key: 'metric', width: '28%' },
+                          { title: 'Current', dataIndex: 'current', key: 'current', width: '18%', render: (v) => (typeof v === 'number' ? `${v}%` : '—') },
+                          { title: 'Warn', dataIndex: 'warn', key: 'warn', width: '18%', render: (v) => (typeof v === 'number' ? `${v}%` : '—') },
+                          { title: 'Crit', dataIndex: 'crit', key: 'crit', width: '18%', render: (v) => (typeof v === 'number' ? `${v}%` : '—') },
+                          {
+                            title: 'Status', dataIndex: 'status', key: 'status', width: '18%',
+                            render: (s) => (
+                              <Badge
+                                status={s === 'GOOD' ? 'success' : s === 'WARNING' ? 'warning' : s === 'CRITICAL' ? 'error' : 'default'}
+                                text={s}
+                              />
+                            )
+                          }
+                        ]}
+                        dataSource={(() => {
+                          const m = healthDetails?.metrics || {};
+                          const t = healthDetails?.thresholds || {};
+                          const to1 = (n) => (Number.isFinite(n) ? Number(n.toFixed(1)) : null);
+                          const row = (key, label) => {
+                            const cur = typeof m[`${key}_usage_percent`] === 'number' ? m[`${key}_usage_percent`] : null;
+                            const warn = typeof t[key]?.warning === 'number' ? t[key].warning : null;
+                            const crit = typeof t[key]?.critical === 'number' ? t[key].critical : null;
+                            let status = 'ERROR';
+                            if (cur == null) status = 'ERROR';
+                            else if (typeof crit === 'number' && cur >= crit) status = 'CRITICAL';
+                            else if (typeof warn === 'number' && cur >= warn) status = 'WARNING';
+                            else status = 'GOOD';
+                            return { metric: label, current: cur != null ? to1(cur) : null, warn, crit, status };
+                          };
+                          // Same data as metricsBlock (CPU, Memory, Disk)
+                          return [row('cpu', 'CPU'), row('memory', 'Memory'), row('disk', 'Disk')];
+                        })()}
+                      />
                     </div>
                   </div>
                 </Col>
