@@ -225,7 +225,7 @@ def validate():
     elif mode == "remote":
         host = data.get("host")
         username = "pinakasupport"
-        pem_path = "/home/pinaka/.pinaka_wd/key/ps_key.pem"
+        pem_path = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
 
         if not all([host, username, pem_path]):
             return jsonify({"error": "Missing remote credentials"}), 400
@@ -425,7 +425,7 @@ def decrypt_code_endpoint():
         return jsonify({"success": False, "message": "Code not found!"}), 404
 
     # Path to the license.txt file
-    license_file_path = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
+    license_file_path = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
 
     # Check if the license code already exists in the license.txt file
     if check_license_used(license_file_path, encrypted_code):
@@ -727,7 +727,7 @@ def submit_network_config():
                 iface_count += 1
 
         # === Save the file ===
-        config_dir = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/submitted_configs/"
+        config_dir = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/submitted_configs/"
         os.makedirs(config_dir, exist_ok=True)
         file_path = os.path.join(config_dir, "data.json")
         
@@ -1284,7 +1284,7 @@ def get_node_status(ip):
         print(f"Error checking local IPs: {str(e)}")
     
     # Use the specified PEM key path
-    pem_key = "/home/pinaka/.pinaka_wd/key/ps_key.pem"
+    pem_key = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
     print(f"Using PEM key: {pem_key}")
     
     if not os.path.exists(pem_key):
@@ -1449,7 +1449,7 @@ def server_control():
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
         # Load the private key
-        key_path = '/home/pinaka/.pinaka_wd/key/ps_key.pem'
+        key_path = '/home/pinakasupport/.pinaka_wd/key/ps_key.pem'
         if not os.path.exists(key_path):
             return jsonify({'error': f'Key file {key_path} not found'}), 500
             
@@ -1521,7 +1521,7 @@ def store_deployment_configs():
         node_items = [(str(i+1), node) for i, node in enumerate(data)]
 
     # Directory to store configs
-    configs_dir = pathlib.Path('/home/pinaka/.pinaka_wd/cluster/nodes/')
+    configs_dir = pathlib.Path('/home/pinakasupport/.pinaka_wd/cluster/nodes/')
     configs_dir.mkdir(parents=True, exist_ok=True)
 
     # Find the highest numbered node file present
@@ -1550,7 +1550,7 @@ def store_deployment_configs():
             results.append({'node': node_key, 'file': str(fpath), 'status': 'error', 'error': str(e)})
 
     # ✅ After writing configs, create the deployment_in_progress marker
-    markers_dir = pathlib.Path('/home/pinaka/.pinaka_wd/.markers/deplyment_status/')
+    markers_dir = pathlib.Path('/home/pinakasupport/.pinaka_wd/.markers/deplyment_status/')
     markers_dir.mkdir(parents=True, exist_ok=True)
     marker_file = markers_dir / "deployment_in_progress"
     try:
@@ -1593,7 +1593,7 @@ def poll_ssh_status():
     ssh_key = None
     print(f"DEBUG: Enforcing PEM-only auth. Using user '{ssh_user}', no password, no inline key (disk PEM only)")
     
-    pem_path = "/home/pinaka/.pinaka_wd/key/ps_key.pem"
+    pem_path = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
 
     import threading, queue, time, json
     status_queue = queue.Queue()
@@ -1633,7 +1633,7 @@ def poll_ssh_status():
             # If no inline key, use the fixed PEM file path provided
             if not pkey:
                 try:
-                    selected_path = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/ps_key.pem"
+                    selected_path = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/ps_key.pem"
                     if not os.path.exists(selected_path):
                         raise FileNotFoundError(f"PEM key file not found at: {selected_path}")
                     pkey = paramiko.RSAKey.from_private_key_file(selected_path)
@@ -1739,7 +1739,7 @@ def check_ssh_status():
 @app.route('/node-deployment-progress', methods=['GET'])
 def node_deployment_progress():
     try:
-        configs_dir = pathlib.Path('/home/pinaka/.pinaka_wd/.markers/deplyment_status/')
+        configs_dir = pathlib.Path('/home/pinakasupport/.pinaka_wd/.markers/deplyment_status/')
         marker_file = configs_dir / "deployment_in_progress"
 
         if marker_file.exists():   # Deployment in progress
@@ -1776,8 +1776,8 @@ def apply_license():
         license_period = data.get("license_period")
 
         ssh_username = data.get("ssh_username", "pinakasupport")
-        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
-        remote_path = data.get("remote_path", "/home/pinaka/.pinaka_wd/.scripts/data.json")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinakasupport/.pinaka_wd/key/ps_key.pem")
+        remote_path = data.get("remote_path", "/home/pinakasupport/.pinaka_wd/.scripts/data.json")
 
         # Validate required fields
         missing = [k for k, v in {
@@ -1913,7 +1913,7 @@ def enforce_expired():
             return jsonify({"success": False, "message": "Missing required field: server_ip"}), 400
 
         ssh_username = data.get("ssh_username", "pinakasupport")
-        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinakasupport/.pinaka_wd/key/ps_key.pem")
 
         # Establish SSH
         key = paramiko.RSAKey.from_private_key_file(ssh_key_path)
@@ -1965,7 +1965,7 @@ def docker_control():
         "action": "stop" | "restart",        # required
         "services": ["neutron-server", "nova-compute"],  # optional; if omitted or empty, affects ALL running containers
         "ssh_username": "pinakasupport",     # optional (default)
-        "ssh_key_path": "/home/pinaka/.pinaka_wd/key/ps_key.pem"  # optional (default)
+        "ssh_key_path": "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"  # optional (default)
       }
 
     Behavior:
@@ -1983,7 +1983,7 @@ def docker_control():
             return jsonify({"success": False, "message": "Invalid action. Use 'stop' or 'restart'"}), 400
 
         ssh_username = data.get("ssh_username", "pinakasupport")
-        ssh_key_path = data.get("ssh_key_path", "/home/pinaka/.pinaka_wd/key/ps_key.pem")
+        ssh_key_path = data.get("ssh_key_path", "/home/pinakasupport/.pinaka_wd/key/ps_key.pem")
         services = data.get("services")
         if isinstance(services, list):
             # Normalize service tokens to match kolla container names (hyphen vs underscore)
@@ -2178,7 +2178,7 @@ def get_openstack_data():
 def get_osd_count():
     try:
         # Read Ceph credentials file
-        cred_file = os.path.expanduser("/home/pinaka/.pinaka_wd/.markers/ceph_dashboard_credentials.txt")
+        cred_file = os.path.expanduser("/home/pinakasupport/.pinaka_wd/.markers/ceph_dashboard_credentials.txt")
         with open(cred_file, "r") as f:
             content = f.read()
 
@@ -2449,7 +2449,7 @@ def health():
 
 #--------------------------------------------Lifecycle Management Start-------------------------------------------
 
-UPLOAD_FOLDER = "/home/pinaka/.pinaka_wd/lifecycle/"
+UPLOAD_FOLDER = "/home/pinakasupport/.pinaka_wd/lifecycle/"
 ZIP_PASSWORD = b"1@P1@n@k@1609zip123"
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)

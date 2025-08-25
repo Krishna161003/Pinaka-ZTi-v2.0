@@ -215,7 +215,16 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       }));
 
       setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
-      setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
+      // Normalize interfaces: backend returns ["eno1", "enp2s0", ...]
+      // Convert to [{ iface: "eno1" }, ...] expected by UI
+      const normalizedIfaces = (ifaceRes.interfaces || [])
+        .map(i => {
+          if (typeof i === 'string') return { iface: i };
+          if (i && typeof i === 'object' && typeof i.iface === 'string') return { iface: i.iface };
+          return { iface: String(i || '') };
+        })
+        .filter(x => x.iface);
+      setNodeInterfaces(prev => ({ ...prev, [ip]: normalizedIfaces }));
     } catch (e) {
       console.error(`Failed to fetch data from node ${ip}:`, e);
       message.error(`Failed to fetch data from node ${ip}: ${e.message}`);

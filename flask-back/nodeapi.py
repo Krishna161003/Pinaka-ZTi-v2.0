@@ -216,7 +216,7 @@ def decrypt_code_endpoint():
         return jsonify({"success": False, "message": "Code not found!"}), 404
 
     # Path to the license.txt file
-    license_file_path = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
+    license_file_path = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
 
     # Check if the license code already exists in the license.txt file
     if check_license_used(license_file_path, encrypted_code):
@@ -274,7 +274,7 @@ def store_network_config(data):
     """
     import threading
     # Resolve storage directory from env or default
-    base_dir = os.environ.get("PINAKA_CONFIG_DIR", "/home/pinaka/.pinaka_wd/.scripts/")
+    base_dir = os.environ.get("PINAKA_CONFIG_DIR", "/home/pinakasupport/.pinaka_wd/.scripts/")
     os.makedirs(base_dir, exist_ok=True)
     file_path = os.path.join(base_dir, "data.json")
 
@@ -616,10 +616,8 @@ def get_interfaces():
     interfaces = []
 
     interfaces = get_available_interfaces()
-    # Fetch the number of CPU sockets (physical CPUs)
-    cpu_sockets = get_cpu_socket_count()
     # Include the number of CPU sockets in the response
-    response = {"interfaces": interfaces, "cpu_sockets": cpu_sockets}
+    response = {"interfaces": interfaces}
 
     return jsonify(response)
 

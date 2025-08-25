@@ -46,8 +46,14 @@ axios.interceptors.response.use(
     const url = cfg.baseURL ? new URL(cfg.url || '', cfg.baseURL).toString() : (cfg.url || '');
     const payload = toPayloadFromUrl(url, method);
 
-    // Only prompt for https targets
-    if (isNetwork && payload.url.startsWith('https://')) {
+    // Gate by error message: only CERT-related
+    const msg = String(err?.message || '');
+    const stack = String(err?.stack || '');
+    const combined = (msg + ' ' + stack).toLowerCase();
+    const isCert = /err_cert|certificate|ssl|cert_authority_invalid/.test(combined);
+    const isRefused = /err_connection_refused|econnrefused|connection refused/.test(combined);
+
+    if (isNetwork && payload.url.startsWith('https://') && isCert && !isRefused) {
       emitSSLError(payload);
     }
     return Promise.reject(err);
@@ -63,11 +69,16 @@ if (typeof window !== 'undefined' && window.fetch) {
       return res;
     } catch (e) {
       const msg = (e && e.message) || '';
-      const isNetwork = e instanceof TypeError || /failed to fetch|network error/i.test(msg);
+      const stack = (e && e.stack) || '';
+      const combined = (msg + ' ' + stack).toLowerCase();
+      const isNetwork = e instanceof TypeError || /failed to fetch|network error/i.test(combined);
       const url = typeof input === 'string' ? input : (input && input.url);
       const method = (init && init.method) || (typeof input === 'object' && input && input.method) || 'GET';
       const payload = toPayloadFromUrl(url || '', method);
-      if (isNetwork && payload.url.startsWith('https://')) {
+      // Only emit for CERT-related failures; suppress for connection refused and unknowns
+      const isCert = /err_cert|certificate|ssl|cert_authority_invalid/.test(combined);
+      const isRefused = /err_connection_refused|econnrefused|connection refused/.test(combined);
+      if (isNetwork && payload.url.startsWith('https://') && isCert && !isRefused) {
         emitSSLError(payload);
       }
       throw e;
