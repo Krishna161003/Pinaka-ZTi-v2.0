@@ -115,7 +115,7 @@ export default function SSLCertModal() {
           message="Your browser blocked requests to the backend because its SSL certificate is not trusted yet."
           description={
             <>
-              <div>Open the backend once and accept the certificate, then click Refresh.</div>
+              <div>Open the backend once and accept the certificate.</div>
               {(payload?.origin || payload?.url) && (
                 <div style={{ marginTop: 8 }}>
                   Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{payload?.origin ? (payload.origin + '/') : payload?.url}</Text>
@@ -139,14 +139,14 @@ export default function SSLCertModal() {
             </Button>
           ))}
 
-          <Button
+          {/* <Button
             onClick={handleRetry}
             icon={<SyncOutlined spin={retrying} />}
             type="default"
             style={{ borderColor: '#1677ff', color: '#1677ff', borderRadius: 20 }}
           >
             Refresh
-          </Button>
+          </Button> */}
         </div>
       </Space>
     </Modal>
