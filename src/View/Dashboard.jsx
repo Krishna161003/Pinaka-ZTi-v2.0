@@ -1129,7 +1129,7 @@ const Dashboard = () => {
                       </span>
                       <Tooltip
                         placement="right"
-                        overlayInnerStyle={{ width: 520, maxWidth: 520 }}
+                        overlayInnerStyle={{ width: 480, maxWidth: 480 }}
                         title={(() => {
                           const reasons = Array.isArray(healthDetails.reasons) ? healthDetails.reasons : [];
                           const m = healthDetails.metrics || {};
