@@ -7,7 +7,7 @@ import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.jpeg";
 import squad from "../Images/Squadron.png";
 import osd from "../Images/OSD.jpeg";
-import { Area, Line } from '@ant-design/plots';
+import { Line } from '@ant-design/plots';
 import axios from "axios";
 
 const hostIP = window.location.hostname;
@@ -52,8 +52,6 @@ const hoverStyle = {
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
 };
 
-
-
 const { Content } = Layout;
 
 const Dashboard = () => {
@@ -77,8 +75,6 @@ const Dashboard = () => {
   const [memoryData, setMemoryData] = useState(0);
   const [totalMemory, setTotalMemory] = useState(0);
   const [usedMemory, setUsedMemory] = useState(0);
-  const [diskData, setDiskData] = useState(0);
-  const [diskHistory, setDiskHistory] = useState([]);
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
@@ -224,7 +220,6 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
-
   useEffect(() => {
     const storedSelectedHostIP = localStorage.getItem('dashboard_selectedHostIP');
     if (storedSelectedHostIP) {
@@ -247,17 +242,12 @@ const Dashboard = () => {
     localStorage.setItem('dashboard_selectedInterface', selectedInterface);
   }, [selectedInterface]);
 
-
   const CPUUsageChart = () => {
     const config = {
       data: cpuHistory,
       xField: 'date',
       yField: 'cpu',
       height: 180,
-      // point: {
-      //   shapeField: 'circle',
-      //   sizeField: 2,
-      // },
       style: {
         lineWidth: 1,
       },
@@ -295,42 +285,6 @@ const Dashboard = () => {
       },
       meta: {
         memory: { min: 0, max: 100 },
-      },
-    };
-    return <Line {...config} />;
-  };
-
-  // Dummy Disk usage: generate 30 points (last 30 minutes)
-  useEffect(() => {
-    const now = Date.now();
-    const points = Array.from({ length: 30 }, (_, i) => {
-      const t = new Date(now - (29 - i) * 60000);
-      const base = 50 + 10 * Math.sin(i / 5);
-      const noise = Math.random() * 6 - 3;
-      const v = Math.max(0, Math.min(100, base + noise));
-      return { date: t, disk: Number(v.toFixed(1)) };
-    });
-    setDiskHistory(points);
-    setDiskData(points.length ? points[points.length - 1].disk : 0);
-  }, []);
-
-  const DiskUsageChart = () => {
-    const config = {
-      data: diskHistory,
-      xField: 'date',
-      yField: 'disk',
-      height: 180,
-      style: {
-        lineWidth: 1,
-        stroke: '#faad14',
-      },
-      yAxis: {
-        min: 0,
-        max: 100,
-        label: { formatter: (v) => `${v}%` },
-      },
-      meta: {
-        disk: { min: 0, max: 100 },
       },
     };
     return <Line {...config} />;
@@ -1250,7 +1204,7 @@ const Dashboard = () => {
               <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "290px" }}>
                 <Col
                   className="gutter-row"
-                  span={7} // Adjusted to fit three columns
+                  span={12}
                   style={performancewidgetStyle}
                 >
                   <div>
@@ -1277,7 +1231,7 @@ const Dashboard = () => {
                 </Col>
                 <Col
                   className="gutter-row"
-                  span={11} // Each column takes up 7 spans
+                  span={12}
                   style={performancewidgetStyle}
                 >
                   <div>
@@ -1300,33 +1254,6 @@ const Dashboard = () => {
                     </div>
                     <div style={{ height: '180px' }}>
                       <MemoryUsageChart />
-                    </div>
-                  </div>
-                </Col>
-                <Col
-                  className="gutter-row"
-                  span={7}
-                  style={performancewidgetStyle}
-                >
-                  <div>
-                    <span
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "500",
-                        marginLeft: "1px",
-                        userSelect: "none",
-                        display: "block",
-                        marginBottom: "8px"
-                      }}
-                    >
-                      Disk Usage Trend
-                    </span>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Current: {diskData.toFixed(1)}%
-                    </div>
-                    <div style={{ height: '180px' }}>
-                      <DiskUsageChart />
                     </div>
                   </div>
                 </Col>
