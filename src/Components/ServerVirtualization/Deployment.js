@@ -1050,6 +1050,10 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           if (form.configType === 'segregated') {
             managementTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Management'));
           }
+          let externalTaken = false;
+          if (form.configType === 'segregated') {
+            externalTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('External Traffic'));
+          }
           return (
             <Select
               mode={form.configType === 'segregated' ? 'multiple' : undefined}
@@ -1082,11 +1086,13 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       </Tooltip>
                     </Option>
                   )}
-                  <Option value="External Traffic">
-                    <Tooltip placement="right" title="External Traffic">
-                      External Traffic
-                    </Tooltip>
-                  </Option>
+                  {!externalTaken || (Array.isArray(record.type) && record.type.includes('External Traffic')) ? (
+                    <Option value="External Traffic">
+                      <Tooltip placement="right" title="External Traffic">
+                        External Traffic
+                      </Tooltip>
+                    </Option>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -1119,7 +1125,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.ip}
               placeholder="Enter IP Address"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External Traffic'))}
             />
           </Form.Item>
         ),
@@ -1137,7 +1143,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.subnet}
               placeholder="Enter Subnet"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External Traffic'))}
             />
           </Form.Item>
         ),

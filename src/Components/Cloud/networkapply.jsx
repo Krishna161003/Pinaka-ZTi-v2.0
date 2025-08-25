@@ -234,7 +234,14 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       });
 
       setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
-      setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
+      const normalizedIfaces = (ifaceRes.interfaces || [])
+        .map(i => {
+          if (typeof i === 'string') return { iface: i };
+          if (i && typeof i === 'object' && i.iface) return { iface: i.iface };
+          return null;
+        })
+        .filter(Boolean);
+      setNodeInterfaces(prev => ({ ...prev, [ip]: normalizedIfaces }));
     } catch (e) {
       console.error(`Failed to fetch data from node ${ip}:`, e);
       message.error(`Failed to fetch data from node ${ip}: ${e.message}`);
