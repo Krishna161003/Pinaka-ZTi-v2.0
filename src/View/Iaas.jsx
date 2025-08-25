@@ -702,7 +702,7 @@ const SquadronNodesTable = () => {
         onCancel={() => setModalVisible(null)}
         title="Squadron Node Credentials"
         footer={null}
-        width={600}
+        width={760}
       >
         <div>
           {(() => {
@@ -927,72 +927,78 @@ const CloudDeploymentsTable = () => {
         onCancel={() => setModalVisible(false)}
         title="Cloud Credentials"
         footer={null}
-        width={600}
+        width={760}
       >
         <div>
-          <b>1. Cloud</b>
-          <ul style={{ marginBottom: 8 }}>
-            <li>{modalCredentials?.server_vip ? (
-              <div>
-                <a href={`https://${modalCredentials.server_vip}`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.server_vip}
-                </a>
-                <div style={{ marginTop: 4, color: '#666' }}>
-                  Username: <span style={{ userSelect: 'text' }}>admin</span>
-                </div>
-                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
-                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
-                </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
-          <b>2. Storage</b>
-          <ul style={{ marginBottom: 8 }}>
-            <li>{modalCredentials?.server_vip ? (
-              <div>
-                <a href={`https://${modalCredentials.server_vip}:8443/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.server_vip}:8443/
-                </a>
-                <div style={{ marginTop: 4, color: '#666' }}>Username: <span style={{ userSelect: 'text' }}>admin</span></div>
-                <div style={{ marginTop: 4, color: '#666' }}>Password: </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
-          <b>3. Monitoring</b>
-          <ul style={{ marginBottom: 8 }}>
-            <li>{modalCredentials?.server_vip ? (
-              <div>
-                <a href={`https://${modalCredentials.server_vip}:7000/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.server_vip}:7000/
-                </a>
-                <div style={{ marginTop: 4, color: '#666' }}>
-                  Username: <span style={{ userSelect: 'text' }}>admin</span>
-                </div>
-                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
-                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
-                </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
-          <b>4. Diagnosis Dashboard</b>
-          <ul style={{ marginBottom: 0 }}>
-            <li>{modalCredentials?.server_vip ? (
-              <div>
-                <a href={`https://${modalCredentials.server_vip}:5601/`} target="_blank" rel="noopener noreferrer">
-                  https://{modalCredentials.server_vip}:5601/
-                </a>
-                <div style={{ marginTop: 4, color: '#666' }}>
-                  Username: <span style={{ userSelect: 'text' }}>opensearch</span>
-                </div>
-                <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
-                  <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
-                </div>
-              </div>
-            ) : <span>No URL</span>}</li>
-          </ul>
+          {(() => {
+            const vip = modalCredentials?.server_vip;
+
+            const rows = [
+              {
+                key: 'cloud',
+                service: 'Cloud',
+                url: vip ? `https://${vip}` : null,
+                username: 'admin',
+                password: 's9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP'
+              },
+              {
+                key: 'storage',
+                service: 'Storage',
+                url: vip ? `https://${vip}:8443/` : null,
+                username: 'admin',
+                password: '-'
+              },
+              {
+                key: 'monitoring',
+                service: 'Monitoring',
+                url: vip ? `https://${vip}:7000/` : null,
+                username: 'admin',
+                password: 'eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut'
+              },
+              {
+                key: 'diagnosis',
+                service: 'Diagnosis Dashboard',
+                url: vip ? `https://${vip}:5601/` : null,
+                username: 'opensearch',
+                password: 'mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8'
+              }
+            ];
+
+            const columns = [
+              { title: 'Service', dataIndex: 'service', key: 'service', width: 180 },
+              {
+                title: 'URL', dataIndex: 'url', key: 'url',
+                render: (url) => url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                ) : <span style={{ color: '#999' }}>No URL</span>
+              },
+              {
+                title: 'Username', dataIndex: 'username', key: 'username', width: 140,
+                render: (u) => <span style={{ userSelect: 'text' }}>{u || '-'}</span>
+              },
+              {
+                title: 'Password', dataIndex: 'password', key: 'password', width: 260,
+                render: (pwd) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ userSelect: 'text' }}>{pwd || '-'}</span>
+                    {pwd && pwd !== '-' && (
+                      <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard(pwd)} />
+                    )}
+                  </div>
+                )
+              }
+            ];
+
+            return (
+              <Table
+                size="small"
+                bordered
+                pagination={false}
+                columns={columns}
+                dataSource={rows}
+              />
+            );
+          })()}
         </div>
       </Modal>
     </div>
