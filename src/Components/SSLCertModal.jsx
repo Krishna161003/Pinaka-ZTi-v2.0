@@ -6,18 +6,8 @@ import { onSSLError } from '../utils/sslCertInterceptors';
 const { Text } = Typography;
 
 function normalizeOrigins(payload) {
-  const list = [];
-  if (payload?.origin) list.push(payload.origin);
-  // Add common backends for convenience when payload missing
-  const host = window.location.hostname;
-  const common = [
-    `https://${host}:2020`, // Flask
-    `https://${host}:5000`, // Node DB API
-  ];
-  for (const o of common) {
-    if (!list.includes(o)) list.push(o);
-  }
-  return list;
+  const origin = payload?.origin;
+  return origin ? [origin] : [];
 }
 
 export default function SSLCertModal() {
