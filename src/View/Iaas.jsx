@@ -484,13 +484,45 @@ const SquadronNodesTable = () => {
   useEffect(() => {
     setLoading(true);
     const userId = JSON.parse(sessionStorage.getItem('loginDetails'))?.data?.id;
-    fetch(`https://${hostIP}:5000/api/squadron-nodes?userId=${userId}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch');
-        return res.json();
-      })
-      .then(async nodes => {
-        const nodesWithLic = await Promise.all(nodes.map(async n => {
+    const squadronUrl = `https://${hostIP}:5000/api/squadron-nodes?userId=${userId}`;
+    const cloudUrl = `https://${hostIP}:5000/api/cloud-deployments-summary?userId=${userId}`;
+
+    Promise.all([
+      fetch(squadronUrl),
+      fetch(cloudUrl)
+    ])
+      .then(async ([squadRes, cloudRes]) => {
+        if (!squadRes.ok) throw new Error('Failed to fetch squadron nodes');
+        // Cloud summary may fail independently; handle gracefully
+        const [nodes, clouds] = await Promise.all([
+          squadRes.json(),
+          cloudRes.ok ? cloudRes.json() : Promise.resolve([])
+        ]);
+
+        // Build a map of cloudname -> server_vip from cloud credentials
+        const vipByCloud = {};
+        (clouds || []).forEach(c => {
+          const vip = c?.credentials?.server_vip;
+          const cname = c?.cloudname;
+          if (cname && vip) vipByCloud[cname] = vip;
+        });
+
+        // Enrich nodes: if a node lacks server_vip, fallback to cloud-level VIP
+        const singleCloudVip = (clouds && clouds.length === 1) ? (clouds[0]?.credentials?.server_vip || null) : null;
+        const enriched = (nodes || []).map(n => {
+          if (!n.server_vip) {
+            if (n.cloudname && vipByCloud[n.cloudname]) {
+              n.server_vip = vipByCloud[n.cloudname];
+            } else if (!n.cloudname && singleCloudVip) {
+              // Last-resort fallback when only one cloud exists
+              n.server_vip = singleCloudVip;
+            }
+          }
+          return n;
+        });
+
+        // Add license status information per node
+        const nodesWithLic = await Promise.all(enriched.map(async n => {
           try {
             const licRes = await fetch(`https://${hostIP}:5000/api/license-details/${n.serverid}`);
             if (licRes.ok) {
