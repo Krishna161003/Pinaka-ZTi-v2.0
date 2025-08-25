@@ -290,10 +290,10 @@ const App = () => {
         activeKey={activeTab}
         onChange={handleTabChange}
       >
-        <Tabs.TabPane tab="Deployment Options" key="1" disabled={disabledTabs["1"]}>
+        <Tabs.TabPane tab="Start" key="1" disabled={disabledTabs["1"]}>
           <DeploymentOptions onStart={handleDeploymentStart} />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Discovery" key="2" disabled={disabledTabs["2"]}>
+        <Tabs.TabPane tab="Discover" key="2" disabled={disabledTabs["2"]}>
           <Discovery next={(nodes) => {
             // nodes are selected node objects from scan
             if (!nodes || nodes.length === 0) {
@@ -315,7 +315,7 @@ const App = () => {
             setActiveTab("3");
           }} />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Validation" key="3" disabled={disabledTabs["3"]}>
+        <Tabs.TabPane tab="Validate" key="3" disabled={disabledTabs["3"]}>
           <Validation
             nodes={selectedNodes}
             results={validationResults}
@@ -353,7 +353,7 @@ const App = () => {
             }}
           />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Activate Key" key="4" disabled={disabledTabs["4"]}>
+        <Tabs.TabPane tab="Activate" key="4" disabled={disabledTabs["4"]}>
           <ActivateKey
             nodes={validatedNodes}
             results={activateKeyResults}
@@ -464,7 +464,7 @@ const App = () => {
             }}
           />
         </Tabs.TabPane>
-        <Tabs.TabPane tab="Deployment" key="5" disabled={disabledTabs["5"]}>
+        <Tabs.TabPane tab="Deploy" key="5" disabled={disabledTabs["5"]}>
           <Deployment
             onGoToReport={() => {
               const updated = { "1": true, "2": true, "3": true, "4": true, "5": true, "6": false };
