@@ -7,7 +7,7 @@ import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.jpeg";
 import squad from "../Images/Squadron.png";
 import osd from "../Images/OSD.jpeg";
-import { Line } from '@ant-design/plots';
+import { Area, Line } from '@ant-design/plots';
 import axios from "axios";
 
 const hostIP = window.location.hostname;
@@ -51,6 +51,8 @@ const hoverStyle = {
   transform: 'translateY(-3px)',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
 };
+
+
 
 const { Content } = Layout;
 
@@ -220,6 +222,7 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [selectedHostIP]);
 
+
   useEffect(() => {
     const storedSelectedHostIP = localStorage.getItem('dashboard_selectedHostIP');
     if (storedSelectedHostIP) {
@@ -242,12 +245,17 @@ const Dashboard = () => {
     localStorage.setItem('dashboard_selectedInterface', selectedInterface);
   }, [selectedInterface]);
 
+
   const CPUUsageChart = () => {
     const config = {
       data: cpuHistory,
       xField: 'date',
       yField: 'cpu',
       height: 180,
+      // point: {
+      //   shapeField: 'circle',
+      //   sizeField: 2,
+      // },
       style: {
         lineWidth: 1,
       },
@@ -1204,7 +1212,7 @@ const Dashboard = () => {
               <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "290px" }}>
                 <Col
                   className="gutter-row"
-                  span={12}
+                  span={11} // Each column takes up 7 spans
                   style={performancewidgetStyle}
                 >
                   <div>
@@ -1231,7 +1239,7 @@ const Dashboard = () => {
                 </Col>
                 <Col
                   className="gutter-row"
-                  span={12}
+                  span={11} // Each column takes up 7 spans
                   style={performancewidgetStyle}
                 >
                   <div>
