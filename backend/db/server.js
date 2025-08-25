@@ -728,48 +728,7 @@ db.connect((err) => {
       console.log("Default user ensured...");
     });
   });
-
-  // Create all_in_one table with new fields
-  const deploymentsTableSQL = `
-    CREATE TABLE IF NOT EXISTS all_in_one (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id CHAR(21),
-      cloudName VARCHAR(255),
-      Ip VARCHAR(15),
-      SkylineURL VARCHAR(255),
-      CephURL VARCHAR(255),
-      deployment_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      bmc_ip VARCHAR(15),           
-      bmc_username VARCHAR(255),   
-      bmc_password VARCHAR(255)
-    ) ENGINE=InnoDB;  -- Ensure InnoDB engine for foreign key support
-  `;
-  db.query(deploymentsTableSQL, (err, result) => {
-    if (err) throw err;
-    console.log("All_in_one table checked/created...");
-  });
-
-  // Create hardware_info table if not exists
-  const hardwareInfoTableSQL = `
-    CREATE TABLE IF NOT EXISTS hardware_info (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id CHAR(21),
-      server_ip VARCHAR(15),
-      cpu_cores INT,
-      memory VARCHAR(50), -- e.g., '16GB', '32GB'
-      disk VARCHAR(255), -- e.g., '500GB SSD, 1TB HDD'
-      nic_1g INT, -- Number of 1G NICs
-      nic_10g INT, -- Number of 10G NICs
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    ) ENGINE=InnoDB;  -- Ensure InnoDB engine for foreign key support
-  `;
-
-  db.query(hardwareInfoTableSQL, (err, result) => {
-    if (err) throw err;
-    console.log("Hardware_info table checked/created...");
-  });
-
+  
   // Create new deployment_activity_log table with default timestamp
   const deploymentActivityLogTableSQL = `
     CREATE TABLE IF NOT EXISTS deployment_activity_log (

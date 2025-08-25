@@ -25,12 +25,19 @@ timestamped_memory_history = deque(maxlen=60)
 timestamped_bandwidth_history = deque(maxlen=60)
 
 def add_cpu_history(cpu_percent):
+    # Ensure value is always 0–100, never fraction.
+    cpu_percent = float(cpu_percent)
+    if 0 < cpu_percent <= 1.5:  # Looks like a fraction
+        cpu_percent *= 100
     timestamped_cpu_history.append({
         "timestamp": int(time.time()),
         "cpu": cpu_percent
     })
 
 def add_memory_history(mem_percent):
+    mem_percent = float(mem_percent)
+    if 0 < mem_percent <= 1.5:
+        mem_percent *= 100
     timestamped_memory_history.append({
         "timestamp": int(time.time()),
         "memory": mem_percent
@@ -608,57 +615,11 @@ def get_interfaces():
     # Initialize the interfaces list
     interfaces = []
 
-    # Fetch network interface details
-    net_info = psutil.net_if_addrs()
-
-    # List of prefixes to exclude
-    exclude_prefixes = (
-        "docker",
-        "lo",
-        "ov",
-        "br",
-        "qg",
-        "qr",
-        "ta",
-        "qv",
-        "vxlan",
-        "qbr",
-        "qvo",
-        "qvb",
-        "q",
-    )
-
-    for iface, addrs in net_info.items():
-        iface = (
-            iface.strip().lower()
-        )  # Strip spaces and convert to lowercase for case-insensitive comparison
-
-        # Skip interfaces that start with any excluded prefix
-        if iface.startswith(exclude_prefixes):
-            continue
-
-        mac = None
-        ip = None
-        is_physical = False
-
-        # Check each address associated with the interface
-        for addr in addrs:
-            if addr.family.name == "AF_PACKET":  # MAC Address
-                mac = addr.address
-                is_physical = True  # Mark interface as physical if it has a MAC address
-            elif addr.family.name == "AF_INET":  # IPv4 Address
-                ip = addr.address
-
-        # Only include physical interfaces (those with a MAC address)
-        if (
-            mac and is_physical
-        ):  # Ensure that the interface is physical and has a MAC address
-            interfaces.append({"iface": iface, "mac": mac, "ip": ip or "N/A"})
-
+    interfaces = get_available_interfaces()
     # Fetch the number of CPU sockets (physical CPUs)
-
+    cpu_sockets = get_cpu_socket_count()
     # Include the number of CPU sockets in the response
-    response = {"interfaces": interfaces}
+    response = {"interfaces": interfaces, "cpu_sockets": cpu_sockets}
 
     return jsonify(response)
 
