@@ -47,6 +47,17 @@ export default function SSLCertModal() {
   };
 
   const origins = useMemo(() => normalizeOrigins(payload), [payload]);
+  const displayOrigin = useMemo(() => {
+    if (payload?.origin) return payload.origin;
+    const url = payload?.url;
+    if (!url) return null;
+    try {
+      const u = new URL(url, window.location.href);
+      return u.origin;
+    } catch (_) {
+      return null;
+    }
+  }, [payload]);
 
   const handleOpen = (origin) => {
     try {
@@ -82,9 +93,9 @@ export default function SSLCertModal() {
             <>
               <div>If it's SSL trust: open the backend origin below and accept the certificate.</div>
               <div>If it's CORS: ensure the backend sends Access-Control-Allow-Origin for the frontend's origin.</div>
-              {(payload?.origin || payload?.url) && (
+              {displayOrigin && (
                 <div style={{ marginTop: 8 }}>
-                  Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{payload?.url || (payload?.origin ? (payload.origin + '/') : '')}</Text>
+                  Last failed request: <Text code>{payload?.method || 'GET'}</Text> <Text code>{displayOrigin}</Text>
                 </div>
               )}
             </>
