@@ -78,7 +78,7 @@ export default function Zti({ children }) {
       >
         <Col
           className="gutter-row"
-          span={7} // Each column takes up 7 spans
+          span={11} // Adjusted span after removing Edge Cloud card
           onClick={handleRedirect}
           style={style}
         >
@@ -99,7 +99,7 @@ export default function Zti({ children }) {
 
         <Col
           className="gutter-row"
-          span={7} // Each column takes up 7 spans
+          span={11} // Adjusted span after removing Edge Cloud card
           onClick={hostExists ? handleRedirectAddNode : undefined}
           style={{
             ...style,
@@ -124,7 +124,7 @@ export default function Zti({ children }) {
           </Tooltip>
         </Col>
 
-        <Col
+        {/* <Col
           className="gutter-row"
           span={7} // Each column takes up 7 spans
           onClick={handleRedirectRemoveNode}
@@ -146,7 +146,7 @@ export default function Zti({ children }) {
               Edge Cloud
             </span>
           </div>
-        </Col>
+        </Col> */}
 
 
 

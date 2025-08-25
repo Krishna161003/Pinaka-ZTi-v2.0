@@ -843,7 +843,56 @@ def get_local_health_status():
 def check_health():
     result = get_local_health_status()
     return jsonify(result)
-    
+
+
+@app.route('/disk-usage', methods=['GET'])
+def disk_usage():
+    """Return detailed disk usage for all mount points on the root disk.
+    Response shape:
+    {
+      "root_disk": "sda",
+      "partitions": [
+        {"mountpoint": "/", "device": "/dev/sda2", "fstype": "ext4", "total": 123456, "used": 1234, "percent": 12.3}
+      ]
+    }
+    """
+    try:
+        root_disk = get_root_disk()
+        partitions = []
+        if root_disk:
+            for part in psutil.disk_partitions(all=False):
+                try:
+                    # Consider only partitions that belong to the root disk
+                    if not part.device or not part.mountpoint:
+                        continue
+                    if f"/dev/{root_disk}" not in part.device:
+                        continue
+                    usage = psutil.disk_usage(part.mountpoint)
+                    partitions.append({
+                        "mountpoint": part.mountpoint,
+                        "device": part.device,
+                        "fstype": part.fstype,
+                        "total": int(usage.total),
+                        "used": int(usage.used),
+                        "percent": float(usage.percent),
+                    })
+                except Exception:
+                    # Ignore partitions that cannot be accessed
+                    continue
+            # Stable ordering
+            partitions.sort(key=lambda x: x.get("mountpoint", ""))
+        return jsonify({
+            "root_disk": root_disk,
+            "partitions": partitions
+        })
+    except Exception as e:
+        return jsonify({
+            "root_disk": None,
+            "partitions": [],
+            "error": str(e)
+        }), 200
+
+
 @app.route('/docker-info', methods=['GET'])
 def docker_info():
     result = get_docker_info()
