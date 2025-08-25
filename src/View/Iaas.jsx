@@ -311,56 +311,65 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
               }}>
                 License Information
               </h4>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '12px 24px'
-              }}>
-                <div><b>License Code:</b> <span style={{ color: '#262626' }}>{newLicenseDetails.license_code}</span></div>
-                <div><b>Type:</b> <span style={{ color: '#262626' }}>{newLicenseDetails.license_type || '-'}</span></div>
-                <div><b>Period:</b> <span style={{ color: '#262626' }}>{newLicenseDetails.license_period ? `${newLicenseDetails.license_period} days` : '-'}</span></div>
-                <div><b>Status:</b> <span style={{
-                  color: newLicenseDetails.license_status === 'activated' ? '#52c41a' :
-                    newLicenseDetails.license_status === 'expired' ? '#ff4d4f' : '#faad14'
-                }}>{newLicenseDetails.license_status || '-'}</span></div>
-              </div>
+              <Table
+                size="small"
+                pagination={false}
+                bordered
+                columns={[
+                  { title: 'Field', dataIndex: 'field', key: 'field', width: 160 },
+                  { title: 'Value', dataIndex: 'value', key: 'value' }
+                ]}
+                dataSource={[
+                  { key: 'code', field: 'License Code', value: newLicenseDetails.license_code || '-' },
+                  { key: 'type', field: 'Type', value: newLicenseDetails.license_type || '-' },
+                  { key: 'period', field: 'Period', value: newLicenseDetails.license_period ? `${newLicenseDetails.license_period} days` : '-' },
+                  { key: 'status', field: 'Status', value: (
+                    <span style={{
+                      color: newLicenseDetails.license_status === 'activated' ? '#52c41a' :
+                        newLicenseDetails.license_status === 'expired' ? '#ff4d4f' : '#faad14'
+                    }}>
+                      {newLicenseDetails.license_status || '-'}
+                    </span>
+                  ) }
+                ]}
+              />
             </div>
           )}
+        </div>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            paddingTop: '16px',
-            borderTop: '1px solid #f0f0f0',
-            marginTop: '24px'
-          }}>
-            <Button
-              onClick={() => setShowUpdateForm(false)}
-              style={{
-                marginRight: '12px',
-                height: '40px',
-                padding: '0 16px',
-                borderRadius: '6px'
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleUpdateLicense}
-              loading={updateLoading}
-              disabled={!newLicenseCode.trim() || !newLicenseDetails || !newLicenseDetails.license_verified}
-              style={{
-                height: '40px',
-                padding: '0 16px',
-                borderRadius: '6px',
-                fontWeight: 500,
-                minWidth: '120px'
-              }}
-            >
-              {updateLoading ? 'Updating...' : 'Update License'}
-            </Button>
-          </div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          paddingTop: '16px',
+          borderTop: '1px solid #f0f0f0',
+          marginTop: '24px'
+        }}>
+          <Button
+            onClick={() => setShowUpdateForm(false)}
+            style={{
+              marginRight: '12px',
+              height: '40px',
+              padding: '0 16px',
+              borderRadius: '6px'
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="primary"
+            onClick={handleUpdateLicense}
+            loading={updateLoading}
+            disabled={!newLicenseCode.trim() || !newLicenseDetails || !newLicenseDetails.license_verified}
+            style={{
+              height: '40px',
+              padding: '0 16px',
+              borderRadius: '6px',
+              fontWeight: 500,
+              minWidth: '120px'
+            }}
+          >
+            {updateLoading ? 'Updating...' : 'Update License'}
+          </Button>
         </div>
       </div>
     );
@@ -368,28 +377,39 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 
   return (
     <div>
-      <div><b>License Code:</b> {license.license_code || <span style={{ color: '#aaa' }}>-</span>}</div>
-      <div><b>Type:</b> {license.license_type || <span style={{ color: '#aaa' }}>-</span>}</div>
-      <div><b>Period:</b> {license.license_period ? `${license.license_period} days` : <span style={{ color: '#aaa' }}>-</span>}</div>
-      <div><b>Status:</b> {(
-        license.license_status && license.license_status.toLowerCase() === 'activated'
-          ? <span style={{ color: 'green' }}>Active</span>
-          : license.license_status && license.license_status.toLowerCase() === 'expired'
-            ? <span style={{ color: 'red' }}>Expired</span>
-            : license.license_status
-              ? <span style={{ color: 'orange' }}>{license.license_status}</span>
-              : <span style={{ color: '#aaa' }}>-</span>
-      )}</div>
-      <div><b>Start Date:</b> {license.start_date ? new Date(license.start_date).toLocaleDateString() : <span style={{ color: '#aaa' }}>-</span>}</div>
-      <div><b>End Date:</b> {license.end_date ? (
-        <span style={{
-          color: new Date(license.end_date) < new Date() ? 'red' : 'inherit',
-          fontWeight: new Date(license.end_date) < new Date() ? 'bold' : 'normal'
-        }}>
-          {new Date(license.end_date).toLocaleDateString()}
-          {new Date(license.end_date) < new Date() && ' (Expired)'}
-        </span>
-      ) : <span style={{ color: '#aaa' }}>-</span>}</div>
+      <Table
+        size="small"
+        pagination={false}
+        bordered
+        columns={[
+          { title: 'Field', dataIndex: 'field', key: 'field', width: 160 },
+          { title: 'Value', dataIndex: 'value', key: 'value' }
+        ]}
+        dataSource={[
+          { key: 'code', field: 'License Code', value: license.license_code || <span style={{ color: '#aaa' }}>-</span> },
+          { key: 'type', field: 'Type', value: license.license_type || <span style={{ color: '#aaa' }}>-</span> },
+          { key: 'period', field: 'Period', value: license.license_period ? `${license.license_period} days` : <span style={{ color: '#aaa' }}>-</span> },
+          { key: 'status', field: 'Status', value: (
+            license.license_status && license.license_status.toLowerCase() === 'activated'
+              ? <span style={{ color: 'green' }}>Active</span>
+              : license.license_status && license.license_status.toLowerCase() === 'expired'
+                ? <span style={{ color: 'red' }}>Expired</span>
+                : license.license_status
+                  ? <span style={{ color: 'orange' }}>{license.license_status}</span>
+                  : <span style={{ color: '#aaa' }}>-</span>
+          ) },
+          { key: 'start', field: 'Start Date', value: license.start_date ? new Date(license.start_date).toLocaleDateString() : <span style={{ color: '#aaa' }}>-</span> },
+          { key: 'end', field: 'End Date', value: license.end_date ? (
+            <span style={{
+              color: new Date(license.end_date) < new Date() ? 'red' : 'inherit',
+              fontWeight: new Date(license.end_date) < new Date() ? 'bold' : 'normal'
+            }}>
+              {new Date(license.end_date).toLocaleDateString()}
+              {new Date(license.end_date) < new Date() && ' (Expired)'}
+            </span>
+          ) : <span style={{ color: '#aaa' }}>-</span> }
+        ]}
+      />
 
       {/* Temporarily enabled for testing - remove license status check */}
       {license.license_status && license.license_status.toLowerCase() === 'expired' && (
@@ -686,81 +706,85 @@ const SquadronNodesTable = () => {
       >
         <div>
           {(() => {
-            let idx = 1;
             const role = modalRecord?.role;
             const hasStorage = Array.isArray(role)
               ? role.map(r => String(r).toLowerCase()).includes('storage')
               : String(role || '').toLowerCase().includes('storage');
+
+            const baseHost = modalRecord?.server_vip || modalRecord?.serverip;
+            const rows = [];
+
+            // Squadron
+            rows.push({
+              key: 'squadron',
+              service: 'Squadron',
+              url: baseHost ? `https://${baseHost}` : null,
+              username: 'admin',
+              password: 's9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP'
+            });
+
+            // Storage (conditional)
+            if (hasStorage) {
+              rows.push({
+                key: 'storage',
+                service: 'Storage',
+                url: modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null,
+                username: 'admin',
+                password: '-'
+              });
+            }
+
+            // Monitoring
+            rows.push({
+              key: 'monitoring',
+              service: 'Monitoring',
+              url: baseHost ? `https://${baseHost}:7000/` : null,
+              username: 'admin',
+              password: 'eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut'
+            });
+
+            // Diagnosis Dashboard
+            rows.push({
+              key: 'diagnosis',
+              service: 'Diagnosis Dashboard',
+              url: baseHost ? `https://${baseHost}:5601/` : null,
+              username: 'opensearch',
+              password: 'mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8'
+            });
+
+            const columns = [
+              { title: 'Service', dataIndex: 'service', key: 'service', width: 180 },
+              {
+                title: 'URL', dataIndex: 'url', key: 'url',
+                render: (url) => url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                ) : <span style={{ color: '#999' }}>No URL</span>
+              },
+              {
+                title: 'Username', dataIndex: 'username', key: 'username', width: 140,
+                render: (u) => <span style={{ userSelect: 'text' }}>{u || '-'}</span>
+              },
+              {
+                title: 'Password', dataIndex: 'password', key: 'password', width: 260,
+                render: (pwd) => (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ userSelect: 'text' }}>{pwd || '-'}</span>
+                    {pwd && pwd !== '-' && (
+                      <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard(pwd)} />
+                    )}
+                  </div>
+                )
+              }
+            ];
+
             return (
-              <>
-                <b>{idx++}. Squadron</b>
-                <ul style={{ marginBottom: 8 }}>
-                  <li>{(modalRecord?.server_vip || modalRecord?.serverip) ? (
-                    <div>
-                      <a href={`https://${modalRecord.server_vip || modalRecord.serverip}`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.server_vip || modalRecord.serverip}
-                      </a>
-                      <div style={{ marginTop: 4, color: '#666' }}>
-                        Username: <span style={{ userSelect: 'text' }}>admin</span>
-                      </div>
-                      <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>Password: <span style={{ userSelect: 'text' }}>s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP</span></span>
-                        <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('s9UDxlXIL1opnqwG8cEDXxoiBLNX40C3yBVtafiP')} />
-                      </div>
-                    </div>
-                  ) : <span>No URL</span>}</li>
-                </ul>
-                {hasStorage && (
-                  <>
-                    <b>{idx++}. Storage</b>
-                    <ul style={{ marginBottom: 8 }}>
-                      <li>{modalRecord?.serverip ? (
-                        <div>
-                          <a href={`https://${modalRecord.serverip}:8443/`} target="_blank" rel="noopener noreferrer">
-                            https://{modalRecord.serverip}:8443/
-                          </a>
-                          <div style={{ marginTop: 4, color: '#666' }}>Username: <span style={{ userSelect: 'text' }}>admin</span></div>
-                          <div style={{ marginTop: 4, color: '#666' }}>Password: -</div>
-                        </div>
-                      ) : <span>No URL</span>}</li>
-                    </ul>
-                  </>
-                )}
-                <b>{idx++}. Monitoring</b>
-                <ul style={{ marginBottom: 8 }}>
-                  <li>{(modalRecord?.server_vip || modalRecord?.serverip) ? (
-                    <div>
-                      <a href={`https://${modalRecord.server_vip || modalRecord.serverip}:7000/`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.server_vip || modalRecord.serverip}:7000/
-                      </a>
-                      <div style={{ marginTop: 4, color: '#666' }}>
-                        Username: <span style={{ userSelect: 'text' }}>admin</span>
-                      </div>
-                      <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>Password: <span style={{ userSelect: 'text' }}>eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut</span></span>
-                        <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('eldh8jlBg7n3SycW4GTF33hoE8ir3diBUFa14uut')} />
-                      </div>
-                    </div>
-                  ) : <span>No URL</span>}</li>
-                </ul>
-                <b>{idx++}. Diagnosis Dashboard</b>
-                <ul style={{ marginBottom: 0 }}>
-                  <li>{(modalRecord?.server_vip || modalRecord?.serverip) ? (
-                    <div>
-                      <a href={`https://${modalRecord.server_vip || modalRecord.serverip}:5601/`} target="_blank" rel="noopener noreferrer">
-                        https://{modalRecord.server_vip || modalRecord.serverip}:5601/
-                      </a>
-                      <div style={{ marginTop: 4, color: '#666' }}>
-                        Username: <span style={{ userSelect: 'text' }}>opensearch</span>
-                      </div>
-                      <div style={{ marginTop: 4, color: '#666', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span>Password: <span style={{ userSelect: 'text' }}>mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8</span></span>
-                        <CopyTwoTone twoToneColor="#1890ff" style={{ cursor: 'pointer' }} onClick={() => copyToClipboard('mmezZX8u1F66IFCDPSjPdWyIJZkids04X8pdwBT8')} />
-                      </div>
-                    </div>
-                  ) : <span>No URL</span>}</li>
-                </ul>
-              </>
+              <Table
+                size="small"
+                bordered
+                pagination={false}
+                columns={columns}
+                dataSource={rows}
+              />
             );
           })()}
         </div>
@@ -771,7 +795,7 @@ const SquadronNodesTable = () => {
         onCancel={() => setModalVisible(null)}
         title="License Details"
         footer={<Button onClick={() => setModalVisible(null)} style={{ width: '95px' }}>Close</Button>}
-        width={400}
+        width={540}
       >
         <LicenseDetailsModalContent
           serverid={modalRecord?.serverid}
