@@ -26,7 +26,7 @@ export function buildNetworkConfigPayload(form) {
         // Only primary/management/storage/VXLAN gets Properties
         if (
           (configType === 'default' && row.type === 'primary') ||
-          (configType === 'segregated' && Array.isArray(row.type) && row.type.length > 0)
+          (configType === 'segregated' && Array.isArray(row.type) && row.type.length > 0 && !row.type.includes('External Traffic'))
         ) {
           using_interfaces[key]["Properties"] = {
             IP_ADDRESS: row.ip || '',
@@ -64,7 +64,7 @@ export function buildNetworkConfigPayload(form) {
     };
     if (
       (configType === 'default' && row.type === 'primary') ||
-      (configType === 'segregated' && typeArr.length > 0)
+      (configType === 'segregated' && typeArr.length > 0 && !typeArr.includes('External Traffic'))
     ) {
       using_interfaces[intKey]["Properties"] = {
         IP_ADDRESS: row.ip || '',

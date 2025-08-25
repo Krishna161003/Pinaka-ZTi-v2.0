@@ -1732,7 +1732,13 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     mode="multiple"
                     allowClear
                     placeholder="Select disk(s)"
-                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks : []}
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
+                      if (typeof d === 'string') return d;
+                      if (d && typeof d === 'object') {
+                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                      }
+                      return String(d ?? '');
+                    }) : []}
                     style={{ width: 200 }}
                     disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
                     onChange={value => handleDiskChange(idx, value)}
