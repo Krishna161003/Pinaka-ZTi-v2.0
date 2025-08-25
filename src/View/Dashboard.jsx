@@ -562,15 +562,70 @@ const Dashboard = () => {
     memTotalGiB: 0,
   });
 
+  // Disk usage (per-mount for root disk)
+  const [diskInfo, setDiskInfo] = useState({ root_disk: null, partitions: [] });
+
+  // Poll disk usage for the selected host (every 30s)
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchDiskUsage() {
+      try {
+        const res = await fetch(`https://${selectedHostIP}:2020/disk-usage`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data && Array.isArray(data.partitions)) {
+          const parts = data.partitions.map((p) => ({
+            mountpoint: p.mountpoint || p.mount || '',
+            device: p.device || '',
+            fstype: p.fstype || '',
+            total: Number(p.total) || 0,
+            used: Number(p.used) || 0,
+            percent: Number(p.percent) || 0,
+          }));
+          setDiskInfo({ root_disk: data.root_disk || null, partitions: parts });
+        } else {
+          setDiskInfo({ root_disk: null, partitions: [] });
+          if (lastErrorIpRef.current !== selectedHostIP) {
+            message.error(`Failed to fetch disk usage from ${selectedHostIP}`);
+            lastErrorIpRef.current = selectedHostIP;
+          }
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setDiskInfo({ root_disk: null, partitions: [] });
+          if (lastErrorIpRef.current !== selectedHostIP) {
+            message.error(`Failed to fetch disk usage from ${selectedHostIP}`);
+            lastErrorIpRef.current = selectedHostIP;
+          }
+        }
+      }
+    }
+    fetchDiskUsage();
+    const interval = setInterval(fetchDiskUsage, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [selectedHostIP]);
+
+  // Helper to format bytes to human-readable string
+  const formatBytes = (bytes) => {
+    const b = Number(bytes);
+    if (!Number.isFinite(b) || b <= 0) return '0 B';
+    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+    let val = b;
+    let i = 0;
+    while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+    const fixed = val >= 100 ? 0 : (val >= 10 ? 1 : 2);
+    return `${val.toFixed(fixed)} ${units[i]}`;
+  };
+
   // Small usage bar component used in the table for vCPU and Memory
-  const UsageBar = ({ used = 0, total = 0, color = '#4c8dff' }) => {
+  const UsageBar = ({ used = 0, total = 0, color = '#4c8dff', tooltip = null, tooltipWidth }) => {
     if (!total || total <= 0) {
       return <span style={{ color: '#8c8c8c' }}>N/A</span>;
     }
     const pct = Math.max(0, Math.min(100, (used / total) * 100));
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Tooltip title={`${pct.toFixed(2)}%`}>
+        <Tooltip title={tooltip ?? `${pct.toFixed(2)}%`} overlayInnerStyle={tooltipWidth ? { width: tooltipWidth, maxWidth: tooltipWidth } : undefined}>
           <div style={{ width: 180, height: 6, background: '#eaeef5', borderRadius: 4, overflow: 'hidden', cursor: 'pointer' }}>
             <div style={{ width: `${pct}%`, height: '100%', background: color }} />
           </div>
@@ -1311,6 +1366,80 @@ const Dashboard = () => {
                     <div style={{ height: '180px' }}>
                       <MemoryUsageChart />
                     </div>
+                  </div>
+                </Col>
+              </Row>
+              {/* Disk Usage section */}
+              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px" }}>
+                <Col className="gutter-row" span={23} style={performancewidgetStyle}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span
+                        style={{
+                          fontSize: "18px",
+                          fontWeight: "500",
+                          marginLeft: "1px",
+                          userSelect: "none",
+                        }}
+                      >
+                        Disk Usage {diskInfo.root_disk ? `(Root: ${diskInfo.root_disk})` : ''}
+                      </span>
+                    </div>
+                    <Divider style={{ margin: "0 0 12px 0" }} />
+
+                    {Array.isArray(diskInfo.partitions) && diskInfo.partitions.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {diskInfo.partitions.map((p, idx) => {
+                          const totalGiB = p.total > 0 ? p.total / (1024 ** 3) : 0;
+                          const usedGiB = p.used > 0 ? p.used / (1024 ** 3) : 0;
+                          const percent = p.percent || (totalGiB > 0 ? (usedGiB / totalGiB) * 100 : 0);
+                          const color = percent >= 90 ? '#f5222d' : percent >= 70 ? '#faad14' : '#4c8dff';
+                          const tooltip = (
+                            <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
+                              <div style={{ fontWeight: 600, marginBottom: 6 }}>Mount: {p.mountpoint || '/'}</div>
+                              <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Field</th>
+                                    <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Value</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    <td style={{ padding: '4px 6px' }}>Device</td>
+                                    <td style={{ padding: '4px 6px' }}>{p.device || '—'}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style={{ padding: '4px 6px' }}>Filesystem</td>
+                                    <td style={{ padding: '4px 6px' }}>{p.fstype || '—'}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style={{ padding: '4px 6px' }}>Used</td>
+                                    <td style={{ padding: '4px 6px', color: color, fontWeight: 600 }}>{formatBytes(p.used)} ({percent.toFixed(1)}%)</td>
+                                  </tr>
+                                  <tr>
+                                    <td style={{ padding: '4px 6px' }}>Total</td>
+                                    <td style={{ padding: '4px 6px' }}>{formatBytes(p.total)}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                          return (
+                            <div key={`${p.mountpoint || 'root'}-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
+                              <div style={{ width: 160, fontSize: 13, color: '#2c3e50', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${p.mountpoint || '/'} (${p.fstype || ''})`}>
+                                {p.mountpoint || '/'}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <UsageBar used={Number(usedGiB.toFixed(1))} total={Number(totalGiB.toFixed(1))} color={color} tooltip={tooltip} tooltipWidth={440} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ color: '#8c8c8c', fontSize: 13 }}>Disk usage information not available.</div>
+                    )}
                   </div>
                 </Col>
               </Row>
