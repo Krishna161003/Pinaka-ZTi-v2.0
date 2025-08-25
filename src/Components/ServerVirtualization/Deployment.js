@@ -2020,21 +2020,32 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     mode="multiple"
                     allowClear
                     placeholder="Select disk(s)"
-                    value={form.selectedDisks || []}
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
+                      if (typeof d === 'string') return d;
+                      if (d && typeof d === 'object') {
+                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                      }
+                      return String(d ?? '');
+                    }) : []}
                     style={{ width: 200 }}
                     disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
                     onChange={value => handleDiskChange(idx, value)}
                     optionLabelProp="label"
                   >
-                    {(nodeDisks[form.ip] || []).map(disk => (
-                      <Option
-                        key={disk.wwn || disk}
-                        value={disk.wwn || disk}
-                        label={disk.display || disk}
-                      >
-                        {disk.display || disk}
-                      </Option>
-                    ))}
+                    {(nodeDisks[form.ip] || []).map(disk => {
+                      const name = (disk && typeof disk === 'object') ? (disk.name ?? '') : '';
+                      const size = (disk && typeof disk === 'object') ? (disk.size ?? '') : '';
+                      const wwn = (disk && typeof disk === 'object') ? (disk.wwn ?? '') : '';
+                      const id = (disk && typeof disk === 'object') ? (disk.id || wwn || `${name}|${size}`) : String(disk);
+                      const value = (disk && typeof disk === 'object') ? (disk.value || id) : String(disk);
+                      const computed = (disk && typeof disk === 'object') ? (disk.display || disk.label) : undefined;
+                      const label = String(computed || (wwn ? `${name} (${size}, ${wwn})` : `${name || 'Disk'} (${size || 'N/A'})`));
+                      return (
+                        <Option key={id} value={value} label={label}>
+                          {label}
+                        </Option>
+                      );
+                    })}
                   </Select>
                 </Form.Item>
                 <Form.Item

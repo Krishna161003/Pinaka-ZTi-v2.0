@@ -366,15 +366,31 @@ def submit_network_config():
                     return jsonify({"success": False, "message": f"Invalid DNS server IP: {dns}"}), 400
 
         # Validate network interfaces
+        # First, build a map of bond masters -> list of slave interface names
+        bond_slave_map = {}
+        for _n, _cfg in data["using_interfaces"].items():
+            try:
+                if _cfg.get("Bond_Slave") == "YES":
+                    bond_name = _cfg.get("Bond_Interface_Name")
+                    if bond_name:
+                        iface_n = _cfg.get("interface_name", _n)
+                        bond_slave_map.setdefault(bond_name, []).append(iface_n)
+            except Exception:
+                pass
+
         for iface_name, iface_config in data["using_interfaces"].items():
             # interface_name
             real_iface = iface_config.get("interface_name", iface_name)
             if not real_iface or not isinstance(real_iface, str):
                 return jsonify({"success": False, "message": f"Invalid or missing interface_name for {iface_name}"}), 400
             # type
+            bond_slave = iface_config.get("Bond_Slave")
             iface_type = iface_config.get("type")
-            if not iface_type or not isinstance(iface_type, list) or not iface_type:
-                return jsonify({"success": False, "message": f"Invalid or missing type for {real_iface}"}), 400
+            is_slave = (bond_slave == "YES")
+            # Only require type for non-slave entries (i.e., logical/bonded or plain interfaces)
+            if not is_slave:
+                if not iface_type or not isinstance(iface_type, list) or not iface_type:
+                    return jsonify({"success": False, "message": f"Invalid or missing type for {real_iface}"}), 400
             # vlan_id
             vlan_id = iface_config.get("vlan_id")
             if vlan_id is not None:
@@ -385,9 +401,12 @@ def submit_network_config():
                 except Exception:
                     return jsonify({"success": False, "message": f"Invalid VLAN ID for {real_iface}"}), 400
             # Bond_Slave
-            bond_slave = iface_config.get("Bond_Slave")
             if bond_slave and bond_slave not in ["YES", "NO"]:
                 return jsonify({"success": False, "message": f"Bond_Slave for {real_iface} must be 'YES' or 'NO'"}), 400
+            if is_slave:
+                # Validate required fields for slave membership
+                if not iface_config.get("Bond_Interface_Name"):
+                    return jsonify({"success": False, "message": f"Bond_Interface_Name required for slave {real_iface}"}), 400
             # Properties
             props = iface_config.get("Properties", {})
             if props and not isinstance(props, dict):
@@ -414,8 +433,24 @@ def submit_network_config():
                 if not validate_ip_address(props["gateway"]):
                     return jsonify({"success": False, "message": f"Invalid gateway IP in Properties for {real_iface}"}), 400
             # Check if interface exists and is up
-            if not is_interface_up(real_iface):
-                return jsonify({"success": False, "message": f"Interface {real_iface} is not available or could not be brought up"}), 400
+            # For bond masters (e.g., bond0), validate their slave interfaces instead of the bond interface itself.
+            is_bond_master = (not is_slave) and (
+                str(real_iface).startswith("bond") or (iface_type and isinstance(iface_type, list) and len(iface_type) > 0)
+            )
+            if is_slave:
+                if not is_interface_up(real_iface):
+                    return jsonify({"success": False, "message": f"Slave interface {real_iface} is not available or could not be brought up"}), 400
+            elif is_bond_master and str(real_iface).startswith("bond"):
+                slaves = bond_slave_map.get(real_iface, [])
+                if len(slaves) < 2:
+                    return jsonify({"success": False, "message": f"Bond {real_iface} must have at least 2 slave interfaces configured and up"}), 400
+                for s in slaves:
+                    if not is_interface_up(s):
+                        return jsonify({"success": False, "message": f"Bond {real_iface} slave {s} is not available or could not be brought up"}), 400
+                # Do not attempt to bring up the bond interface here; it will be created/configured later.
+            else:
+                if not is_interface_up(real_iface):
+                    return jsonify({"success": False, "message": f"Interface {real_iface} is not available or could not be brought up"}), 400
 
         # Validate default gateway reachability
         if not is_ip_reachable(data["default_gateway"]):
