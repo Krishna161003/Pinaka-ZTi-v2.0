@@ -77,6 +77,8 @@ const Dashboard = () => {
   const [memoryData, setMemoryData] = useState(0);
   const [totalMemory, setTotalMemory] = useState(0);
   const [usedMemory, setUsedMemory] = useState(0);
+  const [diskData, setDiskData] = useState(0);
+  const [diskHistory, setDiskHistory] = useState([]);
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
@@ -1212,7 +1214,7 @@ const Dashboard = () => {
               <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "290px" }}>
                 <Col
                   className="gutter-row"
-                  span={11} // Each column takes up 7 spans
+                  span={7} // Adjusted to fit three columns
                   style={performancewidgetStyle}
                 >
                   <div>
@@ -1262,6 +1264,33 @@ const Dashboard = () => {
                     </div>
                     <div style={{ height: '180px' }}>
                       <MemoryUsageChart />
+                    </div>
+                  </div>
+                </Col>
+                <Col
+                  className="gutter-row"
+                  span={7}
+                  style={performancewidgetStyle}
+                >
+                  <div>
+                    <span
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: "500",
+                        marginLeft: "1px",
+                        userSelect: "none",
+                        display: "block",
+                        marginBottom: "8px"
+                      }}
+                    >
+                      Disk Usage Trend
+                    </span>
+                    <Divider style={{ margin: "0 0 16px 0" }} />
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Current: {diskData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <DiskUsageChart />
                     </div>
                   </div>
                 </Col>
