@@ -882,6 +882,28 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           otherRow.type = 'primary';
         }
         updated[otherIndex] = otherRow;
+      } else if (field === 'type' && f.configType === 'segregated') {
+        // Ensure only one row can have External Traffic
+        let nextTypes = Array.isArray(value) ? value : [];
+        const someOtherHasExternal = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External Traffic'));
+        if (nextTypes.includes('External Traffic') && someOtherHasExternal) {
+          // Remove External Traffic and notify
+          nextTypes = nextTypes.filter(t => t !== 'External Traffic');
+          try { message.warning('Only one interface can be set to External Traffic per node.'); } catch (_) {}
+        }
+        row.type = nextTypes;
+        // When External Traffic selected for this row, clear IP/Subnet and related errors
+        if (Array.isArray(row.type) && row.type.includes('External Traffic')) {
+          row.ip = '';
+          row.subnet = '';
+          if (row.errors) {
+            delete row.errors.ip;
+            delete row.errors.subnet;
+            delete row.errors.dns;
+          }
+        }
+        updated[rowIdx] = row;
+        return { ...f, tableData: updated };
       } else if (field === 'defaultGateway') {
         // Handle default gateway separately
         const newForm = { ...f, defaultGateway: value };
@@ -1179,6 +1201,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
+    // Enforce only one External Traffic in segregated mode
+    if (form.configType === 'segregated') {
+      const extCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('External Traffic') ? 1 : 0), 0);
+      if (extCount > 1) {
+        message.error('Only one interface can be set to External Traffic per node.');
+        return;
+      }
+    }
     for (let i = 0; i < form.tableData.length; i++) {
       const row = form.tableData[i];
       if (form.useBond && !row.bondName?.trim()) {
@@ -1189,8 +1219,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         message.error(`Row ${i + 1}: Please select a Type.`);
         return;
       }
-      // Validate required fields (skip for secondary in default mode)
-      if (!(form.configType === 'default' && row.type === 'secondary')) {
+      const isExternal = form.configType === 'segregated' && Array.isArray(row.type) && row.type.includes('External Traffic');
+      // Validate required fields (skip for secondary in default mode and External Traffic in segregated)
+      if (!(form.configType === 'default' && row.type === 'secondary') && !isExternal) {
         for (const field of ['ip', 'subnet', 'dns']) {
           if (!row[field]) {
             message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
@@ -1198,7 +1229,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           }
         }
       }
-      if (Object.keys(row.errors || {}).length > 0) {
+      // Ignore IP/Subnet/DNS errors for External Traffic rows
+      const filteredErrors = { ...(row.errors || {}) };
+      if (isExternal) {
+        delete filteredErrors.ip;
+        delete filteredErrors.subnet;
+        delete filteredErrors.dns;
+      }
+      if (Object.keys(filteredErrors).length > 0) {
         message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
         return;
       }
