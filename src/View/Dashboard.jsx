@@ -300,6 +300,42 @@ const Dashboard = () => {
     return <Line {...config} />;
   };
 
+  // Dummy Disk usage: generate 30 points (last 30 minutes)
+  useEffect(() => {
+    const now = Date.now();
+    const points = Array.from({ length: 30 }, (_, i) => {
+      const t = new Date(now - (29 - i) * 60000);
+      const base = 50 + 10 * Math.sin(i / 5);
+      const noise = Math.random() * 6 - 3;
+      const v = Math.max(0, Math.min(100, base + noise));
+      return { date: t, disk: Number(v.toFixed(1)) };
+    });
+    setDiskHistory(points);
+    setDiskData(points.length ? points[points.length - 1].disk : 0);
+  }, []);
+
+  const DiskUsageChart = () => {
+    const config = {
+      data: diskHistory,
+      xField: 'date',
+      yField: 'disk',
+      height: 180,
+      style: {
+        lineWidth: 1,
+        stroke: '#faad14',
+      },
+      yAxis: {
+        min: 0,
+        max: 100,
+        label: { formatter: (v) => `${v}%` },
+      },
+      meta: {
+        disk: { min: 0, max: 100 },
+      },
+    };
+    return <Line {...config} />;
+  };
+
   // Helper: Moving average smoothing for bandwidth
   function getSmoothedBandwidthHistory(history, windowSize = 5) {
     if (!Array.isArray(history) || history.length === 0) return [];
