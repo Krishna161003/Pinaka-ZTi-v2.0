@@ -234,7 +234,14 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       });
 
       setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
-      setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
+      const normalizedIfaces = (ifaceRes.interfaces || [])
+        .map(i => {
+          if (typeof i === 'string') return { iface: i };
+          if (i && typeof i === 'object' && i.iface) return { iface: i.iface };
+          return null;
+        })
+        .filter(Boolean);
+      setNodeInterfaces(prev => ({ ...prev, [ip]: normalizedIfaces }));
     } catch (e) {
       console.error(`Failed to fetch data from node ${ip}:`, e);
       message.error(`Failed to fetch data from node ${ip}: ${e.message}`);
@@ -1725,7 +1732,13 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     mode="multiple"
                     allowClear
                     placeholder="Select disk(s)"
-                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks : []}
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
+                      if (typeof d === 'string') return d;
+                      if (d && typeof d === 'object') {
+                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                      }
+                      return String(d ?? '');
+                    }) : []}
                     style={{ width: 200 }}
                     disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
                     onChange={value => handleDiskChange(idx, value)}

@@ -1,0 +1,32 @@
+{
+  "using_interfaces": {
+    "interface_01": {
+      "interface_name": "enp4s0f0",
+      "type": [
+        "Primary"
+      ],
+      "ip": "192.168.20.4"
+    },
+    "interface_02": {
+      "interface_name": "enp4s0f1",
+      "type": [
+        "Secondary"
+      ]
+    }
+  },
+  "hostname": "SQDN-01",
+  "disk": [
+    "0x5000c5007fbda9b0",
+    "0x5000c5008bfc0fde"
+  ],
+  "roles": [
+    "Compute",
+    "Control",
+    "Storage"
+  ],
+  "server_vip": "192.168.20.32",
+  "provider_cidr": "N/A",
+  "provider_gateway": "N/A",
+  "provider_startingip": "N/A",
+  "provider_endingip": "N/A"
+}

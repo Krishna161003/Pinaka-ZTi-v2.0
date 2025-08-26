@@ -1,5 +1,5 @@
 # Stage 1: Build the React application
-FROM node:18 AS build
+FROM localhost:4000/node:18 AS build
 
 # Set the working directory
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY . .
 RUN DISABLE_ESLINT_PLUGIN=true npm run build
 
 # Stage 2: Serve the React app using Nginx
-FROM nginx:alpine
+FROM localhost:4000/nginx:alpine
 
 # Copy the build files from the previous stage
 COPY --from=build /app/build /usr/share/nginx/html

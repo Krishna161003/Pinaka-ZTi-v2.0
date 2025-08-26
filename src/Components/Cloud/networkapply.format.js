@@ -26,7 +26,7 @@ export function buildNetworkConfigPayload(form) {
         // Only primary/management/storage/VXLAN gets Properties
         if (
           (configType === 'default' && row.type === 'primary') ||
-          (configType === 'segregated' && Array.isArray(row.type) && row.type.length > 0)
+          (configType === 'segregated' && Array.isArray(row.type) && row.type.length > 0 && !row.type.includes('External Traffic'))
         ) {
           using_interfaces[key]["Properties"] = {
             IP_ADDRESS: row.ip || '',
@@ -55,7 +55,15 @@ export function buildNetworkConfigPayload(form) {
     if (useBond && row.bondName && row.bondName.trim()) return;
     const intKey = ifaceKey();
     const interface_name = Array.isArray(row.interface) ? row.interface[0] : row.interface;
-    const typeArr = Array.isArray(row.type) ? row.type : (row.type ? [row.type] : []);
+    // Compose type array with proper mapping
+    let typeArr = Array.isArray(row.type) ? row.type : (row.type ? [row.type] : []);
+    typeArr = typeArr.map(t => {
+      // Map interface types to required formats
+      if (t === 'Management') return 'Mgmt';
+      if (t === 'VXLAN') return 'VXLAN';
+      if (t === 'External Traffic') return 'External_Traffic';
+      return t;
+    });
     using_interfaces[intKey] = {
       interface_name,
       type: typeArr,
@@ -63,8 +71,9 @@ export function buildNetworkConfigPayload(form) {
       Bond_Slave: "NO"
     };
     if (
+      (configType === 'default' && typeArr.includes('primary')) ||
       (configType === 'default' && row.type === 'primary') ||
-      (configType === 'segregated' && typeArr.length > 0)
+      (configType === 'segregated' && typeArr.length > 0 && !typeArr.includes('External Traffic'))
     ) {
       using_interfaces[intKey]["Properties"] = {
         IP_ADDRESS: row.ip || '',

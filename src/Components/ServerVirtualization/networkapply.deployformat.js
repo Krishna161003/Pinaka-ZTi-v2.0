@@ -12,9 +12,13 @@ export function buildDeployConfigPayload(form) {
 
   // Map table rows to using_interfaces
   tableData.forEach(row => {
-    // Compose type array (capitalize for consistency)
+    // Compose type array with proper mapping
     let typeArr = Array.isArray(row.type) ? row.type : (row.type ? [row.type] : []);
     typeArr = typeArr.map(t => {
+      // Map interface types to required formats
+      if (t === 'Management') return 'Mgmt';
+      if (t === 'VXLAN') return 'VXLAN';
+      if (t === 'External_Traffic') return 'External_Traffic';
       if (t.toLowerCase() === 'primary') return 'Primary';
       if (t.toLowerCase() === 'secondary') return 'Secondary';
       if (t.toLowerCase() === 'mgmt' || t.toLowerCase() === 'management') return 'Mgmt';

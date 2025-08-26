@@ -215,7 +215,16 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       }));
 
       setNodeDisks(prev => ({ ...prev, [ip]: formattedDisks }));
-      setNodeInterfaces(prev => ({ ...prev, [ip]: (ifaceRes.interfaces || []).map(i => ({ iface: i.iface })) }));
+      // Normalize interfaces: backend returns ["eno1", "enp2s0", ...]
+      // Convert to [{ iface: "eno1" }, ...] expected by UI
+      const normalizedIfaces = (ifaceRes.interfaces || [])
+        .map(i => {
+          if (typeof i === 'string') return { iface: i };
+          if (i && typeof i === 'object' && typeof i.iface === 'string') return { iface: i.iface };
+          return { iface: String(i || '') };
+        })
+        .filter(x => x.iface);
+      setNodeInterfaces(prev => ({ ...prev, [ip]: normalizedIfaces }));
     } catch (e) {
       console.error(`Failed to fetch data from node ${ip}:`, e);
       message.error(`Failed to fetch data from node ${ip}: ${e.message}`);
@@ -873,6 +882,33 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           otherRow.type = 'primary';
         }
         updated[otherIndex] = otherRow;
+      } else if (field === 'type' && f.configType === 'segregated') {
+        // Ensure only one row can have External Traffic and make it exclusive within the row
+        let nextTypes = Array.isArray(value) ? value : [];
+        const someOtherHasExternal = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External Traffic'));
+        if (nextTypes.includes('External Traffic')) {
+          if (someOtherHasExternal) {
+            // Remove External Traffic and notify
+            nextTypes = nextTypes.filter(t => t !== 'External Traffic');
+            try { message.warning('Only one interface can be set to External Traffic per node.'); } catch (_) {}
+          } else {
+            // Make External Traffic exclusive for this row
+            nextTypes = ['External Traffic'];
+          }
+        }
+        row.type = nextTypes;
+        // When External Traffic selected for this row, clear IP/Subnet and related errors
+        if (Array.isArray(row.type) && row.type.includes('External Traffic')) {
+          row.ip = '';
+          row.subnet = '';
+          if (row.errors) {
+            delete row.errors.ip;
+            delete row.errors.subnet;
+            delete row.errors.dns;
+          }
+        }
+        updated[rowIdx] = row;
+        return { ...f, tableData: updated };
       } else if (field === 'defaultGateway') {
         // Handle default gateway separately
         const newForm = { ...f, defaultGateway: value };
@@ -1041,6 +1077,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           if (form.configType === 'segregated') {
             managementTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Management'));
           }
+          let externalTaken = false;
+          if (form.configType === 'segregated') {
+            externalTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('External Traffic'));
+          }
+          const hasExt = Array.isArray(record.type) && record.type.includes('External Traffic');
           return (
             <Select
               mode={form.configType === 'segregated' ? 'multiple' : undefined}
@@ -1053,31 +1094,44 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             >
               {form.configType === 'segregated' ? (
                 <>
-                  {!managementTaken || (Array.isArray(record.type) && record.type.includes('Management')) ? (
-                    <Option value="Management">
-                      <Tooltip placement="right" title="Management" >
-                        Mgmt
+                  {hasExt ? (
+                    // When External Traffic is selected on this row, hide all other options
+                    <Option value="External Traffic">
+                      <Tooltip placement="right" title="External Traffic">
+                        External Traffic
                       </Tooltip>
                     </Option>
-                  ) : null}
-                  <Option value="VXLAN">
-                    <Tooltip placement="right" title="VXLAN">
-                      VXLAN
-                    </Tooltip>
-                  </Option>
-                  {/* Only show Storage if disks are present */}
-                  {Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
-                    <Option value="Storage">
-                      <Tooltip placement="right" title="Storage">
-                        Storage
-                      </Tooltip>
-                    </Option>
+                  ) : (
+                    <>
+                      {!managementTaken || (Array.isArray(record.type) && record.type.includes('Management')) ? (
+                        <Option value="Management">
+                          <Tooltip placement="right" title="Management" >
+                            Mgmt
+                          </Tooltip>
+                        </Option>
+                      ) : null}
+                      <Option value="VXLAN">
+                        <Tooltip placement="right" title="VXLAN">
+                          VXLAN
+                        </Tooltip>
+                      </Option>
+                      {/* Only show Storage if disks are present */}
+                      {Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
+                        <Option value="Storage">
+                          <Tooltip placement="right" title="Storage">
+                            Storage
+                          </Tooltip>
+                        </Option>
+                      )}
+                      {!externalTaken || (Array.isArray(record.type) && record.type.includes('External Traffic')) ? (
+                        <Option value="External Traffic">
+                          <Tooltip placement="right" title="External Traffic">
+                            External Traffic
+                          </Tooltip>
+                        </Option>
+                      ) : null}
+                    </>
                   )}
-                  <Option value="External Traffic">
-                    <Tooltip placement="right" title="External Traffic">
-                      External Traffic
-                    </Tooltip>
-                  </Option>
                 </>
               ) : (
                 <>
@@ -1110,7 +1164,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.ip}
               placeholder="Enter IP Address"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External Traffic'))}
             />
           </Form.Item>
         ),
@@ -1128,7 +1182,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.subnet}
               placeholder="Enter Subnet"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External Traffic'))}
             />
           </Form.Item>
         ),
@@ -1146,7 +1200,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               value={record.dns}
               placeholder="Enter Nameserver"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'dns', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External Traffic'))}
             />
           </Form.Item>
         ),
@@ -1164,6 +1218,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
+    // Enforce only one External Traffic in segregated mode
+    if (form.configType === 'segregated') {
+      const extCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('External Traffic') ? 1 : 0), 0);
+      if (extCount > 1) {
+        message.error('Only one interface can be set to External Traffic per node.');
+        return;
+      }
+    }
     for (let i = 0; i < form.tableData.length; i++) {
       const row = form.tableData[i];
       if (form.useBond && !row.bondName?.trim()) {
@@ -1174,8 +1236,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         message.error(`Row ${i + 1}: Please select a Type.`);
         return;
       }
-      // Validate required fields (skip for secondary in default mode)
-      if (!(form.configType === 'default' && row.type === 'secondary')) {
+      const isExternal = form.configType === 'segregated' && Array.isArray(row.type) && row.type.includes('External Traffic');
+      // Validate required fields (skip for secondary in default mode and External Traffic in segregated)
+      if (!(form.configType === 'default' && row.type === 'secondary') && !isExternal) {
         for (const field of ['ip', 'subnet', 'dns']) {
           if (!row[field]) {
             message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
@@ -1183,7 +1246,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           }
         }
       }
-      if (Object.keys(row.errors || {}).length > 0) {
+      // Ignore IP/Subnet/DNS errors for External Traffic rows
+      const filteredErrors = { ...(row.errors || {}) };
+      if (isExternal) {
+        delete filteredErrors.ip;
+        delete filteredErrors.subnet;
+        delete filteredErrors.dns;
+      }
+      if (Object.keys(filteredErrors).length > 0) {
         message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
         return;
       }
@@ -1950,21 +2020,32 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     mode="multiple"
                     allowClear
                     placeholder="Select disk(s)"
-                    value={form.selectedDisks || []}
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
+                      if (typeof d === 'string') return d;
+                      if (d && typeof d === 'object') {
+                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                      }
+                      return String(d ?? '');
+                    }) : []}
                     style={{ width: 200 }}
                     disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
                     onChange={value => handleDiskChange(idx, value)}
                     optionLabelProp="label"
                   >
-                    {(nodeDisks[form.ip] || []).map(disk => (
-                      <Option
-                        key={disk.wwn || disk}
-                        value={disk.wwn || disk}
-                        label={disk.display || disk}
-                      >
-                        {disk.display || disk}
-                      </Option>
-                    ))}
+                    {(nodeDisks[form.ip] || []).map(disk => {
+                      const name = (disk && typeof disk === 'object') ? (disk.name ?? '') : '';
+                      const size = (disk && typeof disk === 'object') ? (disk.size ?? '') : '';
+                      const wwn = (disk && typeof disk === 'object') ? (disk.wwn ?? '') : '';
+                      const id = (disk && typeof disk === 'object') ? (disk.id || wwn || `${name}|${size}`) : String(disk);
+                      const value = (disk && typeof disk === 'object') ? (disk.value || id) : String(disk);
+                      const computed = (disk && typeof disk === 'object') ? (disk.display || disk.label) : undefined;
+                      const label = String(computed || (wwn ? `${name} (${size}, ${wwn})` : `${name || 'Disk'} (${size || 'N/A'})`));
+                      return (
+                        <Option key={id} value={value} label={label}>
+                          {label}
+                        </Option>
+                      );
+                    })}
                   </Select>
                 </Form.Item>
                 <Form.Item
