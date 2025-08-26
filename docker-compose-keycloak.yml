@@ -1,50 +1,48 @@
 version: "3.3"
 services:
-  react-app:
-    build:
-      context: .
-    ports:
-      - "1010:443"
-    depends_on:
-      - node-backend
-      - mysql-db
-    networks:
-      - pinakastra-cloud_my-network
-    volumes:
-      - shared-data:/usr/share/nginx/html
-      - ./ssl:/etc/nginx/ssl # Mount the SSL directory
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf  
-    restart: always
-
-  node-backend:
-    build:
-      context: ./backend/db
-    ports:
-      - "5000:5000"
-    depends_on:
-      - mysql-db
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
     environment:
-      - DB_HOST=mysql-db
-      - DB_USER=root
-      - DB_PASSWORD=Likith@172323
-      - DB_NAME=standalone
-      - EMAIL_USER=pinakastra.join@gmail.com
-      - EMAIL_PASS=sqei dbiv vxou ddsy
-      - SESSION_SECRET=your-secret-key
-    entrypoint: [ "/bin/sh", "-c", "./wait-for-it-script.sh mysql-db node server.js" ]
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloakpassword
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+      - KEYCLOAK_LOGLEVEL=DEBUG
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTPS_KEY_STORE_FILE=/etc/x509/https/keystore.p12
+      - KC_HTTPS_KEY_STORE_PASSWORD=yourpassword 
+    ports:
+      - 9090:8443 # Expose HTTP port to 9090
     volumes:
-      - ./ssl:/etc/ssl # Mount the SSL directory
-      - ./update-password.sh:/usr/src/app/update-password.sh
-      - ./.env:/usr/src/app/.env
+      - ./src/Components/keycloak.conf:/opt/keycloak/conf/keycloak.conf:ro
+      - ./ssl/keystore.p12:/etc/x509/https/keystore.p12
+      - ./realm.json:/opt/keycloak/data/import/realm.json
+    command:
+      - start 
+      - --import-realm
+    depends_on:
+      - keycloak-db
     networks:
       - pinakastra-cloud_my-network
     restart: always
 
-volumes:
-  mysql-data:
-  shared-data:
-
+  keycloak-db:
+    image: postgres:15
+    container_name: keycloak-db
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloakpassword
+      POSTGRES_DB: keycloak
+    ports:
+      - 5432:5432
+    networks:
+      - pinakastra-cloud_my-network 
+    restart: always
 
 networks:
   pinakastra-cloud_my-network:
     external: true
+
