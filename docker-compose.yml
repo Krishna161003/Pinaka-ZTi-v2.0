@@ -41,7 +41,7 @@ services:
     restart: always
 
   mysql-db:
-    image: mysql:8.0
+    image: localhost:4000/mysql:8.0
     ports:
       - "3307:3306"
     environment:
