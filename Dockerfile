@@ -1,33 +1,30 @@
 # Stage 1: Build the React application
-FROM localhost:4000/node:18 AS build
+FROM localhost:4000/node:18-alpine AS build
 
-# Set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy only package files first (better caching)
 COPY package*.json ./
 
-# Clean npm cache and install dependencies, adding the flag to disable ESLint if necessary
-RUN npm cache clean --force && npm install --legacy-peer-deps
+# Install dependencies with cache
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --legacy-peer-deps
 
-# Copy the rest of the application code
+# Copy source code
 COPY . .
 
-# Disable ESLint in the build process to avoid linting issues
+# Build React app (disable eslint in CI)
 RUN DISABLE_ESLINT_PLUGIN=true npm run build
 
-# Stage 2: Serve the React app using Nginx
+# Stage 2: Nginx server
 FROM localhost:4000/nginx:alpine
 
-# Copy the build files from the previous stage
+# Copy build output
 COPY --from=build /app/build /usr/share/nginx/html
 
-# Copy custom Nginx configuration (make sure the `nginx.conf` file is present in the context)
+# Copy configs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY ssl /etc/nginx/ssl
-# Expose port 80 (default for Nginx)
-EXPOSE  80 443
 
-# Start Nginx server
+EXPOSE 80 443
 CMD ["nginx", "-g", "daemon off;"]
-
