@@ -1,5 +1,5 @@
 # Stage 1: Build the React application
-FROM localhost:4000/node:18-alpine AS build
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
@@ -17,14 +17,17 @@ COPY . .
 RUN DISABLE_ESLINT_PLUGIN=true npm run build
 
 # Stage 2: Nginx server
-FROM localhost:4000/nginx:alpine
+FROM nginx:alpine
 
 # Copy build output
 COPY --from=build /app/build /usr/share/nginx/html
 
-# Copy configs
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY ssl /etc/nginx/ssl
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 80 443
-CMD ["nginx", "-g", "daemon off;"]
+
+# Entrypoint handles env injection + starts nginx
+ENTRYPOINT ["/entrypoint.sh"]
+

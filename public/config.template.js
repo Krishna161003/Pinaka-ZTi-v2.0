@@ -1,0 +1,5 @@
+window._env_ = {
+  REACT_APP_HOST_IP: "__REACT_APP_HOST_IP__",
+  REACT_APP_CLIENT_SECRET: "__REACT_APP_CLIENT_SECRET__",
+};
+
