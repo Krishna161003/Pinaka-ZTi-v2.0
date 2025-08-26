@@ -42,14 +42,14 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
 
         # Allow CORS from environment variable
-        add_header Access-Control-Allow-Origin "https://$REACT_APP_HOST_IP:3000";
+        add_header Access-Control-Allow-Origin "https://$REACT_APP_HOST_IP:1010";
         add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
         add_header Access-Control-Allow-Headers "Content-Type, Authorization";
         add_header Access-Control-Allow-Credentials "true";
 
         # Handle preflight OPTIONS requests
         if ($request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin "https://$REACT_APP_HOST_IP:3000";
+            add_header Access-Control-Allow-Origin "https://$REACT_APP_HOST_IP:1010";
             add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
             add_header Access-Control-Allow-Headers "Content-Type, Authorization";
             add_header Access-Control-Allow-Credentials "true";
