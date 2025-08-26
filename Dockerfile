@@ -23,8 +23,8 @@ FROM nginx:alpine
 COPY --from=build /app/build /usr/share/nginx/html
 
 # Copy custom Nginx configuration (make sure the `nginx.conf` file is present in the context)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY ssl /etc/nginx/ssl
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# COPY ssl /etc/nginx/ssl
 # Expose port 80 (default for Nginx)
 EXPOSE  80 443
 
