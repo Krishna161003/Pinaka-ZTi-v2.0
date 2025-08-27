@@ -38,8 +38,10 @@ const getAccessToken = async () => {
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({
         client_id: "zti-client",
-        client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
-        grant_type: "client_credentials",
+        // client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
+        username: "admin",
+        password: "admin",
+        grant_type: "password",
       }).toString(),
       {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
