@@ -32,48 +32,49 @@ const layout = {
 // const hostIP = process.env.REACT_APP_HOST_IP || "localhost";
 const hostIP = window.location.hostname;
 
-const getAccessToken = async () => {
-  try {
-    const response = await axios.post(
-      `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
-      new URLSearchParams({
-        client_id: "zti-client",
-        // client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
-        username: "zti-admin",
-        password: "Admin123",
-        grant_type: "password",
-      }).toString(),
-      {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      }
-    );
-    console.log("Access token:", response.data.access_token);
-    return response.data.access_token;
-  } catch (error) {
-    console.error("Error fetching access token:", error);
-    throw new Error("Failed to authenticate.");
-  }
-};
-
 // const getAccessToken = async () => {
 //   try {
-//     const storedToken = sessionStorage.getItem("accessToken");
-//     if (!storedToken) {
-//       throw new Error("No access token found. Please log in again.");
-//     }
-//     console.log("Access token:", storedToken);
-//     return storedToken;
+//     const response = await axios.post(
+//       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+//       new URLSearchParams({
+//         client_id: "zti-client",
+//         // client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
+//         username: "zti-admin",
+//         password: "Admin123",
+//         grant_type: "password",
+//       }).toString(),
+//       {
+//         headers: { "Content-Type": "application/x-www-form-urlencoded" },
+//       }
+//     );
+//     console.log("Access token:", response.data.access_token);
+//     return response.data.access_token;
 //   } catch (error) {
-//     console.error("Error retrieving access token:", error);
+//     console.error("Error fetching access token:", error);
 //     throw new Error("Failed to authenticate.");
 //   }
 // };
+
+const getAccessToken = async () => {
+  try {
+    const storedToken = sessionStorage.getItem("accessToken");
+    if (!storedToken) {
+      throw new Error("No access token found. Please log in again.");
+    }
+    console.log("Access token:", storedToken);
+    return storedToken;
+  } catch (error) {
+    console.error("Error retrieving access token:", error);
+    throw new Error("Failed to authenticate.");
+  }
+};
 
 
 // Function to fetch users from Keycloak
 const fetchUsersFromKeycloak = async () => {
   try {
     const accessToken = await getAccessToken(); // Get the access token
+    console.log("Access token:", accessToken);
     const response = await axios.get(
       `https://${hostIP}:9090/admin/realms/zti-realm/users`,
       {
