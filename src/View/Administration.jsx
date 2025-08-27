@@ -34,6 +34,7 @@ const hostIP = window.location.hostname;
 
 const getAccessToken = async () => {
   try {
+    console.log(process.env.REACT_APP_CLIENT_SECRET);
     const response = await axios.post(
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({
