@@ -38,7 +38,7 @@ const Login = (props) => {
       // 1. Get client secret from backend
       const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
       const clientSecret = secretResponse.data.client_secret;
-      
+      console.log(clientSecret);
       if (!clientSecret) {
         throw new Error('Failed to retrieve client secret');
       }

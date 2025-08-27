@@ -2699,6 +2699,7 @@ def get_client_secret():
         if not client_secret:
             return jsonify({"error": "Client secret not found"}), 404
 
+        print(client_secret)
         # Return as JSON (NOT SECURE FOR PRODUCTION)
         return jsonify({"client_secret": client_secret})
     except FileNotFoundError:
