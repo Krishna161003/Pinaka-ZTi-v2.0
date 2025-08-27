@@ -1,8 +1,7 @@
 version: "3.3"
 services:
   react-app:
-    build:
-      context: .
+    image: pinaka-zti-v20-react-app:1.1
     ports:
       - "1010:443"
     depends_on:
@@ -10,15 +9,13 @@ services:
       - mysql-db
     networks:
       - pinakastra-cloud_my-network
-    environment:
-      - REACT_APP_HOST_IP=${REACT_APP_HOST_IP} # Dynamically pass the HOST_IP
     volumes:
-      - shared-data:/usr/share/nginx/html
+      - ./ssl:/etc/nginx/ssl # Mount the SSL directory
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
     restart: always
 
   node-backend:
-    build:
-      context: ./backend/db
+    image: pinaka-zti-v20-node-backend:1.1
     ports:
       - "5000:5000"
     depends_on:
@@ -50,7 +47,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -61,7 +58,6 @@ services:
 volumes:
   mysql-data:
   shared-data:
-
 
 networks:
   pinakastra-cloud_my-network:
