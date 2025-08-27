@@ -34,11 +34,23 @@ const hostIP = window.location.hostname;
 
 const getAccessToken = async () => {
   try {
+    // First get the encoded client secret from backend
+    const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
+    const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse.data;
+    
+    if (!encodedSecret || randomCharPos === undefined) {
+      throw new Error('Failed to retrieve client secret from backend');
+    }
+    
+    // Remove the extra random character from the specified position
+    const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+
+    // Use the decoded client secret to get access token
     const response = await axios.post(
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({
         client_id: "zti-client",
-        client_secret: process.env.REACT_APP_CLIENT_SECRET,
+        client_secret: clientSecret,
         grant_type: "client_credentials",
       }).toString(),
       {
@@ -47,10 +59,24 @@ const getAccessToken = async () => {
     );
     return response.data.access_token;
   } catch (error) {
-    console.error("Error fetching access token:", error);
-    throw new Error("Failed to authenticate.");
+    console.error("Error in authentication flow:", error);
+    throw new Error("Failed to authenticate: " + (error.response?.data?.error || error.message));
   }
 };
+
+// const getAccessToken = async () => {
+//   try {
+//     const storedToken = sessionStorage.getItem("accessToken");
+//     if (!storedToken) {
+//       throw new Error("No access token found. Please log in again.");
+//     }
+//     return storedToken;
+//   } catch (error) {
+//     console.error("Error retrieving access token:", error);
+//     throw new Error("Failed to authenticate.");
+//   }
+// };
+
 
 // Function to fetch users from Keycloak
 const fetchUsersFromKeycloak = async () => {

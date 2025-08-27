@@ -49,6 +49,9 @@ export function buildNetworkConfigPayload(form) {
       }
     });
   }
+  // Track if we've set the gateway for the first interface
+  let isFirstInterface = true;
+  
   // Then, process all non-bond rows
   tableData.forEach(row => {
     // Skip bond rows if useBond
@@ -75,12 +78,19 @@ export function buildNetworkConfigPayload(form) {
       (configType === 'default' && row.type === 'primary') ||
       (configType === 'segregated' && typeArr.length > 0 && !typeArr.includes('External Traffic'))
     ) {
-      using_interfaces[intKey]["Properties"] = {
+      const properties = {
         IP_ADDRESS: row.ip || '',
         Netmask: row.subnet || '',
-        DNS: row.dns || '',
-        gateway: defaultGateway || ''
+        DNS: row.dns || ''
       };
+      
+      // Only add gateway to the first interface
+      if (isFirstInterface) {
+        properties.gateway = defaultGateway || '';
+        isFirstInterface = false; // Ensure only first interface gets the gateway
+      }
+      
+      using_interfaces[intKey]["Properties"] = properties;
     }
   });
 

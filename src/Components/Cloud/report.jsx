@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Divider, Card, Progress, Row, Col, Flex, Spin, Button, message } from 'antd';
+import { Divider, Card, Progress, Row, Col, Flex, Spin, Button, message, notification } from 'antd';
 import { CloudOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,6 +31,7 @@ const Report = ({ onDeploymentComplete }) => {
 
   // Backend deployment progress polling
   const [deploymentInProgress, setDeploymentInProgress] = useState(true);
+  const prevDeploymentStatus = useRef(true); // Track previous deployment status
 
   useEffect(() => {
     let interval = setInterval(() => {
@@ -38,20 +39,51 @@ const Report = ({ onDeploymentComplete }) => {
         .then(res => res.json())
         .then(data => {
           if (data && typeof data.in_progress === 'boolean') {
-            setDeploymentInProgress(data.in_progress);
+            setDeploymentInProgress(prev => {
+              const newStatus = data.in_progress;
+              // Show notification when deployment completes
+              if (prev === true && newStatus === false) {
+                const key = `open${Date.now()}`;
+                const btn = (
+                  <Button 
+                    type="primary" 
+                    size="small"
+                    onClick={() => {
+                      notification.close(key);
+                      navigate('/iaas');
+                    }}
+                  >
+                    Go to IaaS
+                  </Button>
+                );
+                notification.success({
+                  message: 'Deployment Completed',
+                  description: 'Your cloud deployment has been successfully completed!',
+                  btn,
+                  key,
+                  duration: 12,
+                  placement: 'bottomRight'
+                });
+              }
+              return newStatus;
+            });
           }
         })
         .catch(() => {});
     }, 3000);
+    
     // Initial check
     fetch(`https://${hostIP}:2020/node-deployment-progress`)
       .then(res => res.json())
       .then(data => {
         if (data && typeof data.in_progress === 'boolean') {
-          setDeploymentInProgress(data.in_progress);
+          const newStatus = data.in_progress;
+          setDeploymentInProgress(newStatus);
+          prevDeploymentStatus.current = newStatus;
         }
       })
       .catch(() => {});
+      
     return () => clearInterval(interval);
   }, []);
 
