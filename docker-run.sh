@@ -79,7 +79,7 @@ if docker-compose -f docker-compose-keycloak.yml up --build -d; then
     echo "✅ Keycloak container started"
 
     echo "⏳ Waiting for Keycloak to be ready..."
-    until [ "$(curl -s -o /dev/null -w "%{http_code}" -k https://$HOST_IP/)" != "000" ]; do
+    until [ "$(curl -s -o /dev/null -w "%{http_code}" -k https://$HOST_IP:9090/)" != "000" ]; do
         sleep 5
         echo "Keycloak not ready yet. Retrying..."
     done
