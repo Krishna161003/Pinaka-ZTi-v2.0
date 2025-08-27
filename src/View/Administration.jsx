@@ -39,8 +39,8 @@ const getAccessToken = async () => {
       new URLSearchParams({
         client_id: "zti-client",
         // client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
-        username: "admin",
-        password: "admin",
+        username: "zti-admin",
+        password: "Admin123",
         grant_type: "password",
       }).toString(),
       {
