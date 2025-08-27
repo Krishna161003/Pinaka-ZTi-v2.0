@@ -32,38 +32,38 @@ const layout = {
 // const hostIP = process.env.REACT_APP_HOST_IP || "localhost";
 const hostIP = window.location.hostname;
 
-// const getAccessToken = async () => {
-//   try {
-//     const response = await axios.post(
-//       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
-//       new URLSearchParams({
-//         client_id: "zti-client",
-//         client_secret: process.env.REACT_APP_CLIENT_SECRET,
-//         grant_type: "client_credentials",
-//       }).toString(),
-//       {
-//         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-//       }
-//     );
-//     return response.data.access_token;
-//   } catch (error) {
-//     console.error("Error fetching access token:", error);
-//     throw new Error("Failed to authenticate.");
-//   }
-// };
-
 const getAccessToken = async () => {
   try {
-    const storedToken = sessionStorage.getItem("accessToken");
-    if (!storedToken) {
-      throw new Error("No access token found. Please log in again.");
-    }
-    return storedToken;
+    const response = await axios.post(
+      `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+      new URLSearchParams({
+        client_id: "zti-client",
+        client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
+        grant_type: "client_credentials",
+      }).toString(),
+      {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      }
+    );
+    return response.data.access_token;
   } catch (error) {
-    console.error("Error retrieving access token:", error);
+    console.error("Error fetching access token:", error);
     throw new Error("Failed to authenticate.");
   }
 };
+
+// const getAccessToken = async () => {
+//   try {
+//     const storedToken = sessionStorage.getItem("accessToken");
+//     if (!storedToken) {
+//       throw new Error("No access token found. Please log in again.");
+//     }
+//     return storedToken;
+//   } catch (error) {
+//     console.error("Error retrieving access token:", error);
+//     throw new Error("Failed to authenticate.");
+//   }
+// };
 
 
 // Function to fetch users from Keycloak
