@@ -1,7 +1,7 @@
 version: "3.3"
 services:
   react-app:
-    image: pinaka-zti-v20-react-app:1.1
+    image: localhost:4000/pinaka-zti-v2.0-react-app:1.1
     ports:
       - "1010:443"
     depends_on:
@@ -15,7 +15,7 @@ services:
     restart: always
 
   node-backend:
-    image: pinaka-zti-v20-node-backend:1.1
+    image: localhost:4000/pinaka-zti-v2.0-node-backend:1.1
     ports:
       - "5000:5000"
     depends_on:
