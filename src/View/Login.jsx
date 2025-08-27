@@ -35,13 +35,17 @@ const Login = (props) => {
     const { companyName, password } = ssoFormData;
 
     try {
-      // 1. Get client secret from backend
+      // 1. Get encoded client secret from backend
       const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
-      const clientSecret = secretResponse.data.client_secret;
-      console.log(clientSecret);
-      if (!clientSecret) {
+      const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse.data;
+      
+      if (!encodedSecret || randomCharPos === undefined) {
         throw new Error('Failed to retrieve client secret');
       }
+      
+      // Remove the extra random character from the specified position
+      const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+      console.log('Decoded client secret');
 
       // 2. Obtain the access token using client credentials
       const tokenResponse = await axios.post(
@@ -63,7 +67,7 @@ const Login = (props) => {
           username: companyName,
           password: password,
           client_id: 'zti-client',
-          client_secret: process.env.REACT_APP_CLIENT_SECRET,
+          client_secret: clientSecret,
           scope: 'openid',  // Request openid scope
         }),
         {

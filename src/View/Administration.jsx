@@ -34,15 +34,18 @@ const hostIP = window.location.hostname;
 
 const getAccessToken = async () => {
   try {
-    // First get the client secret from backend
+    // First get the encoded client secret from backend
     const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
-    const clientSecret = secretResponse.data.client_secret;
+    const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse.data;
     
-    if (!clientSecret) {
+    if (!encodedSecret || randomCharPos === undefined) {
       throw new Error('Failed to retrieve client secret from backend');
     }
+    
+    // Remove the extra random character from the specified position
+    const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
 
-    // Use the retrieved client secret to get access token
+    // Use the decoded client secret to get access token
     const response = await axios.post(
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({

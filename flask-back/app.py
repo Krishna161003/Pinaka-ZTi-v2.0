@@ -2690,6 +2690,9 @@ def upload_status(job_id):
 # Path to your file containing the client secret
 CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <-- change this
 
+import random
+import string
+
 @app.route("/get-client-secret", methods=["GET"])
 def get_client_secret():
     try:
@@ -2700,8 +2703,16 @@ def get_client_secret():
                     # Extract the value after the first '=' and remove any surrounding quotes
                     client_secret = line.split('=', 1)[1].strip('"\'')
                     if client_secret:
-                        print("Client secret found")
-                        return jsonify({"client_secret": client_secret})
+                        # Add a random character at a random position
+                        random_char = random.choice(string.ascii_letters + string.digits)
+                        insert_pos = random.randint(0, len(client_secret))
+                        encoded_secret = client_secret[:insert_pos] + random_char + client_secret[insert_pos:]
+                        
+                        # Return both the encoded secret and the position of the extra character
+                        return jsonify({
+                            "client_secret": encoded_secret,
+                            "random_char_pos": insert_pos
+                        })
             
             return jsonify({"error": "REACT_APP_CLIENT_SECRET not found in .env file"}), 404
             
