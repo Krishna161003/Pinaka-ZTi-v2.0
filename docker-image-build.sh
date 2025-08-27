@@ -13,3 +13,5 @@ docker build -t pinaka-zti-v2.0-node-backend:1.1 ./backend/db
 docker pull quay.io/keycloak/keycloak:12.0.4
 docker pull postgres:15
 docker pull mysql:8.0
+
+bash docker-run.sh
