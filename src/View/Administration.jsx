@@ -73,6 +73,7 @@ const getAccessToken = async () => {
 // Function to fetch users from Keycloak
 const fetchUsersFromKeycloak = async () => {
   try {
+    console.log("Fetching users from Keycloak...");
     const accessToken = await getAccessToken(); // Get the access token
     console.log("Access token:", accessToken);
     const response = await axios.get(
