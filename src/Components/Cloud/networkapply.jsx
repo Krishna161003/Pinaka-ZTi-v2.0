@@ -6,6 +6,51 @@ import { buildDeployConfigPayload } from './networkapply.deployformat';
 
 const hostIP = window.location.hostname;
 
+// Global notification manager for Cloud Network Apply
+if (!window.__cloudGlobalNotifications) {
+  window.__cloudGlobalNotifications = {
+    notifications: {},
+    showNotification: function(key, message, description, onRetry) {
+      // Close any existing notification with the same key
+      if (this.notifications[key]) {
+        notification.close(this.notifications[key]);
+      }
+      
+      // Create new notification with retry button
+      const notificationKey = `cloud-notification-${Date.now()}`;
+      this.notifications[key] = notificationKey;
+      
+      notification.warning({
+        key: notificationKey,
+        message: message,
+        description: (
+          <div>
+            <div style={{ marginBottom: 8 }}>{description}</div>
+            <Button 
+              type="primary" 
+              size="small"
+              onClick={() => {
+                notification.close(notificationKey);
+                delete this.notifications[key];
+                if (onRetry) onRetry();
+              }}
+            >
+              Retry Connection
+            </Button>
+          </div>
+        ),
+        duration: 0, // Don't auto-close
+      });
+    },
+    closeNotification: function(key) {
+      if (this.notifications[key]) {
+        notification.close(this.notifications[key]);
+        delete this.notifications[key];
+      }
+    }
+  };
+}
+
 const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [hostServerId, setHostServerId] = useState(() => sessionStorage.getItem('host_server_id') || '');
   const [firstCloudName, setFirstCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
@@ -105,18 +150,25 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     // Suppress redirect notification if already on Network Apply tab
     if (window.__cloudMountedNetworkApply) return;
     try { const active = sessionStorage.getItem('cloud_activeTab'); if (active === '4') return; } catch (_) {}
-    const key = `cloud-ssh-${ip}`;
-    notification.open({
-      key,
-      message: 'SSH polling timeout',
-      description: `Timeout while waiting for ${ip}.`,
-      btn: (
-        <Button type="link" onClick={navigateToNetworkApply}>
-          Open Network Apply
-        </Button>
-      ),
-      duration: 10,
-    });
+    
+    // Global notification system will handle the persistent notification
+    // We don't need to show a separate notification here as it's handled in beginInterval
+    
+    // Only show the in-app notification if not using global notifications
+    if (!window.__cloudGlobalNotifications) {
+      const key = `cloud-ssh-${ip}`;
+      notification.open({
+        key,
+        message: 'SSH polling timeout',
+        description: `Timeout while waiting for ${ip}.`,
+        btn: (
+          <Button type="link" onClick={navigateToNetworkApply}>
+            Open Network Apply
+          </Button>
+        ),
+        duration: 10,
+      });
+    }
   };
 
   const getCloudHostnameMap = () => {
@@ -187,6 +239,14 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     window.__cloudMountedNetworkApply = true;
     return () => {
       window.__cloudMountedNetworkApply = false;
+      // Cleanup any global notifications when component unmounts
+      if (window.__cloudPolling) {
+        Object.keys(window.__cloudPolling).forEach(ip => {
+          if (window.__cloudGlobalNotifications) {
+            window.__cloudGlobalNotifications.closeNotification(`ssh-timeout-${ip}`);
+          }
+        });
+      }
     };
   }, []);
 
@@ -478,13 +538,25 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         let pollCount = 0;
         const pollInterval = setInterval(() => {
           pollCount++;
+          // Stop polling if we've exceeded the maximum attempts
           if (pollCount > POLL_MAX_POLLS) {
             clearInterval(pollInterval);
             setCardStatusForIpInSession(ip, { loading: false, applied: false });
             if (window.__cloudMountedNetworkApply) {
               setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: false } : s));
             }
-            notifySshTimeout(ip);
+            
+            // Show persistent retry notification using global notification system
+            const key = `ssh-timeout-${ip}`;
+            if (window.__cloudGlobalNotifications) {
+              window.__cloudGlobalNotifications.showNotification(
+                key,
+                'Connection Timeout',
+                `Failed to connect to ${ip} after multiple attempts. The node may be taking longer than expected to come up.`,
+                () => beginInterval() // Retry function
+              );
+            }
+            
             message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
             if (window.__cloudPolling) delete window.__cloudPolling[ip];
             setDelayStartForIp(ip, null);

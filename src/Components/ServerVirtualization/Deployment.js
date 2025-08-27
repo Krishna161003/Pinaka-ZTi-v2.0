@@ -21,6 +21,39 @@ const POLL_MAX_POLLS = 60; // 5 minutes total
 const SSH_DELAY_START_KEY = 'sv_networkApplyPollingDelayStart';
 const RESTART_MSG_THROTTLE_MS = 15000; // throttle 'Node restarting...' message per IP
 
+// Store active polling timeouts and intervals
+window.__cloudPolling = window.__cloudPolling || {};
+
+// Global notification state for persistent notifications
+window.__globalNotifications = window.__globalNotifications || {
+  active: new Set(),
+  showNotification: (key, message, description, onRetry) => {
+    if (window.__globalNotifications.active.has(key)) return;
+    
+    notification.warning({
+      key,
+      message,
+      description,
+      duration: 0, // Don't auto-close
+      onClose: () => window.__globalNotifications.active.delete(key),
+      btn: onRetry ? (
+        <Button 
+          type="primary" 
+          size="small" 
+          onClick={() => {
+            notification.close(key);
+            window.__globalNotifications.active.delete(key);
+            onRetry();
+          }}
+        >
+          Retry Connection
+        </Button>
+      ) : null,
+    });
+    window.__globalNotifications.active.add(key);
+  }
+};
+
 // Global navigation to Deployment tab (tab key "5") for notifications
 function navigateToDeploymentTab() {
   try {
@@ -379,6 +412,16 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
               });
             }
+
+            // Show persistent retry notification
+            const key = `ssh-timeout-${ip}`;
+            window.__globalNotifications.showNotification(
+              key,
+              'Connection Timeout',
+              `Failed to connect to ${ip} after multiple attempts. The node may be taking longer than expected to come up.`,
+              () => beginInterval() // Retry function
+            );
+
             message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
             {
               let suppress = false;

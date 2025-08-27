@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from '../Styles/Login.module.css';
 import { LockOutlined, HomeOutlined } from '@ant-design/icons';
 import { Button, Alert, Input } from 'antd';
@@ -12,6 +12,7 @@ const hostIP = window.location.hostname;
 const Login = (props) => {
   const { checkLogin } = props;
   const navigate = useNavigate();
+  const [isValidating, setIsValidating] = useState(true);
   const [ssoFormData, setSSOFormData] = useState({
     companyName: '',
     password: ''
@@ -36,7 +37,7 @@ const Login = (props) => {
     try {
       // Request a token directly using password grant
       const userResponse = await axios.post(
-        `https://${hostIP}:1010/realms/zti-realm/protocol/openid-connect/token`,
+        `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
         new URLSearchParams({
           grant_type: 'password',
           username: companyName,
@@ -52,7 +53,7 @@ const Login = (props) => {
 
         // Fetch user details
         const userDetailsResponse = await axios.get(
-          `https://${hostIP}:1010/realms/zti-realm/protocol/openid-connect/userinfo`,
+          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -120,6 +121,42 @@ const Login = (props) => {
       <Button type="primary" htmlType="submit" loading={loading}>Login</Button>
     </form>
   );
+
+  useEffect(() => {
+    const validateToken = async () => {
+      const token = sessionStorage.getItem('accessToken');
+      if (!token) {
+        setIsValidating(false);
+        return;
+      }
+
+      try {
+        await axios.get(
+          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        // Token is valid, proceed with login
+        checkLogin(true);
+        navigate('/', { replace: true });
+      } catch (err) {
+        // Token is invalid or expired, clear it
+        sessionStorage.removeItem('accessToken');
+        sessionStorage.removeItem('loginDetails');
+      } finally {
+        setIsValidating(false);
+      }
+    };
+
+    validateToken();
+  }, [checkLogin, navigate]);
+
+  if (isValidating) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Validating session...</div>;
+  }
 
   return (
     <div className={styles.App}>

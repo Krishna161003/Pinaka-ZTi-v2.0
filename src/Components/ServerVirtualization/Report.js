@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Divider, Card, Row, Col, Button } from 'antd';
+import { Divider, Card, Row, Col, Button, notification } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
 const getCloudNameFromMetadata = () => {
@@ -18,6 +18,7 @@ const Report = ({ onDeploymentComplete }) => {
   const cloudName = getCloudNameFromMetadata();
   const [deploymentInProgress, setDeploymentInProgress] = useState(true);
   const finalizedRef = useRef(false);
+  const prevDeploymentStatus = useRef(true); // Track previous deployment status
   // Using static asset for GIF; no blob preloading
 
   // Poll backend for node deployment progress
@@ -27,7 +28,34 @@ const Report = ({ onDeploymentComplete }) => {
         .then(res => res.json())
         .then(data => {
           if (data && typeof data.in_progress === 'boolean') {
-            setDeploymentInProgress(data.in_progress);
+            setDeploymentInProgress(prev => {
+              const newStatus = data.in_progress;
+              // Show notification when deployment completes
+              if (prev === true && newStatus === false) {
+                const key = `open${Date.now()}`;
+                const btn = (
+                  <Button 
+                    type="primary" 
+                    size="small"
+                    onClick={() => {
+                      notification.close(key);
+                      navigate('/iaas');
+                    }}
+                  >
+                    Go to IaaS
+                  </Button>
+                );
+                notification.success({
+                  message: 'Deployment Completed',
+                  description: 'Your server virtualization deployment has been successfully completed!',
+                  btn,
+                  key,
+                  duration: 12,
+                  placement: 'bottomRight'
+                });
+              }
+              return newStatus;
+            });
           }
         })
         .catch(() => {});
@@ -37,7 +65,9 @@ const Report = ({ onDeploymentComplete }) => {
       .then(res => res.json())
       .then(data => {
         if (data && typeof data.in_progress === 'boolean') {
-          setDeploymentInProgress(data.in_progress);
+          const newStatus = data.in_progress;
+          setDeploymentInProgress(newStatus);
+          prevDeploymentStatus.current = newStatus;
         }
       })
       .catch(() => {});
