@@ -46,14 +46,14 @@ axios.interceptors.response.use(
     const url = cfg.baseURL ? new URL(cfg.url || '', cfg.baseURL).toString() : (cfg.url || '');
     const payload = toPayloadFromUrl(url, method);
 
-    // Gate by error message: only CERT-related
+    // Broader gate: any HTTPS network error without a response (covers cert issues),
+    // while still suppressing explicit connection-refused cases.
     const msg = String(err?.message || '');
     const stack = String(err?.stack || '');
     const combined = (msg + ' ' + stack).toLowerCase();
-    const isCert = /err_cert|certificate|ssl|cert_authority_invalid/.test(combined);
     const isRefused = /err_connection_refused|econnrefused|connection refused/.test(combined);
 
-    if (isNetwork && payload.url.startsWith('https://') && isCert && !isRefused) {
+    if (isNetwork && payload.url.startsWith('https://') && !isRefused) {
       emitSSLError(payload);
     }
     return Promise.reject(err);
@@ -75,10 +75,10 @@ if (typeof window !== 'undefined' && window.fetch) {
       const url = typeof input === 'string' ? input : (input && input.url);
       const method = (init && init.method) || (typeof input === 'object' && input && input.method) || 'GET';
       const payload = toPayloadFromUrl(url || '', method);
-      // Only emit for CERT-related failures; suppress for connection refused and unknowns
-      const isCert = /err_cert|certificate|ssl|cert_authority_invalid/.test(combined);
+      // Broader gate: any HTTPS network error without a response (covers cert issues),
+      // while still suppressing explicit connection-refused cases
       const isRefused = /err_connection_refused|econnrefused|connection refused/.test(combined);
-      if (isNetwork && payload.url.startsWith('https://') && isCert && !isRefused) {
+      if (isNetwork && payload.url.startsWith('https://') && !isRefused) {
         emitSSLError(payload);
       }
       throw e;

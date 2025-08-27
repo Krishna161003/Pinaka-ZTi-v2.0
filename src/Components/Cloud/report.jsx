@@ -45,16 +45,22 @@ const Report = ({ onDeploymentComplete }) => {
               if (prev === true && newStatus === false) {
                 const key = `open${Date.now()}`;
                 const btn = (
-                  <Button 
-                    type="primary" 
-                    size="small"
-                    onClick={() => {
-                      notification.close(key);
-                      navigate('/iaas');
-                    }}
-                  >
-                    Go to IaaS
-                  </Button>
+                  <Button
+                  type="primary"
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('cloud_shouldResetOnNextMount', 'true');
+                      sessionStorage.setItem('lastMenuPath', '/iaas');
+                      sessionStorage.setItem('lastCloudPath', '/iaas');
+                      sessionStorage.setItem('cloud_activeTab', '1');
+                      sessionStorage.setItem('cloud_disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true }));
+                    } catch (_) {}
+                    notification.close(key);
+                    navigate('/iaas');
+                  }}
+                >
+                  Go to IaaS
+                </Button>
                 );
                 notification.success({
                   message: 'Deployment Completed',

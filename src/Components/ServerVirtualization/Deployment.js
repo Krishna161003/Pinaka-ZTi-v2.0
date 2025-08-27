@@ -1419,80 +1419,76 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
             }
           }).then(() => {
-            // Prevent duplicate timers for this IP
-            if (!window.__cloudPolling) window.__cloudPolling = {};
-            if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-            if (window.__cloudPolling[node_ip]) {
-              try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) { }
-              delete window.__cloudPolling[node_ip];
-            }
-            if (window.__cloudPollingStart[node_ip]) {
-              try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) { }
-              delete window.__cloudPollingStart[node_ip];
-            }
-            // Persist delay start time for recovery
-            try {
-              const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-              const map = raw ? JSON.parse(raw) : {};
-              map[node_ip] = Date.now();
-              sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-            } catch (_) { }
+            // Helper to schedule or re-schedule frontend polling for this IP
+            const scheduleFrontendPolling = () => {
+              // Prevent duplicate timers for this IP
+              if (!window.__cloudPolling) window.__cloudPolling = {};
+              if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+              if (window.__cloudPolling[node_ip]) {
+                try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) { }
+                delete window.__cloudPolling[node_ip];
+              }
+              if (window.__cloudPollingStart[node_ip]) {
+                try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) { }
+                delete window.__cloudPollingStart[node_ip];
+              }
+              // Persist delay start time for recovery
+              try {
+                const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                const map = raw ? JSON.parse(raw) : {};
+                map[node_ip] = Date.now();
+                sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+              } catch (_) { }
 
-            // Delay starting the frontend polling until 90 seconds (to match backend delay)
-            const startPollingTimeout = setTimeout(() => {
-              let pollCount = 0;
-              const maxPolls = POLL_MAX_POLLS; // Maximum 5 minutes of polling
+              // Delay starting the frontend polling until 90 seconds (to match backend delay)
+              const startPollingTimeout = setTimeout(() => {
+                let pollCount = 0;
+                const maxPolls = POLL_MAX_POLLS; // Maximum 5 minutes of polling
 
-              const pollInterval = setInterval(() => {
-                pollCount++;
+                const pollInterval = setInterval(() => {
+                  pollCount++;
 
-                // Stop polling if we've exceeded the maximum attempts
-                if (pollCount > maxPolls) {
-                  clearInterval(pollInterval);
-                  setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
-                  if (window.__svMountedDeployment) {
-                    setCardStatus(prev => {
-                      const idxNow = forms.findIndex(f => f?.ip === node_ip);
-                      return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-                    });
-                  }
-                  message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
-                  // Clear delay-start entry for this IP
-                  try {
-                    const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                    const map = raw ? JSON.parse(raw) : {};
-                    if (map[node_ip]) {
-                      delete map[node_ip];
-                      sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-                    }
-                  } catch (_) { }
-                  // Cross-menu notification on timeout
-                  {
-                    let suppress = false;
-                    try {
-                      if (window.__svMountedDeployment) suppress = true;
-                      else {
-                        const active = sessionStorage.getItem('serverVirtualization_activeTab');
-                        if (active === '5') suppress = true;
-                      }
-                    } catch (_) { }
-                    if (!suppress) {
-                      notification.warning({
-                        key: `sv-ssh-timeout-${node_ip}`,
-                        message: 'SSH polling timeout',
-                        description: `Timeout waiting for ${node_ip} to come online.`,
-                        duration: 8,
-                        btn: (
-                          <Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
-                        ),
+                  // Stop polling if we've exceeded the maximum attempts
+                  if (pollCount > maxPolls) {
+                    clearInterval(pollInterval);
+                    setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
+                    if (window.__svMountedDeployment) {
+                      setCardStatus(prev => {
+                        const idxNow = forms.findIndex(f => f?.ip === node_ip);
+                        return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
                       });
                     }
+                    message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
+                    // Clear delay-start entry for this IP
+                    try {
+                      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                      const map = raw ? JSON.parse(raw) : {};
+                      if (map[node_ip]) {
+                        delete map[node_ip];
+                        sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                      }
+                    } catch (_) { }
+                    // Cross-menu notification on timeout with Retry
+                    const key = `ssh-timeout-${node_ip}`;
+                    const description = `Failed to connect to ${node_ip} after multiple attempts. The node may be taking longer than expected to come up.`;
+                    window.__globalNotifications.showNotification(
+                      key,
+                      'Connection Timeout',
+                      description,
+                      () => {
+                        // Re-trigger backend scheduling and frontend polling
+                        fetch(`https://${hostIP}:2020/poll-ssh-status`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ips: [node_ip], ssh_user, ssh_pass, ssh_key })
+                        }).then(() => scheduleFrontendPolling());
+                      }
+                    );
+                    delete window.__cloudPolling[node_ip];
+                    return;
                   }
-                  delete window.__cloudPolling[node_ip];
-                  return;
-                }
 
-                fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
+                  fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
                   .then(res => res.json())
                   .then(data => {
                     if (data.status === 'success' && data.ip === node_ip) {
@@ -1553,15 +1549,19 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   .catch(err => {
                     console.error('SSH status check failed:', err);
                   });
-              }, POLL_INTERVAL_MS); // Check every 5 seconds
+                }, POLL_INTERVAL_MS); // Check every 5 seconds
 
-              // Store the interval reference globally (do not clear on unmount to allow background polling)
-              if (!window.__cloudPolling) window.__cloudPolling = {};
-              window.__cloudPolling[node_ip] = pollInterval;
-            }, POLL_DELAY_MS); // Start polling after 90 seconds
+                // Store the interval reference globally (do not clear on unmount to allow background polling)
+                if (!window.__cloudPolling) window.__cloudPolling = {};
+                window.__cloudPolling[node_ip] = pollInterval;
+              }, POLL_DELAY_MS); // Start polling after 90 seconds
 
-            if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-            window.__cloudPollingStart[node_ip] = startPollingTimeout;
+              if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+              window.__cloudPollingStart[node_ip] = startPollingTimeout;
+            };
+
+            // Initial schedule
+            scheduleFrontendPolling();
           });
           // --- End SSH Polling Section ---
 
