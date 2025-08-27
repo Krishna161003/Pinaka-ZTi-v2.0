@@ -651,8 +651,12 @@ def get_interfaces():
     interfaces = []
 
     interfaces = get_available_interfaces()
+
+    # Fetch the number of CPU sockets (physical CPUs)
+    cpu_sockets = get_cpu_socket_count()
+
     # Include the number of CPU sockets in the response
-    response = {"interfaces": interfaces}
+    response = {"interfaces": interfaces, "cpu_sockets": cpu_sockets}
 
     return jsonify(response)
 

@@ -11,7 +11,7 @@ import {
   DashboardOutlined,
   DeploymentUnitOutlined,
   SyncOutlined,
-  TruckOutlined,
+  // TruckOutlined,
   CloudServerOutlined,
   // SettingOutlined,
   FileDoneOutlined,
