@@ -37,17 +37,14 @@ const getAccessToken = async () => {
     const response = await axios.post(
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({
-        client_id: "admin-cli",
-        // client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
-        username: "admin",
-        password: "admin",
-        grant_type: "password",
+        client_id: "zti-client",
+        client_secret: "MkUUrnypGhAsys829rS9pz3uru37iGsr",
+        grant_type: "client_credentials",
       }).toString(),
       {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       }
     );
-    console.log("Access token:", response.data.access_token);
     return response.data.access_token;
   } catch (error) {
     console.error("Error fetching access token:", error);
@@ -61,7 +58,6 @@ const getAccessToken = async () => {
 //     if (!storedToken) {
 //       throw new Error("No access token found. Please log in again.");
 //     }
-//     console.log("Access token:", storedToken);
 //     return storedToken;
 //   } catch (error) {
 //     console.error("Error retrieving access token:", error);
@@ -73,9 +69,7 @@ const getAccessToken = async () => {
 // Function to fetch users from Keycloak
 const fetchUsersFromKeycloak = async () => {
   try {
-    console.log("Fetching users from Keycloak...");
     const accessToken = await getAccessToken(); // Get the access token
-    console.log("Access token:", accessToken);
     const response = await axios.get(
       `https://${hostIP}:9090/admin/realms/zti-realm/users`,
       {
