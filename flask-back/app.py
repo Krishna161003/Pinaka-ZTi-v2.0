@@ -2694,14 +2694,17 @@ CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <--
 def get_client_secret():
     try:
         with open(CLIENT_SECRET_FILE, "r") as f:
-            client_secret = f.read().strip()
-
-        if not client_secret:
-            return jsonify({"error": "Client secret not found"}), 404
-
-        print(client_secret)
-        # Return as JSON (NOT SECURE FOR PRODUCTION)
-        return jsonify({"client_secret": client_secret})
+            for line in f:
+                line = line.strip()
+                if line.startswith("REACT_APP_CLIENT_SECRET=") and '=' in line:
+                    # Extract the value after the first '=' and remove any surrounding quotes
+                    client_secret = line.split('=', 1)[1].strip('"\'')
+                    if client_secret:
+                        print("Client secret found")
+                        return jsonify({"client_secret": client_secret})
+            
+            return jsonify({"error": "REACT_APP_CLIENT_SECRET not found in .env file"}), 404
+            
     except FileNotFoundError:
         return jsonify({"error": f"File {CLIENT_SECRET_FILE} not found"}), 404
     except Exception as e:
