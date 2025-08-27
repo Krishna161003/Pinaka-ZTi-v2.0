@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 
 const hostIP = window.location.hostname;
 
+
 const Login = (props) => {
   const { checkLogin } = props;
   const navigate = useNavigate();
@@ -34,49 +35,79 @@ const Login = (props) => {
     const { companyName, password } = ssoFormData;
 
     try {
-      // Request a token directly using password grant
+      // 1. Get encoded client secret from backend
+      const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
+      const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse.data;
+      
+      if (!encodedSecret || randomCharPos === undefined) {
+        throw new Error('Failed to retrieve client secret');
+      }
+      
+      // Remove the extra random character from the specified position
+      const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+      console.log('Decoded client secret');
+
+      // 2. Obtain the access token using client credentials
+      const tokenResponse = await axios.post(
+        `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+        new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: 'zti-client',
+          client_secret: clientSecret,
+        })
+      );
+
+      const accessToken = tokenResponse.data.access_token;
+
+      // 2. Use the access token to authenticate the user via password grant
       const userResponse = await axios.post(
-        `https://${hostIP}:1010/realms/zti-realm/protocol/openid-connect/token`,
+        `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
         new URLSearchParams({
           grant_type: 'password',
           username: companyName,
           password: password,
-          client_id: 'zti-client',   // Public client, no secret
-          scope: 'openid profile email',
-        })
+          client_id: 'zti-client',
+          client_secret: clientSecret,
+          scope: 'openid',  // Request openid scope
+        }),
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
       );
 
       if (userResponse.data.access_token) {
-        const accessToken = userResponse.data.access_token;
-        sessionStorage.setItem('accessToken', accessToken);
+        // Store the access token separately
+        sessionStorage.setItem('accessToken', userResponse.data.access_token);
 
-        // Fetch user details
+        // Fetch user details from Keycloak
         const userDetailsResponse = await axios.get(
-          `https://${hostIP}:1010/realms/zti-realm/protocol/openid-connect/userinfo`,
+          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
           {
             headers: {
-              Authorization: `Bearer ${accessToken}`,
+              Authorization: `Bearer ${userResponse.data.access_token}`,
             },
           }
         );
 
-        const userId = userDetailsResponse.data.sub;
+        const userId = userDetailsResponse.data.sub; // Fetch the user ID
 
-        // Store login details (without token)
+        // Store authentication details in sessionStorage (except access token)
         const loginDetails = {
           loginStatus: true,
           data: {
             companyName: companyName,
-            id: userId,
+            id: userId, // Store the user ID
           },
         };
 
         sessionStorage.setItem('loginDetails', JSON.stringify(loginDetails));
 
-        // Optional: send userId to backend
+        // Send user ID to backend for storage in MySQL (optional)
         await axios.post(`https://${hostIP}:5000/store-user-id`, { userId });
 
-        // Redirect to home page
+        // Redirect to home page with notification
         checkLogin(true);
         navigate('/', { replace: true, state: { notification: 'SSO Login Successful! Welcome back!' } });
       } else {
@@ -149,4 +180,3 @@ const Login = (props) => {
 };
 
 export default Login;
-

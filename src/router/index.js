@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "../App";
 import Login from "../View/Login"; // Assuming there's a login page
 import ErrorPageContainer from "../View/ErrorPageContainer";
@@ -31,7 +31,7 @@ const publicRoutes = [
   },
   {
     path: "/*", 
-    element: <ErrorPageContainer />, 
+    element: <Navigate to="/login" replace />, 
   },
 ];
 

@@ -4,9 +4,9 @@ import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, me
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
 import PasswordUpdateForm from "../Components/PasswordUpdateForm";
-import node from "../Images/FlightDeck.jpeg";
-import squad from "../Images/Squadron.png";
-import osd from "../Images/OSD.jpeg";
+import node from "../Images/FlightDeck.png";
+import squad from "../Images/Squadron2.png";
+import osd from "../Images/OSD.png";
 import { Area, Line } from '@ant-design/plots';
 import axios from "axios";
 
@@ -965,7 +965,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "8px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={node} alt="server" style={{ width: "84px", height: "64px", userSelect: "none", zoom: "1.1" }} />
+                    <img src={node} alt="server" style={{ width: "84px", height: "74px", userSelect: "none", zoom: "1.1" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
                   </div>
                   <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", marginRight: "50px", userSelect: "none" }}>1</span>
@@ -978,7 +978,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="squadron" style={{ width: "85px", height: "70px", userSelect: "none", zoom: "1.1" }} />
+                    <img src={squad} alt="squadron" style={{ width: "85px", height: "74px", userSelect: "none", zoom: "1.1", transform: 'rotate(90deg)', transformOrigin: 'center' }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
@@ -1009,7 +1009,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginTop: "9px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", zoom: "1.1" }} />
+                    <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", zoom: "1.1", transform: 'rotate(90deg)', transformOrigin: 'center' }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>

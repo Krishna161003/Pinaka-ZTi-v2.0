@@ -13,8 +13,10 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy source code
 COPY . .
 
-# Build React app (disable eslint in CI)
-RUN DISABLE_ESLINT_PLUGIN=true npm run build
+# Build React app (disable eslint + source maps)
+ENV DISABLE_ESLINT_PLUGIN=true
+ENV GENERATE_SOURCEMAP=false
+RUN npm run build
 
 # Stage 2: Nginx server
 FROM nginx:alpine
