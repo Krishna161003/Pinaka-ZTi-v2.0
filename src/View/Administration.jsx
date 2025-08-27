@@ -34,12 +34,20 @@ const hostIP = window.location.hostname;
 
 const getAccessToken = async () => {
   try {
-    console.log(process.env.REACT_APP_CLIENT_SECRET);
+    // First get the client secret from backend
+    const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
+    const clientSecret = secretResponse.data.client_secret;
+    
+    if (!clientSecret) {
+      throw new Error('Failed to retrieve client secret from backend');
+    }
+
+    // Use the retrieved client secret to get access token
     const response = await axios.post(
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({
         client_id: "zti-client",
-        client_secret: process.env.REACT_APP_CLIENT_SECRET,
+        client_secret: clientSecret,
         grant_type: "client_credentials",
       }).toString(),
       {
@@ -48,8 +56,8 @@ const getAccessToken = async () => {
     );
     return response.data.access_token;
   } catch (error) {
-    console.error("Error fetching access token:", error);
-    throw new Error("Failed to authenticate.");
+    console.error("Error in authentication flow:", error);
+    throw new Error("Failed to authenticate: " + (error.response?.data?.error || error.message));
   }
 };
 

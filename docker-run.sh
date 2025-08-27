@@ -1,8 +1,9 @@
 #!/bin/bash
+set -euo pipefail
 set -x  # Enable debug output
 
 # ===============================================================
-#  STEP 0: Environment Setup
+# STEP 0: Environment Setup
 # ===============================================================
 HOST_IP=$(hostname -I | awk '{print $1}')
 
@@ -21,7 +22,7 @@ sed -i "s|https://${HOST_IP}|https://${REACT_APP_HOST_IP}|" ./src/Components/key
 ./update_nginx.sh
 
 # ===============================================================
-#  STEP 1: SSL Certificates
+# STEP 1: SSL Certificates
 # ===============================================================
 SSL_DIR="ssl"
 KEYSTORE_PASSWORD="yourpassword"
@@ -47,12 +48,17 @@ IP.1=${HOST_IP}
 EOF
 
 # CSR + Certificate
-openssl req -new -key keycloak.key -out keycloak.csr -subj "/C=IN/ST=Karnataka/L=Bangalore/O=Pinakastra Computing/OU=IT Department/CN=${HOST_IP}"
-openssl x509 -req -in keycloak.csr -signkey keycloak.key -out keycloak.crt -days 365 -extfile keycloak.ext || { echo "❌ Error generating certificate"; exit 1; }
+openssl req -new -key keycloak.key -out keycloak.csr \
+    -subj "/C=IN/ST=Karnataka/L=Bangalore/O=Pinakastra Computing/OU=IT Department/CN=${HOST_IP}"
+
+openssl x509 -req -in keycloak.csr -signkey keycloak.key -out keycloak.crt -days 365 -extfile keycloak.ext \
+    || { echo "❌ Error generating certificate"; exit 1; }
 
 # Keystore
 echo "Creating PKCS#12 keystore..."
-openssl pkcs12 -export -in keycloak.crt -inkey keycloak.key -out keystore.p12 -name keycloak -passout pass:"$KEYSTORE_PASSWORD" || { echo "❌ Error creating keystore"; exit 1; }
+openssl pkcs12 -export -in keycloak.crt -inkey keycloak.key -out keystore.p12 \
+    -name keycloak -passout pass:"$KEYSTORE_PASSWORD" \
+    || { echo "❌ Error creating keystore"; exit 1; }
 
 chmod 644 keystore.p12 keycloak.crt keycloak.key
 
@@ -67,47 +73,39 @@ echo "✅ SSL certificates ready"
 cd - || { echo "❌ Failed to return to original directory"; exit 1; }
 
 # ===============================================================
-#  STEP 2: Start Keycloak
+# STEP 2: Start Keycloak
 # ===============================================================
 if docker-compose -f docker-compose-keycloak.yml up --build -d; then
     echo "✅ Keycloak container started"
 
     echo "⏳ Waiting for Keycloak to be ready..."
-    until [ "$(curl -s -o /dev/null -w "%{http_code}" -k https://$HOST_IP:9090/)" != "000" ]; do
+    until [ "$(curl -s -o /dev/null -w "%{http_code}" -k https://$HOST_IP/)" != "000" ]; do
         sleep 5
         echo "Keycloak not ready yet. Retrying..."
     done
     echo "✅ Keycloak is ready."
 
     # ===========================================================
-    #  STEP 3: Keycloak Setup Scripts
+    # STEP 3: Keycloak Setup Scripts
     # ===========================================================
     if ./get_client_secret.sh; then
         echo "✅ get_client_secret.sh executed"
 
-            if ./get-admin-accesss-token.sh; then
-                echo "✅ get-admin-access-token.sh executed"
+        if ./get-admin-accesss-token.sh; then
+            echo "✅ get-admin-access-token.sh executed"
 
-                if ./role_assigned.sh; then
-                    echo "✅ role_assigned.sh executed"
-
-                    if ./set_client_public.sh; then
-                        echo "✅ set_client_public.sh executed"
-
-                        # Start the rest of the stack
-                        docker-compose up --build -d
-                    else
-                        echo "❌ Failed to execute set_client_public.sh."
-                        exit 1
-                    fi
-                else
-                    echo "❌ Failed to execute role_assigned.sh."
-                    exit 1
-                fi
+            if ./role_assigned.sh; then
+                echo "✅ role_assigned.sh executed"
+                # Start the rest of the stack
+                docker-compose up --build -d
             else
-                echo "❌ Failed to execute get-admin-access-token.sh."
+                echo "❌ Failed to execute role_assigned.sh."
                 exit 1
             fi
+        else
+            echo "❌ Failed to execute get-admin-access-token.sh."
+            exit 1
+        fi
     else
         echo "❌ Failed to execute get_client_secret.sh."
         exit 1

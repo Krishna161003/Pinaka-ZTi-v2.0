@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styles from '../Styles/Login.module.css';
 import { LockOutlined, HomeOutlined } from '@ant-design/icons';
 import { Button, Alert, Input } from 'antd';
@@ -9,10 +9,10 @@ import { useNavigate } from 'react-router-dom';
 
 const hostIP = window.location.hostname;
 
+
 const Login = (props) => {
   const { checkLogin } = props;
   const navigate = useNavigate();
-  const [isValidating, setIsValidating] = useState(true);
   const [ssoFormData, setSSOFormData] = useState({
     companyName: '',
     password: ''
@@ -35,49 +35,75 @@ const Login = (props) => {
     const { companyName, password } = ssoFormData;
 
     try {
-      // Request a token directly using password grant
+      // 1. Get client secret from backend
+      const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
+      const clientSecret = secretResponse.data.client_secret;
+      
+      if (!clientSecret) {
+        throw new Error('Failed to retrieve client secret');
+      }
+
+      // 2. Obtain the access token using client credentials
+      const tokenResponse = await axios.post(
+        `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+        new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: 'zti-client',
+          client_secret: clientSecret,
+        })
+      );
+
+      const accessToken = tokenResponse.data.access_token;
+
+      // 2. Use the access token to authenticate the user via password grant
       const userResponse = await axios.post(
         `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
         new URLSearchParams({
           grant_type: 'password',
           username: companyName,
           password: password,
-          client_id: 'zti-client',   // Public client, no secret
-          scope: 'openid profile email',
-        })
+          client_id: 'zti-client',
+          client_secret: process.env.REACT_APP_CLIENT_SECRET,
+          scope: 'openid',  // Request openid scope
+        }),
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
       );
 
       if (userResponse.data.access_token) {
-        const accessToken = userResponse.data.access_token;
-        sessionStorage.setItem('accessToken', accessToken);
+        // Store the access token separately
+        sessionStorage.setItem('accessToken', userResponse.data.access_token);
 
-        // Fetch user details
+        // Fetch user details from Keycloak
         const userDetailsResponse = await axios.get(
           `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
           {
             headers: {
-              Authorization: `Bearer ${accessToken}`,
+              Authorization: `Bearer ${userResponse.data.access_token}`,
             },
           }
         );
 
-        const userId = userDetailsResponse.data.sub;
+        const userId = userDetailsResponse.data.sub; // Fetch the user ID
 
-        // Store login details (without token)
+        // Store authentication details in sessionStorage (except access token)
         const loginDetails = {
           loginStatus: true,
           data: {
             companyName: companyName,
-            id: userId,
+            id: userId, // Store the user ID
           },
         };
 
         sessionStorage.setItem('loginDetails', JSON.stringify(loginDetails));
 
-        // Optional: send userId to backend
+        // Send user ID to backend for storage in MySQL (optional)
         await axios.post(`https://${hostIP}:5000/store-user-id`, { userId });
 
-        // Redirect to home page
+        // Redirect to home page with notification
         checkLogin(true);
         navigate('/', { replace: true, state: { notification: 'SSO Login Successful! Welcome back!' } });
       } else {
@@ -122,42 +148,6 @@ const Login = (props) => {
     </form>
   );
 
-  useEffect(() => {
-    const validateToken = async () => {
-      const token = sessionStorage.getItem('accessToken');
-      if (!token) {
-        setIsValidating(false);
-        return;
-      }
-
-      try {
-        await axios.get(
-          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        // Token is valid, proceed with login
-        checkLogin(true);
-        navigate('/', { replace: true });
-      } catch (err) {
-        // Token is invalid or expired, clear it
-        sessionStorage.removeItem('accessToken');
-        sessionStorage.removeItem('loginDetails');
-      } finally {
-        setIsValidating(false);
-      }
-    };
-
-    validateToken();
-  }, [checkLogin, navigate]);
-
-  if (isValidating) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Validating session...</div>;
-  }
-
   return (
     <div className={styles.App}>
       <div className="container-fluid ps-md-0">
@@ -186,4 +176,3 @@ const Login = (props) => {
 };
 
 export default Login;
-

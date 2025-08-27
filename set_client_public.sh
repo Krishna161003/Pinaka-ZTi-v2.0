@@ -57,9 +57,9 @@ echo "✅ Found client UUID: $CLIENT_UUID"
 # ===============================================================
 UPDATE_PAYLOAD=$(cat <<EOF
 {
-  "publicClient": true,
-  "serviceAccountsEnabled": false,
-  "authorizationServicesEnabled": false,
+  "publicClient": false,
+  "serviceAccountsEnabled": true,
+  "authorizationServicesEnabled": true,
   "bearerOnly": false
 }
 EOF

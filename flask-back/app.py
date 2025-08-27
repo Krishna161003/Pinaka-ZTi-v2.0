@@ -2687,6 +2687,25 @@ def upload_status(job_id):
 
 #--------------------------------------------Lifecycle Management End-------------------------------------------
 
+# Path to your file containing the client secret
+CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <-- change this
+
+@app.route("/get-client-secret", methods=["GET"])
+def get_client_secret():
+    try:
+        with open(CLIENT_SECRET_FILE, "r") as f:
+            client_secret = f.read().strip()
+
+        if not client_secret:
+            return jsonify({"error": "Client secret not found"}), 404
+
+        # Return as JSON (NOT SECURE FOR PRODUCTION)
+        return jsonify({"client_secret": client_secret})
+    except FileNotFoundError:
+        return jsonify({"error": f"File {CLIENT_SECRET_FILE} not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(
