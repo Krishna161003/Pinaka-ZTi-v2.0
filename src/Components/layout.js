@@ -11,7 +11,7 @@ import {
   DashboardOutlined,
   DeploymentUnitOutlined,
   SyncOutlined,
-  TruckOutlined,
+  // TruckOutlined,
   CloudServerOutlined,
   // SettingOutlined,
   FileDoneOutlined,
@@ -25,7 +25,9 @@ import {
 
 } from "@ant-design/icons";
 import { Button, Layout, Menu, theme, Dropdown, Modal } from "antd";
+import { KeyOutlined } from "@ant-design/icons";
 import Support from "./support";
+import PasswordUpdateForm from "./PasswordUpdateForm";
 
 const { Header, Content, Footer, Sider } = Layout;
 
@@ -92,6 +94,8 @@ const AppLayout = ({ children }) => {
     sessionStorage.setItem("isSiderCollapsed", JSON.stringify(!collapsed));
   };
 
+    const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+
   const items = [
     {
       key: "1",
@@ -102,12 +106,21 @@ const AppLayout = ({ children }) => {
       type: "divider",
     },
     {
+      key: "updatePassword",
+      label: "Update Password",
+      icon: <KeyOutlined />,
+      onClick: () => setIsPasswordModalVisible(true),
+    },
+    {
       key: "support",
       label: "Support",
       icon: <FileProtectOutlined />,
     },
     {
-      key: "4",
+      type: "divider",
+    },
+    {
+      key: "logout",
       label: "Logout",
       danger: true,
       onClick: handleLogout,
@@ -374,22 +387,14 @@ const AppLayout = ({ children }) => {
           />
           <div style={{ marginTop: "3px", fontSize: "9px", color: "#4A90E2" }}>
             &copy;2023 Pinakastra, Inc. All rights reserved. Pinakastra is a
-            trademark of Pinakastra Computing Pvt Ltd.
-          </div>
-        </Footer>
-        <Modal
-          title="Support"
-          open={supportOpen}
-          onCancel={() => setSupportOpen(false)}
-          footer={null}
-          width={1100}
-          bodyStyle={{ padding: 0 }}
-          destroyOnClose
-        >
-          <div style={{ padding: 16 }}>
             <Support />
           </div>
-        </Modal>
+        </Footer>
+        <Support open={supportOpen} onClose={() => setSupportOpen(false)} />
+        <PasswordUpdateForm 
+          isModalVisible={isPasswordModalVisible} 
+          setIsModalVisible={setIsPasswordModalVisible} 
+        />
       </Layout>
     </Layout>
   );
