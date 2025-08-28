@@ -346,6 +346,7 @@ const AppLayout = ({ children }) => {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            height: 56,
           }}
         >
           <Button

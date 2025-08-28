@@ -62,31 +62,31 @@ export default function SSLCertModal() {
         const origin = payloadNow?.origin || null;
         const url = payloadNow?.url || null;
 
-        const probe = async () => {
+      const probe = async () => {
           // 1) Probe exact URL; success means CORS-only → suppress
-          if (url) {
-            try {
-              await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-              if (origin) {
-                okOriginsRef.current.add(origin);
-                persistOkOrigins();
-              }
-              return true;
-            } catch (_) { /* continue */ }
-          }
-          // 2) Probe origin
-          if (origin) {
-            try {
-              await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+        if (url) {
+          try {
+            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+            if (origin) {
               okOriginsRef.current.add(origin);
               persistOkOrigins();
-              return true;
-            } catch (_) { /* fallthrough */ }
-          }
-          return false;
-        };
+            }
+            return true;
+            } catch (_) { /* continue */ }
+        }
+          // 2) Probe origin
+        if (origin) {
+          try {
+            await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+            okOriginsRef.current.add(origin);
+            persistOkOrigins();
+            return true;
+          } catch (_) { /* fallthrough */ }
+        }
+        return false;
+      };
 
-        const ok = await probe();
+      const ok = await probe();
         if (ok) return;
 
         if (origin && okOriginsRef.current.has(origin)) {
