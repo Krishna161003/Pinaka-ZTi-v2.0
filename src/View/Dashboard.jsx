@@ -970,12 +970,12 @@ const Dashboard = () => {
               <Col className="gutter-row" span={7} style={hoveredCard === 'flightDeck' ? hoverStyle : style}
                 onMouseEnter={() => setHoveredCard('flightDeck')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", marginLeft: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", width: "160px", marginLeft: "20px" }}>
                     <img src={node} alt="server" style={{ width: "84px", height: "74px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Flight Deck</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '90px', marginRight: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '90px', width: '140px', marginLeft: 'auto', marginRight: '20px' }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>1</span>
                   </div>
                 </div>
@@ -985,12 +985,12 @@ const Dashboard = () => {
                 onClick={() => navigateToIaasTab("2")}
                 onMouseEnter={() => setHoveredCard('squadron')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", marginLeft: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", width: "160px", marginLeft: "20px" }}>
                     <img src={squad} alt="squadron" style={{ width: "85px", height: "74px", userSelect: "none", transform: 'rotate(90deg)', transformOrigin: 'center' }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: 'center', minHeight: '90px', marginRight: "20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: 'center', minHeight: '90px', width: '140px', marginLeft: 'auto', marginRight: "20px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
                     <div style={{
                       display: 'inline-flex',
@@ -1016,12 +1016,12 @@ const Dashboard = () => {
               <Col className="gutter-row" span={7} style={hoveredCard === 'osd' ? hoverStyle : style}
                 onMouseEnter={() => setHoveredCard('osd')}
                 onMouseLeave={() => setHoveredCard(null)}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", marginLeft: "20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", width: "160px", marginLeft: "20px" }}>
                     <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none", transform: 'rotate(90deg)', transformOrigin: 'center' }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: 'center', minHeight: '90px', marginRight: "20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: 'center', minHeight: '90px', width: '140px', marginLeft: 'auto', marginRight: "20px" }}>
                     <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>{osdCounts.total_osds}</span>
                     <div style={{
                       display: 'inline-flex',
