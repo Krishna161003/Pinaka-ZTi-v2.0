@@ -26,6 +26,7 @@ import {
 } from "@ant-design/icons";
 import { Button, Layout, Menu, theme, Dropdown, Modal } from "antd";
 import Support from "./support";
+import PasswordUpdateForm from "./PasswordUpdateForm";
 
 const { Header, Content, Footer, Sider } = Layout;
 
@@ -39,6 +40,10 @@ const AppLayout = ({ children }) => {
   const [userData, setUserData] = useState({});
   const [, updateState] = useState();
   const forceUpdate = useCallback(() => updateState({}), []);
+  
+  // Password update state
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+  const [showPasswordUpdateButton, setShowPasswordUpdateButton] = useState(false);
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -101,6 +106,12 @@ const AppLayout = ({ children }) => {
     {
       type: "divider",
     },
+    ...(showPasswordUpdateButton ? [{
+      key: "updatePassword",
+      label: "Update Password",
+      icon: <UserOutlined />,
+      onClick: () => setIsPasswordModalVisible(true),
+    }] : []),
     {
       key: "support",
       label: "Support",
@@ -271,6 +282,23 @@ const AppLayout = ({ children }) => {
       const data = JSON.parse(sessionStorage.getItem("loginDetails"));
       if (data && data.data) {
         setUserData(data.data);
+        
+        // Check password status and show update button if needed
+        const checkPasswordStatus = async () => {
+          try {
+            const hostIP = window.location.hostname;
+            const userId = data.data.id;
+            const passwordResponse = await fetch(`https://${hostIP}:5000/api/check-password-status/${userId}`);
+            const passwordData = await passwordResponse.json();
+            
+            // Show password update button regardless of status (allows manual updates)
+            setShowPasswordUpdateButton(true);
+          } catch (error) {
+            console.error("Error checking password status:", error);
+          }
+        };
+        
+        checkPasswordStatus();
       }
     } catch (error) {
       console.error("Error parsing login details from sessionStorage:", error);
@@ -390,6 +418,12 @@ const AppLayout = ({ children }) => {
             <Support />
           </div>
         </Modal>
+        
+        {/* Password Update Modal Form */}
+        <PasswordUpdateForm
+          isModalVisible={isPasswordModalVisible}
+          setIsModalVisible={setIsPasswordModalVisible}
+        />
       </Layout>
     </Layout>
   );

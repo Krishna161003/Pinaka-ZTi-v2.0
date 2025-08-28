@@ -24,6 +24,21 @@ ADMIN_TOKEN=$(curl -k -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-co
     -d "password=admin" \
     -d "grant_type=password" | jq -r '.access_token')
 
+# Update Access Token Lifespan to 10 hours (36000 seconds)
+UPDATE_RESPONSE=$(curl -k -s -o /dev/null -w "%{http_code}" \
+  -X PUT "$KEYCLOAK_URL/admin/realms/$REALM" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{ \"accessTokenLifespan\": 36000 }")
+
+if [ "$UPDATE_RESPONSE" -ne 204 ]; then
+    echo "Error: Failed to update Access Token Lifespan (HTTP $UPDATE_RESPONSE)"
+    exit 1
+fi
+
+echo "Access Token Lifespan updated to 10 hours for realm '$REALM'."
+
+
 # Obtain a client token for the confidential client
 CLIENT_TOKEN=$(curl -k -s -X POST "$KEYCLOAK_URL/realms/$REALM/protocol/openid-connect/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \

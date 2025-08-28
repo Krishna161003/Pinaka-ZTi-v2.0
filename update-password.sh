@@ -3,18 +3,20 @@
 # Accept inputs from command-line arguments
 USERNAME="$1"
 INPUT_USER_ID="$2"
-NEW_PASSWORD="$3"
-REACT_APP_HOST_IP="$4"  # New argument for host IP
+OLD_PASSWORD="$3"
+NEW_PASSWORD="$4"
+REACT_APP_HOST_IP="$5"  # New argument for host IP
 
 # Debugging: Print received arguments
 echo "Received username: $USERNAME"
 echo "Received user ID: $INPUT_USER_ID"
-echo "Received new password: $NEW_PASSWORD"
+echo "Received old password: [HIDDEN]"
+echo "Received new password: [HIDDEN]"
 echo "Received host IP: $REACT_APP_HOST_IP"
 
 # Ensure all required arguments are provided
-if [[ -z "$USERNAME" || -z "$INPUT_USER_ID" || -z "$NEW_PASSWORD" || -z "$REACT_APP_HOST_IP" ]]; then
-    echo "Usage: $0 <username> <user_id> <new_password> <host_ip>"
+if [[ -z "$USERNAME" || -z "$INPUT_USER_ID" || -z "$OLD_PASSWORD" || -z "$NEW_PASSWORD" || -z "$REACT_APP_HOST_IP" ]]; then
+    echo "Usage: $0 <username> <user_id> <old_password> <new_password> <host_ip>"
     exit 1
 fi
 
@@ -60,7 +62,26 @@ if [[ "$USER_ID" != "$INPUT_USER_ID" ]]; then
     exit 1
 fi
 
-# Step 3: Update the user's password
+# Step 3: Verify the old password by attempting to get a token
+echo "Verifying old password..."
+OLD_PASSWORD_VERIFICATION=$(curl -k -s -X POST "https://${KEYCLOAK_HOST}/realms/$REALM/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$USERNAME" \
+    -d "password=$OLD_PASSWORD" \
+    -d "grant_type=password" \
+    -d "client_id=admin-cli")
+
+OLD_PASSWORD_TOKEN=$(echo "$OLD_PASSWORD_VERIFICATION" | jq -r .access_token)
+
+# Check if old password verification failed
+if [[ -z "$OLD_PASSWORD_TOKEN" || "$OLD_PASSWORD_TOKEN" == "null" ]]; then
+    echo "Error: Old password verification failed. The provided old password is incorrect."
+    exit 1
+fi
+
+echo "Old password verification successful."
+
+# Step 4: Update the user's password
 UPDATE_PASSWORD_RESPONSE=$(curl -k -s -X PUT "https://${KEYCLOAK_HOST}/admin/realms/$REALM/users/$USER_ID/reset-password" \
     -H "Authorization: Bearer $ACCESS_TOKEN" \
     -H "Content-Type: application/json" \

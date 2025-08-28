@@ -553,7 +553,39 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 key,
                 'Connection Timeout',
                 `Failed to connect to ${ip} after multiple attempts. The node may be taking longer than expected to come up.`,
-                () => beginInterval() // Retry function
+                () => {
+                  // Re-trigger backend scheduling and re-schedule frontend polling with delay
+                  const ssh_user = 'pinakasupport';
+                  const ssh_pass = '';
+                  const ssh_key = '';
+                  try {
+                    fetch(`https://${hostIP}:2020/poll-ssh-status`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ips: [ip], ssh_user, ssh_pass, ssh_key })
+                    }).catch(() => {});
+                  } catch (_) {}
+                  // Clear any existing timers and set a fresh delayed start
+                  try {
+                    if (window.__cloudPolling && window.__cloudPolling[ip]) {
+                      clearInterval(window.__cloudPolling[ip]);
+                      delete window.__cloudPolling[ip];
+                    }
+                    if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+                      clearTimeout(window.__cloudPollingStart[ip]);
+                      delete window.__cloudPollingStart[ip];
+                    }
+                  } catch (_) {}
+                  setDelayStartForIp(ip, Date.now());
+                  const to = setTimeout(() => {
+                    beginInterval();
+                    if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
+                      delete window.__cloudPollingStart[ip];
+                    }
+                  }, POLL_DELAY_MS);
+                  if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+                  window.__cloudPollingStart[ip] = to;
+                }
               );
             }
             
