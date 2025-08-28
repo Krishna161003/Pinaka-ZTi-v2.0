@@ -2752,7 +2752,7 @@ def get_client_secret():
 
 
 # Configuration - modify these paths as needed
-SCRIPT_PATH = "/home/pinakasupport/.pinaka_wd/"  # Path to your script that creates tar
+SCRIPT_PATH = "/home/pinakasupport/.pinaka_wd/diagnostic.sh"  # Path to your script that creates tar
 TAR_STORAGE_PATH = "/home/pinakasupport/.pinaka_wd/diagnostic_log/"  # Where script stores tar files
 CHUNK_SIZE = 8192
 
