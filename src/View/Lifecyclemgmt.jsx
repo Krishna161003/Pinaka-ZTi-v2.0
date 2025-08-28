@@ -475,8 +475,7 @@ const Lifecyclemgmt = () => {
                             width: 120, 
                             render: (_t, record) => (
                               <Button
-                                type="primary"
-                                aria-label="Download Log"
+                                aria-label="Download"
                                 onClick={() => record?.filename && downloadTarFile(record.filename)}
                                 disabled={!record?.filename || downloadingFiles[record.filename]}
                                 icon={downloadingFiles[record.filename] ? <SyncOutlined spin /> : <DownloadOutlined />}
