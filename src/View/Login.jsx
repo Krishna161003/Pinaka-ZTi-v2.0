@@ -10,8 +10,7 @@ import { useNavigate } from 'react-router-dom';
 const hostIP = window.location.hostname;
 
 
-const Login = (props) => {
-  const { checkLogin } = props;
+const Login = ({ checkLogin = () => {} }) => {
   const navigate = useNavigate();
   const [ssoFormData, setSSOFormData] = useState({
     companyName: '',
@@ -163,11 +162,18 @@ const Login = (props) => {
         // Continue with login even if storing user ID fails
       }
 
-      checkLogin(true);
+      // Call checkLogin before navigation
+      if (typeof checkLogin === 'function') {
+        checkLogin(true);
+      }
       navigate('/', { replace: true, state: { notification: 'Login successful! Welcome back!' } });
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'An unexpected error occurred. Please try again.');
+      // Show user-friendly error message
+      const errorMessage = err.response?.data?.message || 
+                         (err.code === 'ECONNABORTED' ? 'Connection timeout. Please check your network.' : 
+                         'Invalid credentials or server error. Please try again.');
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
