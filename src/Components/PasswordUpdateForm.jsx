@@ -56,6 +56,7 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
 
     notification.success({ message: "Password updated successfully!" });
     setIsModalVisible(false);
+    form.resetFields(); // Reset form fields after successful update
   };
 
   return (

@@ -622,12 +622,8 @@ app.post("/run-script", (req, res) => {
 
         const updatePwdStatus = results[0].update_pwd_status;
 
-        // If password already updated, don't allow another update
-        if (updatePwdStatus) {
-          return res
-            .status(400)
-            .send({ message: "Password already updated for this user" });
-        }
+        // Allow password updates regardless of update_pwd_status
+        // The update_pwd_status is only used to track if user has completed initial setup
 
         // Command to execute the shell script with the arguments in the correct order
         const command = `bash /usr/src/app/update-password.sh ${userUsername} ${userId} ${newPassword} ${hostIP}`;

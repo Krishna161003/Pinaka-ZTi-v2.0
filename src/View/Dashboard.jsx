@@ -3,7 +3,6 @@ import Layout1 from "../Components/layout";
 import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
-import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.png";
 import squad from "../Images/Squadron2.png";
 import osd from "../Images/OSD.png";
@@ -531,7 +530,6 @@ const Dashboard = () => {
   const statusStyle = statusColorMap[healthStatus] || statusColorMap.ERROR;
 
 
-  const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // For loading state
   const [counts, setCounts] = useState({
     cloudCount: 0,
@@ -833,11 +831,7 @@ const Dashboard = () => {
         const passwordResponse = await fetch(`https://${hostIP}:5000/api/check-password-status/${userId}`);
         const passwordData = await passwordResponse.json();
 
-        if (passwordData.updatePwdStatus === 1) {
-          setIsModalVisible(false); // Don't show modal if password updated
-        } else {
-          setIsModalVisible(true); // Show modal if password not updated
-        }
+        // Password status check - no longer handling modal here as it's moved to layout.js
 
         // Fetch dashboard counts
         const countsResponse = await fetch(`https://${hostIP}:5000/api/dashboard-counts/${userId}`);
@@ -1128,6 +1122,7 @@ const Dashboard = () => {
                     <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Role:</span>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>{serverDetails.role || 'Loading...'}</span>
                   </div>
+
                 </div>
               </div>
             </div>
@@ -1603,11 +1598,7 @@ const Dashboard = () => {
             </div>
 
           </div>
-          {/* Password Update Modal Form */}
-          <PasswordUpdateForm
-            isModalVisible={isModalVisible}
-            setIsModalVisible={setIsModalVisible}
-          />
+
         </Content>
 
       </Layout>
