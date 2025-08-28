@@ -12,9 +12,9 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
 
   const hostIP = window.location.hostname;
 
-  const executeScript = async (newPassword) => {
+  const executeScript = async (oldPassword, newPassword) => {
     try {
-      console.log("Running script with:", { userUsername, userId, newPassword });
+      console.log("Running script with:", { userUsername, userId, oldPassword: "[HIDDEN]", newPassword: "[HIDDEN]" });
 
       const response = await fetch(`https://${hostIP}:5000/run-script`, {
         method: "POST",
@@ -22,6 +22,7 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
         body: JSON.stringify({
           userUsername,
           userId,
+          oldPassword: String(oldPassword),
           newPassword: String(newPassword),
           hostIP,
         }),
@@ -41,15 +42,21 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
   };
 
   const handleFormSubmit = async (values) => {
-    const { newPassword, confirmPassword } = values;
+    const { oldPassword, newPassword, confirmPassword } = values;
 
     if (newPassword !== confirmPassword) {
-      notification.error({ message: "Passwords do not match!" });
+      notification.error({ message: "New passwords do not match!" });
       return;
     }
+
+    if (oldPassword === newPassword) {
+      notification.error({ message: "New password must be different from the old password!" });
+      return;
+    }
+
     setLoading(true); // <-- start loading
 
-    const scriptExecuted = await executeScript(newPassword);
+    const scriptExecuted = await executeScript(oldPassword, newPassword);
     setLoading(false); // <-- stop loading
     if (!scriptExecuted) {
       return;
@@ -97,6 +104,16 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
           </Form.Item>
           <Form.Item label="User ID">
             <Input value={userId} disabled style={{ fontWeight: "bold" }} />
+          </Form.Item>
+
+          <Form.Item
+            label="Current Password"
+            name="oldPassword"
+            rules={[
+              { required: true, message: "Please enter your current password" },
+            ]}
+          >
+            <Input.Password style={{ borderRadius: "8px" }} />
           </Form.Item>
 
           <Form.Item
