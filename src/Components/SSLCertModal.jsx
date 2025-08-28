@@ -42,64 +42,70 @@ export default function SSLCertModal() {
   };
 
   useEffect(() => {
-    // Subscribe once; probe origin before showing to avoid popups after SSL is accepted
-    const unsub = onSSLError(async (p) => {
-      console.log('SSL Error detected:', p); // Debug log
+    // Subscribe once; debounce and probe before showing
+    const unsub = onSSLError((p) => {
+      // Ignore while visible
+      if (visible) return;
+
       lastPayloadRef.current = p || null;
       const now = Date.now();
       if (now < cooldownUntilRef.current) {
-        console.log('Still in cooldown, ignoring SSL error');
         return; // still in cooldown
       }
 
-      const origin = p?.origin || null;
-      const url = p?.url || null;
-      // Always re-probe even if previously marked OK. If probe fails, drop from OK set and show modal.
-      const probe = async () => {
-        // 1) Probe the exact URL with no-cors: if it succeeds, it's a CORS-only failure → suppress
-        if (url) {
-          try {
-            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-            if (origin) {
+      // Debounce rapid bursts
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(async () => {
+        const payloadNow = lastPayloadRef.current;
+        const origin = payloadNow?.origin || null;
+        const url = payloadNow?.url || null;
+
+        const probe = async () => {
+          // 1) Probe exact URL; success means CORS-only → suppress
+          if (url) {
+            try {
+              await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+              if (origin) {
+                okOriginsRef.current.add(origin);
+                persistOkOrigins();
+              }
+              return true;
+            } catch (_) { /* continue */ }
+          }
+          // 2) Probe origin
+          if (origin) {
+            try {
+              await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
               okOriginsRef.current.add(origin);
               persistOkOrigins();
-            }
-            return true;
-          } catch (_) { /* continue to origin probe */ }
-        }
-        // 2) Probe the origin
-        if (origin) {
-          try {
-            await fetch(origin + '/', { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-            okOriginsRef.current.add(origin);
-            persistOkOrigins();
-            return true;
-          } catch (_) { /* fallthrough */ }
-        }
-        return false;
-      };
+              return true;
+            } catch (_) { /* fallthrough */ }
+          }
+          return false;
+        };
 
-      const ok = await probe();
-      if (ok) {
-        return;
-      } else {
+        const ok = await probe();
+        if (ok) return;
+
         if (origin && okOriginsRef.current.has(origin)) {
           okOriginsRef.current.delete(origin);
           persistOkOrigins();
         }
-        // Show the modal
-        console.log('Showing SSL error modal for:', p);
-        setPayload(p || null);
+        setPayload(payloadNow || null);
         setVisible(true);
-      }
+      }, 600);
     });
     return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
       unsub();
     };
   }, [visible]);
 
   const handleClose = () => {
-    console.log('Closing SSL modal');
     setVisible(false);
     cooldownUntilRef.current = Date.now() + 30000; // cooldown (ms) to prevent frequent popups
   };

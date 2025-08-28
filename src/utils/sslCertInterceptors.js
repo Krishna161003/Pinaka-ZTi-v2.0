@@ -58,8 +58,12 @@ axios.interceptors.response.use(
       msg.includes('unable to verify') ||
       msg.includes('certificate verify failed');
 
-    // Emit for any HTTPS network error. The UI will probe/suppress CORS-only failures.
-    if (isNetwork && payload.url.startsWith('https://')) {
+    // Skip unreachable host errors (not SSL-related)
+    const isAddressUnreachable = code.includes('address_unreachable') || msg.includes('address_unreachable') ||
+      code.includes('err_address_unreachable') || msg.includes('err_address_unreachable');
+
+    // Emit for HTTPS network errors except unreachable-host cases. UI will probe/suppress CORS-only failures.
+    if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable) {
       emitSSLError(payload);
     }
     return Promise.reject(err);
@@ -89,8 +93,11 @@ if (typeof window !== 'undefined' && window.fetch) {
         lowerMsg.includes('unable to verify') ||
         lowerMsg.includes('certificate verify failed');
 
-      // Emit for any HTTPS network error. The UI will probe/suppress CORS-only failures.
-      if (isNetwork && payload.url.startsWith('https://')) {
+      // Skip unreachable host errors (not SSL-related)
+      const isAddressUnreachable = lowerMsg.includes('address_unreachable') || lowerMsg.includes('err_address_unreachable');
+
+      // Emit for HTTPS network errors except unreachable-host cases. UI will probe/suppress CORS-only failures.
+      if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable) {
         emitSSLError(payload);
       }
       throw e;

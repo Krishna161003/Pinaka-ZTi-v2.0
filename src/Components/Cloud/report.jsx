@@ -55,7 +55,7 @@ const Report = ({ onDeploymentComplete }) => {
                       sessionStorage.setItem('cloud_activeTab', '1');
                       sessionStorage.setItem('cloud_disabledTabs', JSON.stringify({ "2": true, "3": true, "4": true, "5": true }));
                     } catch (_) {}
-                    notification.close(key);
+                    notification.destroy(key);
                     navigate('/iaas');
                   }}
                 >

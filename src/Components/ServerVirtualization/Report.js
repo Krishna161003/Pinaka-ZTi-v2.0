@@ -45,7 +45,7 @@ const Report = ({ onDeploymentComplete }) => {
                         sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
                         sessionStorage.setItem('disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
                       } catch (_) { }
-                      notification.close(key);
+                      notification.destroy(key);
                       navigate('/iaas');
                     }}
                   >
