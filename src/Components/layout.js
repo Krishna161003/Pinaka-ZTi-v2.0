@@ -357,7 +357,7 @@ const AppLayout = ({ children }) => {
               fontSize: "16px",
               width: 64,
               height: 25,
-              marginBottom: 7,
+              // marginBottom: 7,
               background: "transparent",
               border: "none",
             }}
