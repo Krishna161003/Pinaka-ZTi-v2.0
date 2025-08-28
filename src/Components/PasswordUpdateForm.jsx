@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { notification, Modal, Form, Input, Button } from "antd";
 import { motion } from "framer-motion";
+import { CloseOutlined } from "@ant-design/icons";
 
 const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
   const [form] = Form.useForm();
@@ -62,13 +63,29 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
   return (
     <Modal
       title={
-        <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-          Update Password
-        </motion.h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            Update Password
+          </motion.h2>
+          <Button
+            type="text"
+            icon={<CloseOutlined />}
+            onClick={() => setIsModalVisible(false)}
+            style={{
+              border: 'none',
+              boxShadow: 'none',
+              fontSize: '16px',
+              color: '#666',
+              padding: '4px',
+              height: 'auto',
+              width: 'auto'
+            }}
+          />
+        </div>
       }
       open={isModalVisible}
       footer={null}
-      maskClosable={false}
+      maskClosable={true}
       closable={false}
       centered
       style={{ borderRadius: "12px", overflow: "hidden" }}
