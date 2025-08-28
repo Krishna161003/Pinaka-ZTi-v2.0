@@ -783,7 +783,7 @@ const ServiceStatus = () => {
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
-              <h2 style={{ marginTop: '0px' }}>Service operations </h2>
+              <h2 style={{ marginTop: '0px' }}>Service Operations </h2>
             </div>
           </div>
           <div style={{

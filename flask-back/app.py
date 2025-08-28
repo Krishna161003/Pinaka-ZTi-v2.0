@@ -399,7 +399,7 @@ def decrypt_code_endpoint():
         return jsonify({"success": False, "message": "Code not found!"}), 404
 
     # Path to the license.txt file
-    license_file_path = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
+   #license_file_path = "/home/pinakasupport/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
 
     # Check if the license code already exists in the license.txt file
     if check_license_used(license_file_path, encrypted_code):
@@ -701,7 +701,7 @@ def submit_network_config():
                 iface_count += 1
 
         # === Save the file ===
-        config_dir = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/submitted_configs/"
+        config_dir = "/home/pinakasupport/Pinaka-ZTi-v1.5/flask-back/submitted_configs/"
         os.makedirs(config_dir, exist_ok=True)
         file_path = os.path.join(config_dir, "data.json")
         
@@ -2715,7 +2715,7 @@ def upload_status(job_id):
 #--------------------------------------------Lifecycle Management End-------------------------------------------
 
 # Path to your file containing the client secret
-CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <-- change this
+CLIENT_SECRET_FILE = "/home/pinaka/Pinaka-ZTi-v2.0/.env"  # <-- change this
 
 import random
 import string
