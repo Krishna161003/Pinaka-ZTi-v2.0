@@ -1660,7 +1660,7 @@ def poll_ssh_status():
             # If no inline key, use the fixed PEM file path provided
             if not pkey:
                 try:
-                    selected_path = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/ps_key.pem"
+                    selected_path = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
                     if not os.path.exists(selected_path):
                         raise FileNotFoundError(f"PEM key file not found at: {selected_path}")
                     pkey = paramiko.RSAKey.from_private_key_file(selected_path)
