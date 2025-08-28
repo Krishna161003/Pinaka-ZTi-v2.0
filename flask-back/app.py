@@ -4,7 +4,8 @@
 # sudo setcap cap_net_raw+ep /usr/bin/python3.11
 
 
-from flask import Flask, request, jsonify, Response, stream_with_context, send_file,send_from_directory, safe_join
+from flask import Flask, request, jsonify, Response, stream_with_context, send_file,send_from_directory
+from werkzeug.utils import safe_join
 from flask_cors import CORS
 from datetime import datetime
 from scapy.all import ARP, Ether, srp
@@ -2753,6 +2754,7 @@ def get_client_secret():
 # Configuration - modify these paths as needed
 SCRIPT_PATH = "/home/pinakasupport/.pinaka_wd/"  # Path to your script that creates tar
 TAR_STORAGE_PATH = "/home/pinakasupport/.pinaka_wd/diagnostic_log/"  # Where script stores tar files
+CHUNK_SIZE = 8192
 
 # Ensure storage directory exists
 os.makedirs(TAR_STORAGE_PATH, exist_ok=True)
@@ -2835,33 +2837,40 @@ def list_tar_files():
     except Exception as e:
         return jsonify({"error": f"Failed to list tar files: {str(e)}"}), 500
 
+def generate_file_stream(filepath):
+    with open(filepath, 'rb') as f:
+        while True:
+            chunk = f.read(CHUNK_SIZE)
+            if not chunk:
+                break
+            yield chunk
+
 @app.route('/download-tar/<filename>', methods=['GET'])
 def download_tar_file(filename):
-    """
-    Endpoint to download a specific tar file efficiently.
-    """
-    # Prevent path traversal
-    if '..' in filename or '/' in filename or '\\' in filename:
+    # Prevent path traversal via safe_join
+    try:
+        directory = os.path.abspath(TAR_STORAGE_PATH)
+        filepath = safe_join(directory, filename)
+    except Exception:
         return jsonify({"error": "Invalid filename"}), 400
 
-    # Only allow .tar/.tar.gz/.tgz/.tar.bz2
-    allowed_exts = ('.tar', '.tar.gz', '.tgz', '.tar.bz2')
-    if not filename.endswith(allowed_exts):
+    # Validate extension
+    if not filename.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2')):
         return jsonify({"error": "Not a valid tar file"}), 400
 
-    try:
-        # Use safe_join to ensure path stays within directory
-        directory = os.path.abspath(TAR_STORAGE_PATH)
-        # This will raise NotFound if filename is outside directory
-        return send_from_directory(
-            directory,
-            filename,
-            as_attachment=True
-        )
-    except Exception as e:
-        # Log the error server-side if desired
-        app.logger.error(f"Download error for {filename}: {e}")
-        return jsonify({"error": f"Failed to download file: {str(e)}"}), 500
+    if not os.path.exists(filepath):
+        return jsonify({"error": "File not found"}), 404
+
+    headers = {
+        'Content-Disposition': f'attachment; filename="{filename}"'
+    }
+
+    return Response(
+        stream_with_context(generate_file_stream(filepath)),
+        headers=headers,
+        content_type='application/octet-stream',
+        direct_passthrough=True
+    )
     
 @app.route('/script-status', methods=['GET'])
 def script_status():
