@@ -319,7 +319,6 @@ const Dashboard = () => {
     return out.sort((a, b) => a.date - b.date);
   }
 
-
   const BandwidthLine = ({ bandwidthHistory }) => {
     return (
       <Line
@@ -329,17 +328,14 @@ const Dashboard = () => {
         xField="date"
         yField="value"
         seriesField="direction"
-        // Ensure color maps to the same field as series
         colorField="direction"
-        color={['#1677ff', '#52c41a']} // order follows series order by data
-        // or use a mapping object:
-        // color={{ In: '#1677ff', Out: '#52c41a' }}
+        color={['#1677ff', '#52c41a']}
         lineStyle={{ lineWidth: 2 }}
+        legend={false}  // This removes the "In" and "Out" legend
         label={{
           selector: 'last',
-          text: (d) => `${d.direction}: ${
-            typeof d.value === 'number' ? d.value.toFixed(0) : d.value
-          }`,
+          text: (d) => `${d.direction}: ${typeof d.value === 'number' ? d.value.toFixed(0) : d.value
+            }`,
           textAlign: 'right',
           textBaseline: 'bottom',
           dx: -10,
@@ -350,7 +346,8 @@ const Dashboard = () => {
       />
     );
   };
-  
+
+
 
 
   // Still fetch memory and single CPU value for other UI
