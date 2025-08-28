@@ -415,7 +415,7 @@ const Lifecyclemgmt = () => {
                   label: 'Diagnostic',
                   children: (
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 12 }}>
                         <Button
                           type="primary"
                           icon={<PlayCircleOutlined />}
