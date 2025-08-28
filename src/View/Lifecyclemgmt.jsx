@@ -53,14 +53,14 @@ const Lifecyclemgmt = () => {
       });
       const data = await res.json();
       if (res.ok) {
-        message.success('Log collection started successfully');
+        message.success('Diagnosis started successfully');
         // Refresh the tar files list after successful execution
         fetchTarFiles();
       } else {
-        message.error(data.error || 'Failed to start log collection');
+        message.error(data.error || 'Failed to start diagnosis');
       }
     } catch (error) {
-      message.error('Failed to start log collection');
+      message.error('Failed to start diagnosis');
     }
   };
 
@@ -425,20 +425,20 @@ const Lifecyclemgmt = () => {
                   label: 'Diagnostic',
                   children: (
                     <div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                         <Button
                           type="primary"
                           icon={<PlayCircleOutlined />}
                           onClick={runLogCollection}
-                          style={{ marginRight: 8,width: '170px' }}
+                          style={{ width: '170px' }}
                         >
-                          Run Log Collection
+                          Run Diagnostic Tool 
                         </Button>
                         <Button
                           aria-label="Refresh"
                           onClick={fetchTarFiles}
                           icon={<SyncOutlined />}
-                          style={{ borderColor: '#1890ff', color: '#1890ff',width: '95px' }}
+                          style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
                         >
                           Refresh
                         </Button>
