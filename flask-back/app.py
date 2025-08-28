@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from datetime import datetime
 from scapy.all import ARP, Ether, srp
-from collections import deque
+from collections import deque, defaultdict
 import psutil
 import os
 import json
@@ -36,7 +36,6 @@ CORS(app, supports_credentials=True)
 # Store last 60 seconds of CPU, Memory, and Bandwidth usage
 timestamped_cpu_history = deque(maxlen=60)
 timestamped_memory_history = deque(maxlen=60)
-timestamped_bandwidth_history = deque(maxlen=60)
 
 def add_cpu_history(cpu_percent):
     # Ensure value is always 0–100, never fraction.
@@ -62,31 +61,6 @@ def get_cpu_history():
 
 def get_memory_history():
     return list(timestamped_memory_history)
-
-# Add bandwidth history
-last_bandwidth = {'rx': 0, 'tx': 0, 'timestamp': 0}
-def add_bandwidth_history(interface):
-    global last_bandwidth
-    rx, tx = get_bandwidth(interface)
-    now = int(time.time())
-    if rx is None or tx is None:
-        return
-    if last_bandwidth['timestamp'] == 0:
-        last_bandwidth = {'rx': rx, 'tx': tx, 'timestamp': now}
-        return
-    elapsed = now - last_bandwidth['timestamp']
-    if elapsed <= 0:
-        return
-    bandwidth_kbps = ((rx - last_bandwidth['rx']) + (tx - last_bandwidth['tx'])) / 1024 / elapsed
-    timestamped_bandwidth_history.append({
-        "timestamp": now,
-        "bandwidth_kbps": round(bandwidth_kbps, 2),
-        "interface": interface
-    })
-    last_bandwidth = {'rx': rx, 'tx': tx, 'timestamp': now}
-
-def get_bandwidth_history():
-    return list(timestamped_bandwidth_history)
 
 # ------------------------------------------------ Server Validation Start --------------------------------------------
 #  Validation criteria
@@ -1017,79 +991,132 @@ def get_available_interfaces():
     except Exception:
         return []
 
-def get_bandwidth(interface):
+@app.route("/interfaces", methods=["GET"])
+def interfaces():
+    iface_list = get_available_interfaces()
+    return jsonify([{"label": iface, "value": iface} for iface in iface_list])
+# history of last 60 samples
+timestamped_bandwidth_history = deque(maxlen=60)
+
+# per-interface last sample (rx, tx, ts)
+last_bandwidth = defaultdict(lambda: {'rx': 0, 'tx': 0, 'timestamp': 0})
+
+def get_bandwidth_proc(interface):
     try:
         with open('/proc/net/dev', 'r') as f:
-            lines = f.readlines()
-        for line in lines:
-            if interface in line:
-                data = line.split()
-                rx_bytes = int(data[1])
-                tx_bytes = int(data[9])
-                return rx_bytes, tx_bytes
+            for line in f:
+                if ':' not in line:
+                    continue
+                name, rest = line.split(':', 1)
+                if name.strip() == interface:
+                    fields = rest.split()
+                    rx_bytes = int(fields)   # first receive field after colon
+                    tx_bytes = int(fields[10])   # ninth transmit field after colon
+                    return rx_bytes, tx_bytes
         return None, None
     except Exception:
         return None, None
 
+# Optionally prefer /sys (slightly simpler, one file per counter)
+def get_bandwidth_sys(interface):
+    try:
+        with open(f'/sys/class/net/{interface}/statistics/rx_bytes', 'r') as f:
+            rx = int(f.read().strip())
+        with open(f'/sys/class/net/{interface}/statistics/tx_bytes', 'r') as f:
+            tx = int(f.read().strip())
+        return rx, tx
+    except Exception:
+        return None, None
+
+# choose one reader; /sys is often the cleanest
+get_bandwidth = get_bandwidth_sys  # or get_bandwidth_proc
+
 def get_latency(host="8.8.8.8", count=3):
     try:
         output = subprocess.check_output(["ping", "-c", str(count), host], stderr=subprocess.DEVNULL).decode()
-        match = re.search(r"min/avg/max/mdev = [\d\.]+/([\d\.]+)/", output)
+        match = re.search(r"min/avg/max/(?:mdev|stddev) = [\d\.]+/([\d\.]+)/", output)
         if match:
             return float(match.group(1))
     except Exception:
         pass
     return None
 
-@app.route("/interfaces", methods=["GET"])
-def interfaces():
-    iface_list = get_available_interfaces()
-    return jsonify([{"label": iface, "value": iface} for iface in iface_list])
+def sample_rates(interface, interval_sec=1):
+    # one-shot sampler: get delta over interval_sec
+    rx1, tx1 = get_bandwidth(interface)
+    if rx1 is None or tx1 is None:
+        return None, None
+    time.sleep(interval_sec)
+    rx2, tx2 = get_bandwidth(interface)
+    if rx2 is None or tx2 is None:
+        return None, None
+    rx_kbps = (rx2 - rx1) / 1024.0 / interval_sec
+    tx_kbps = (tx2 - tx1) / 1024.0 / interval_sec
+    return rx_kbps, tx_kbps
+
+def add_bandwidth_history(interface):
+    rx, tx = get_bandwidth(interface)
+    now = int(time.time())
+    if rx is None or tx is None:
+        return
+    last = last_bandwidth[interface]
+    if last['timestamp'] == 0:
+        last_bandwidth[interface] = {'rx': rx, 'tx': tx, 'timestamp': now}
+        return
+    elapsed = now - last['timestamp']
+    if elapsed <= 0:
+        return
+    rx_kbps = (rx - last['rx']) / 1024.0 / elapsed
+    tx_kbps = (tx - last['tx']) / 1024.0 / elapsed
+    timestamped_bandwidth_history.append({
+        "timestamp": now,
+        "rx_kbps": round(rx_kbps, 2),
+        "tx_kbps": round(tx_kbps, 2),
+        "interface": interface
+    })
+    last_bandwidth[interface] = {'rx': rx, 'tx': tx, 'timestamp': now}
+
+def get_bandwidth_history():
+    return list(timestamped_bandwidth_history)
 
 @app.route("/network-health", methods=["GET"])
 def network_health():
     interfaces = get_available_interfaces()
     interface = request.args.get("interface")
-    
     if not interface:
         if interfaces:
-            interface = interfaces[0]
+            interface = interfaces  # pick first available
         else:
             return jsonify({"error": "No network interfaces available"}), 500
 
     ping_host = request.args.get("ping_host", "8.8.8.8")
 
-    rx1, tx1 = get_bandwidth(interface)
-    time.sleep(1)
-    rx2, tx2 = get_bandwidth(interface)
-
-    if None in (rx1, tx1, rx2, tx2):
+    rx_kbps, tx_kbps = sample_rates(interface, interval_sec=1)
+    if rx_kbps is None or tx_kbps is None:
         return jsonify({"error": f"Failed to read bandwidth data for interface {interface}"}), 500
 
-    bandwidth_rx_kbps = (rx2 - rx1) / 1024
-    bandwidth_tx_kbps = (tx2 - tx1) / 1024
     latency_ms = get_latency(ping_host)
 
-    # Add to bandwidth history
     add_bandwidth_history(interface)
 
     return jsonify({
         "time": time.strftime("%H:%M"),
-        "bandwidth_kbps": round(bandwidth_rx_kbps + bandwidth_tx_kbps, 2),
-        "latency_ms": round(latency_ms, 2) if latency_ms is not None else None
+        "rx_kbps": round(rx_kbps, 2),
+        "tx_kbps": round(tx_kbps, 2),
+        "total_kbps": round(rx_kbps + tx_kbps, 2),
+        "latency_ms": round(latency_ms, 2) if latency_ms is not None else None,
+        "interface": interface
     })
 
-# Bandwidth history endpoint
 @app.route('/bandwidth-history', methods=['GET'])
 def bandwidth_history():
     interface = request.args.get('interface')
     if not interface:
         interfaces = get_available_interfaces()
         if interfaces:
-            interface = interfaces[0]
+            interface = interfaces
         else:
             return jsonify({"bandwidth_history": [], "error": "No interfaces available"})
-    # Optionally, trigger a new sample
     add_bandwidth_history(interface)
     return jsonify({"bandwidth_history": get_bandwidth_history()})
 

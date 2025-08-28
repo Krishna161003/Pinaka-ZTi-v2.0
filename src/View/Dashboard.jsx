@@ -69,8 +69,8 @@ const Dashboard = () => {
   const [cpuHistory, setCpuHistory] = useState([]);
   const [interfaces, setInterfaces] = useState([]);
   const [selectedInterface, setSelectedInterface] = useState("");
-  const [bandwidthHistory, setBandwidthHistory] = useState([]);
-  const [currentBandwidth, setCurrentBandwidth] = useState(0);
+  const [bandwidthHistory, setBandwidthHistory] = useState([]); // [{ date, value, direction }]
+  const [currentBandwidth, setCurrentBandwidth] = useState({ rx: 0, tx: 0 });
   const [chartData, setChartData] = useState([]);
   const [healthStatus, setHealthStatus] = useState("Loading");
   const [healthDetails, setHealthDetails] = useState({ metrics: null, thresholds: null, reasons: [] });
@@ -298,17 +298,25 @@ const Dashboard = () => {
     return <Line {...config} />;
   };
 
-  // Helper: Moving average smoothing for bandwidth
+  // Helper: Moving average smoothing for bandwidth (per direction)
   function getSmoothedBandwidthHistory(history, windowSize = 5) {
     if (!Array.isArray(history) || history.length === 0) return [];
-    const smoothed = [];
-    for (let i = 0; i < history.length; i++) {
-      let start = Math.max(0, i - windowSize + 1);
-      let window = history.slice(start, i + 1);
-      let avg = window.reduce((sum, item) => sum + (typeof item.value === 'number' ? item.value : 0), 0) / window.length;
-      smoothed.push({ ...history[i], value: avg });
+    const byDir = history.reduce((acc, item) => {
+      const key = item.direction || 'Total';
+      (acc[key] = acc[key] || []).push(item);
+      return acc;
+    }, {});
+    const out = [];
+    for (const key of Object.keys(byDir)) {
+      const series = byDir[key];
+      for (let i = 0; i < series.length; i++) {
+        const start = Math.max(0, i - windowSize + 1);
+        const windowArr = series.slice(start, i + 1);
+        const avg = windowArr.reduce((sum, it) => sum + (typeof it.value === 'number' ? it.value : 0), 0) / windowArr.length;
+        out.push({ ...series[i], value: avg });
+      }
     }
-    return smoothed;
+    return out.sort((a, b) => a.date - b.date);
   }
 
 
@@ -320,13 +328,12 @@ const Dashboard = () => {
       smooth: true,
       xField: 'date',
       yField: 'value',
-      lineStyle: {
-        stroke: '#52c41a',
-        lineWidth: 2,
-      },
+      seriesField: 'direction',
+      lineStyle: { lineWidth: 2 },
+      color: ({ direction }) => (direction === 'In' ? '#1677ff' : '#52c41a'),
       label: {
         selector: 'last',
-        text: (d) => d.value,
+        text: (d) => `${d.direction}: ${typeof d.value === 'number' ? d.value.toFixed(0) : d.value}`,
         textAlign: 'right',
         textBaseline: 'bottom',
         dx: -10,
@@ -406,26 +413,29 @@ const Dashboard = () => {
         const res = await fetch(`https://${selectedHostIP}:2020/bandwidth-history?interface=${selectedInterface}`);
         const data = await res.json();
         if (data && Array.isArray(data.bandwidth_history)) {
-          setBandwidthHistory(
-            data.bandwidth_history.map(item => ({
-              ...item,
-              date: new Date(item.timestamp * 1000),
-              value: typeof item.bandwidth_kbps === 'number' && !isNaN(item.bandwidth_kbps) ? item.bandwidth_kbps : 0,
-            }))
-          );
-          // Set current bandwidth to the latest value
+          const hist = [];
+          for (const item of data.bandwidth_history) {
+            const ts = new Date((item.timestamp || 0) * 1000);
+            const rx = Number(item.rx_kbps) || 0;
+            const tx = Number(item.tx_kbps) || 0;
+            hist.push({ date: ts, value: rx, direction: 'In' });
+            hist.push({ date: ts, value: tx, direction: 'Out' });
+          }
+          setBandwidthHistory(hist);
+          // Set current bandwidths
           if (data.bandwidth_history.length > 0) {
-            setCurrentBandwidth(data.bandwidth_history[data.bandwidth_history.length - 1].bandwidth_kbps);
+            const last = data.bandwidth_history[data.bandwidth_history.length - 1];
+            setCurrentBandwidth({ rx: Number(last.rx_kbps) || 0, tx: Number(last.tx_kbps) || 0 });
           } else {
-            setCurrentBandwidth(0);
+            setCurrentBandwidth({ rx: 0, tx: 0 });
           }
         } else {
           setBandwidthHistory([]);
-          setCurrentBandwidth(0);
+          setCurrentBandwidth({ rx: 0, tx: 0 });
         }
       } catch (err) {
         setBandwidthHistory([]);
-        setCurrentBandwidth(0);
+        setCurrentBandwidth({ rx: 0, tx: 0 });
         if (lastErrorIpRef.current !== selectedHostIP) {
           message.error(`Failed to fetch bandwidth history from ${selectedHostIP}`);
           lastErrorIpRef.current = selectedHostIP;
@@ -1304,7 +1314,7 @@ const Dashboard = () => {
                     </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Current: {typeof currentBandwidth === 'number' ? currentBandwidth.toFixed(1) : '0.0'} kbps
+                      Current: In {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, Out {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
                     </div>
                   </div>
                   <div style={{ height: 70, margin: '0 -20px 10px -20px' }}>
