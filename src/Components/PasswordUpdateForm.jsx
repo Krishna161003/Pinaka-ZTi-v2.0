@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { notification, Modal, Form, Input, Button } from "antd";
 import { motion } from "framer-motion";
 import { CloseOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 
 const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
   const storedData = JSON.parse(sessionStorage.getItem("loginDetails")) || {};
   const userId = storedData?.data?.id || "";
   const userUsername = storedData?.data?.companyName || "";
@@ -62,9 +64,18 @@ const PasswordUpdateForm = ({ isModalVisible, setIsModalVisible }) => {
       return;
     }
 
-    notification.success({ message: "Password updated successfully!" });
+    notification.success({ 
+      message: "Password updated successfully!", 
+      description: "You will be logged out to apply the new password." 
+    });
     setIsModalVisible(false);
     form.resetFields(); // Reset form fields after successful update
+    
+    // Clear session storage and redirect to login
+    setTimeout(() => {
+      sessionStorage.clear();
+      navigate('/login', { replace: true });
+    }, 2000); // Give user 2 seconds to see the success message
   };
 
   return (
