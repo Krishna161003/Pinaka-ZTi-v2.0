@@ -2838,41 +2838,31 @@ def list_tar_files():
 @app.route('/download-tar/<filename>', methods=['GET'])
 def download_tar_file(filename):
     """
-    Endpoint to download a specific tar file
+    Endpoint to download a specific tar file efficiently.
     """
-    try:
-        # Security check: ensure filename doesn't contain path traversal
-        if '..' in filename or '/' in filename or '\\' in filename:
-            return jsonify({"error": "Invalid filename"}), 400
-        
-        filepath = os.path.join(TAR_STORAGE_PATH, filename)
-        
-        # Check if file exists
-        if not os.path.exists(filepath):
-            return jsonify({"error": "File not found"}), 404
-        
-        # Check if it's actually a tar file
-        if not filename.endswith(('.tar', '.tar.gz', '.tar.bz2', '.tgz')):
-            return jsonify({"error": "Not a valid tar file"}), 400
-        
-        # Determine mimetype based on extension
-        if filename.endswith('.gz') or filename.endswith('.tgz'):
-            mimetype = 'application/gzip'
-        elif filename.endswith('.bz2'):
-            mimetype = 'application/x-bzip2'
-        else:
-            mimetype = 'application/x-tar'
-        
-        return send_file(
-            filepath,
-            as_attachment=True,
-            download_name=filename,
-            mimetype=mimetype
-        )
-        
-    except Exception as e:
-        return jsonify({"error": f"Failed to download file: {str(e)}"}), 500
+    # Prevent path traversal
+    if '..' in filename or '/' in filename or '\\' in filename:
+        return jsonify({"error": "Invalid filename"}), 400
 
+    # Only allow .tar/.tar.gz/.tgz/.tar.bz2
+    allowed_exts = ('.tar', '.tar.gz', '.tgz', '.tar.bz2')
+    if not filename.endswith(allowed_exts):
+        return jsonify({"error": "Not a valid tar file"}), 400
+
+    try:
+        # Use safe_join to ensure path stays within directory
+        directory = os.path.abspath(TAR_STORAGE_PATH)
+        # This will raise NotFound if filename is outside directory
+        return send_from_directory(
+            directory,
+            filename,
+            as_attachment=True
+        )
+    except Exception as e:
+        # Log the error server-side if desired
+        app.logger.error(f"Download error for {filename}: {e}")
+        return jsonify({"error": f"Failed to download file: {str(e)}"}), 500
+    
 @app.route('/script-status', methods=['GET'])
 def script_status():
     """
