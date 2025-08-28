@@ -479,7 +479,7 @@ const Lifecyclemgmt = () => {
                                 onClick={() => record?.filename && downloadTarFile(record.filename)}
                                 disabled={!record?.filename || downloadingFiles[record.filename]}
                                 icon={downloadingFiles[record.filename] ? <SyncOutlined spin /> : <DownloadOutlined />}
-                                style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
+                                style={{ borderColor: '#1890ff', color: '#1890ff' }}
                               >
                                 {downloadingFiles[record.filename] ? 'Downloading...' : 'Download'}
                               </Button>
