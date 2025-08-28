@@ -469,9 +469,11 @@ const Lifecyclemgmt = () => {
                                 onClick={() => record?.filename && downloadTarFile(record.filename)}
                                 disabled={!record?.filename}
                                 icon={<DownloadOutlined />}
+                                style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
                               >
                                 Download
                               </Button>
+                              
                             ) 
                           }
                         ]}
