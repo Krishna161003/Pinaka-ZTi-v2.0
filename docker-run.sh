@@ -115,4 +115,4 @@ else
     exit 1
 fi
 
-cp .env ../flask-back/.env
+cp .env ./flask-back/.env
