@@ -1017,7 +1017,7 @@ const Dashboard = () => {
                 onMouseEnter={() => setHoveredCard('osd')}
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", width: "160px", marginLeft: "20px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "90px", width: "160px", marginLeft: "20px", marginTop: "10px" }}>
                     <img src={osd} alt="osd" style={{ width: "64px", height: "64px", userSelect: "none" }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
