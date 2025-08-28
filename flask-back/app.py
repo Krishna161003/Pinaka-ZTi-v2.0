@@ -2751,8 +2751,8 @@ def get_client_secret():
 
 
 # Configuration - modify these paths as needed
-SCRIPT_PATH = "/home/pinakasupprt/.pinaka_wd/"  # Path to your script that creates tar
-TAR_STORAGE_PATH = "/home/pinakasupprt/.pinaka_wd/diagnostic_log/"  # Where script stores tar files
+SCRIPT_PATH = "/home/pinakasupport/.pinaka_wd/"  # Path to your script that creates tar
+TAR_STORAGE_PATH = "/home/pinakasupport/.pinaka_wd/diagnostic_log/"  # Where script stores tar files
 
 # Ensure storage directory exists
 os.makedirs(TAR_STORAGE_PATH, exist_ok=True)
