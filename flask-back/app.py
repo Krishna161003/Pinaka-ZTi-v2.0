@@ -2717,7 +2717,7 @@ def upload_status(job_id):
 #--------------------------------------------Lifecycle Management End-------------------------------------------
 
 # Path to your file containing the client secret
-CLIENT_SECRET_FILE = "/home/pinaka/Pinaka-ZTi-v2.0/.env"  # <-- change this
+CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <-- change this
 
 import random
 import string
