@@ -114,3 +114,5 @@ else
     echo "❌ Failed to start Keycloak container."
     exit 1
 fi
+
+cp .env ../flask-back/.env
