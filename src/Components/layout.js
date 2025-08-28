@@ -358,6 +358,7 @@ const AppLayout = ({ children }) => {
               width: 64,
               height: 25,
               marginBottom: 5,
+              marginTop: 5,
               background: "transparent",
               border: "none",
             }}
