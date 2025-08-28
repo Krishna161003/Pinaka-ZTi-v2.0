@@ -324,32 +324,56 @@ const Dashboard = () => {
     return (
       <Line
         data={bandwidthHistory}
-        height={110}
+        height={120}                // compact but readable [2]
+        padding={[8, 8, 22, 36]}    // top, right, bottom, left [2]
         smooth
         xField="date"
         yField="value"
         seriesField="direction"
-        // Ensure color maps to the same field as series
         colorField="direction"
-        color={['#1677ff', '#52c41a']} // order follows series order by data
-        // or use a mapping object:
-        // color={{ In: '#1677ff', Out: '#52c41a' }}
+        color={{ In: '#1677ff', Out: '#52c41a' }}  // stable mapping [2]
         lineStyle={{ lineWidth: 2 }}
+        legend={{
+          position: 'top-left',     // keep near title [2]
+          itemName: { style: { fontSize: 11 } },
+          marker: { symbol: 'line' },
+          offsetY: 2,
+        }}
+        tooltip={{ shared: true, showMarkers: true }}
+        xAxis={{
+          label: {
+            autoHide: true,
+            autoRotate: false,
+            rotate: Math.PI / 6,    // ~30° to prevent overlap [2]
+            style: { fontSize: 10 },
+          },
+          tickCount: 6,
+        }}
+        yAxis={{
+          title: null,
+          grid: { line: { style: { lineDash: [3, 3], strokeOpacity: 0.3 } } },
+          label: { style: { fontSize: 10 } },
+          nice: true,
+          min: 0,
+        }}
         label={{
           selector: 'last',
+          offset: 8,                // position label just after the last point [2]
           text: (d) => `${d.direction}: ${
             typeof d.value === 'number' ? d.value.toFixed(0) : d.value
           }`,
-          textAlign: 'right',
-          textBaseline: 'bottom',
-          dx: -10,
-          dy: -10,
-          connector: true,
-          style: { fontSize: 10 },
+          style: { fontSize: 10, fillOpacity: 0.9 },
+          autoRotate: false,
+          // cleaner look; connectors often crowd the corner
+          connector: false,
         }}
+        area={false}
+        state={{ active: { lineWidth: 3 } }}
+        interactions={[{ type: 'legend-filter' }, { type: 'legend-active' }]}
       />
     );
   };
+  
   
 
 
