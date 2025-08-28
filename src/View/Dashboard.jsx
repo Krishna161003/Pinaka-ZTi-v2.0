@@ -3,7 +3,6 @@ import Layout1 from "../Components/layout";
 import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
-import PasswordUpdateForm from "../Components/PasswordUpdateForm";
 import node from "../Images/FlightDeck.png";
 import squad from "../Images/Squadron2.png";
 import osd from "../Images/OSD.png";
@@ -69,8 +68,8 @@ const Dashboard = () => {
   const [cpuHistory, setCpuHistory] = useState([]);
   const [interfaces, setInterfaces] = useState([]);
   const [selectedInterface, setSelectedInterface] = useState("");
-  const [bandwidthHistory, setBandwidthHistory] = useState([]);
-  const [currentBandwidth, setCurrentBandwidth] = useState(0);
+  const [bandwidthHistory, setBandwidthHistory] = useState([]); // [{ date, value, direction }]
+  const [currentBandwidth, setCurrentBandwidth] = useState({ rx: 0, tx: 0 });
   const [chartData, setChartData] = useState([]);
   const [healthStatus, setHealthStatus] = useState("Loading");
   const [healthDetails, setHealthDetails] = useState({ metrics: null, thresholds: null, reasons: [] });
@@ -298,45 +297,55 @@ const Dashboard = () => {
     return <Line {...config} />;
   };
 
-  // Helper: Moving average smoothing for bandwidth
+  // Helper: Moving average smoothing for bandwidth (per direction)
   function getSmoothedBandwidthHistory(history, windowSize = 5) {
     if (!Array.isArray(history) || history.length === 0) return [];
-    const smoothed = [];
-    for (let i = 0; i < history.length; i++) {
-      let start = Math.max(0, i - windowSize + 1);
-      let window = history.slice(start, i + 1);
-      let avg = window.reduce((sum, item) => sum + (typeof item.value === 'number' ? item.value : 0), 0) / window.length;
-      smoothed.push({ ...history[i], value: avg });
+    const byDir = history.reduce((acc, item) => {
+      const key = item.direction || 'Total';
+      (acc[key] = acc[key] || []).push(item);
+      return acc;
+    }, {});
+    const out = [];
+    for (const key of Object.keys(byDir)) {
+      const series = byDir[key];
+      for (let i = 0; i < series.length; i++) {
+        const start = Math.max(0, i - windowSize + 1);
+        const windowArr = series.slice(start, i + 1);
+        const avg = windowArr.reduce((sum, it) => sum + (typeof it.value === 'number' ? it.value : 0), 0) / windowArr.length;
+        out.push({ ...series[i], value: avg });
+      }
     }
-    return smoothed;
+    return out.sort((a, b) => a.date - b.date);
   }
 
-
   const BandwidthLine = ({ bandwidthHistory }) => {
-    const config = {
-      data: bandwidthHistory,
-      // width: 280,
-      height: 110,
-      smooth: true,
-      xField: 'date',
-      yField: 'value',
-      lineStyle: {
-        stroke: '#52c41a',
-        lineWidth: 2,
-      },
-      label: {
-        selector: 'last',
-        text: (d) => d.value,
-        textAlign: 'right',
-        textBaseline: 'bottom',
-        dx: -10,
-        dy: -10,
-        connector: true,
-        style: { fontSize: 10 },
-      },
-    };
-    return <Line {...config} />;
+    return (
+      <Line
+        data={bandwidthHistory}
+        height={110}
+        smooth
+        xField="date"
+        yField="value"
+        seriesField="direction"
+        colorField="direction"
+        color={['#1677ff', '#52c41a']}
+        lineStyle={{ lineWidth: 2 }}
+        legend={false}  // This removes the "In" and "Out" legend
+        label={{
+          selector: 'last',
+          text: (d) => `${d.direction}: ${typeof d.value === 'number' ? d.value.toFixed(0) : d.value
+            }`,
+          textAlign: 'right',
+          textBaseline: 'bottom',
+          dx: -10,
+          dy: -10,
+          connector: true,
+          style: { fontSize: 10 },
+        }}
+      />
+    );
   };
+
 
 
 
@@ -406,26 +415,29 @@ const Dashboard = () => {
         const res = await fetch(`https://${selectedHostIP}:2020/bandwidth-history?interface=${selectedInterface}`);
         const data = await res.json();
         if (data && Array.isArray(data.bandwidth_history)) {
-          setBandwidthHistory(
-            data.bandwidth_history.map(item => ({
-              ...item,
-              date: new Date(item.timestamp * 1000),
-              value: typeof item.bandwidth_kbps === 'number' && !isNaN(item.bandwidth_kbps) ? item.bandwidth_kbps : 0,
-            }))
-          );
-          // Set current bandwidth to the latest value
+          const hist = [];
+          for (const item of data.bandwidth_history) {
+            const ts = new Date((item.timestamp || 0) * 1000);
+            const rx = Number(item.rx_kbps) || 0;
+            const tx = Number(item.tx_kbps) || 0;
+            hist.push({ date: ts, value: rx, direction: 'In' });
+            hist.push({ date: ts, value: tx, direction: 'Out' });
+          }
+          setBandwidthHistory(hist);
+          // Set current bandwidths
           if (data.bandwidth_history.length > 0) {
-            setCurrentBandwidth(data.bandwidth_history[data.bandwidth_history.length - 1].bandwidth_kbps);
+            const last = data.bandwidth_history[data.bandwidth_history.length - 1];
+            setCurrentBandwidth({ rx: Number(last.rx_kbps) || 0, tx: Number(last.tx_kbps) || 0 });
           } else {
-            setCurrentBandwidth(0);
+            setCurrentBandwidth({ rx: 0, tx: 0 });
           }
         } else {
           setBandwidthHistory([]);
-          setCurrentBandwidth(0);
+          setCurrentBandwidth({ rx: 0, tx: 0 });
         }
       } catch (err) {
         setBandwidthHistory([]);
-        setCurrentBandwidth(0);
+        setCurrentBandwidth({ rx: 0, tx: 0 });
         if (lastErrorIpRef.current !== selectedHostIP) {
           message.error(`Failed to fetch bandwidth history from ${selectedHostIP}`);
           lastErrorIpRef.current = selectedHostIP;
@@ -518,7 +530,6 @@ const Dashboard = () => {
   const statusStyle = statusColorMap[healthStatus] || statusColorMap.ERROR;
 
 
-  const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // For loading state
   const [counts, setCounts] = useState({
     cloudCount: 0,
@@ -820,11 +831,7 @@ const Dashboard = () => {
         const passwordResponse = await fetch(`https://${hostIP}:5000/api/check-password-status/${userId}`);
         const passwordData = await passwordResponse.json();
 
-        if (passwordData.updatePwdStatus === 1) {
-          setIsModalVisible(false); // Don't show modal if password updated
-        } else {
-          setIsModalVisible(true); // Show modal if password not updated
-        }
+        // Password status check - no longer handling modal here as it's moved to layout.js
 
         // Fetch dashboard counts
         const countsResponse = await fetch(`https://${hostIP}:5000/api/dashboard-counts/${userId}`);
@@ -1115,6 +1122,7 @@ const Dashboard = () => {
                     <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Role:</span>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>{serverDetails.role || 'Loading...'}</span>
                   </div>
+
                 </div>
               </div>
             </div>
@@ -1304,7 +1312,7 @@ const Dashboard = () => {
                     </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Current: {typeof currentBandwidth === 'number' ? currentBandwidth.toFixed(1) : '0.0'} kbps
+                      Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
                     </div>
                   </div>
                   <div style={{ height: 70, margin: '0 -20px 10px -20px' }}>
@@ -1590,11 +1598,7 @@ const Dashboard = () => {
             </div>
 
           </div>
-          {/* Password Update Modal Form */}
-          <PasswordUpdateForm
-            isModalVisible={isModalVisible}
-            setIsModalVisible={setIsModalVisible}
-          />
+
         </Content>
 
       </Layout>

@@ -572,16 +572,22 @@ app.get("/api/check-password-status/:userId", (req, res) => {
 
 // /run-script API to update password and set user status
 app.post("/run-script", (req, res) => {
-  const { userUsername, userId, newPassword, hostIP } = req.body;
+  const { userUsername, userId, oldPassword, newPassword, hostIP } = req.body;
 
-  // Log received request data
-  console.log("Received request body:", req.body);
+  // Log received request data (without passwords for security)
+  console.log("Received request body:", {
+    userUsername,
+    userId,
+    oldPassword: oldPassword ? "[HIDDEN]" : "undefined",
+    newPassword: newPassword ? "[HIDDEN]" : "undefined",
+    hostIP
+  });
 
   // Ensure all required fields are provided
-  if (!userUsername || !userId || !newPassword || !hostIP) {
+  if (!userUsername || !userId || !oldPassword || !newPassword || !hostIP) {
     return res.status(400).send({
       message:
-        "Missing required fields: userUsername, userId, newPassword, or hostIP",
+        "Missing required fields: userUsername, userId, oldPassword, newPassword, or hostIP",
     });
   }
 
@@ -622,15 +628,11 @@ app.post("/run-script", (req, res) => {
 
         const updatePwdStatus = results[0].update_pwd_status;
 
-        // If password already updated, don't allow another update
-        if (updatePwdStatus) {
-          return res
-            .status(400)
-            .send({ message: "Password already updated for this user" });
-        }
+        // Allow password updates regardless of update_pwd_status
+        // The update_pwd_status is only used to track if user has completed initial setup
 
         // Command to execute the shell script with the arguments in the correct order
-        const command = `bash /usr/src/app/update-password.sh ${userUsername} ${userId} ${newPassword} ${hostIP}`;
+        const command = `bash /usr/src/app/update-password.sh ${userUsername} ${userId} ${oldPassword} ${newPassword} ${hostIP}`;
 
         console.log(`Executing command: ${command}`);
 

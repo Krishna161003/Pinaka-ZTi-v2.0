@@ -1419,6 +1419,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
             }
           }).then(() => {
+            // Helper to schedule or re-schedule frontend polling for this IP
+            const scheduleFrontendPolling = () => {
             // Prevent duplicate timers for this IP
             if (!window.__cloudPolling) window.__cloudPolling = {};
             if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
@@ -1466,28 +1468,22 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
                     }
                   } catch (_) { }
-                  // Cross-menu notification on timeout
-                  {
-                    let suppress = false;
-                    try {
-                      if (window.__svMountedDeployment) suppress = true;
-                      else {
-                        const active = sessionStorage.getItem('serverVirtualization_activeTab');
-                        if (active === '5') suppress = true;
+                    // Cross-menu notification on timeout with Retry
+                    const key = `ssh-timeout-${node_ip}`;
+                    const description = `Failed to connect to ${node_ip} after multiple attempts. The node may be taking longer than expected to come up.`;
+                    window.__globalNotifications.showNotification(
+                      key,
+                      'Connection Timeout',
+                      description,
+                      () => {
+                        // Re-trigger backend scheduling and frontend polling
+                        fetch(`https://${hostIP}:2020/poll-ssh-status`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ips: [node_ip], ssh_user, ssh_pass, ssh_key })
+                        }).then(() => scheduleFrontendPolling());
                       }
-                    } catch (_) { }
-                    if (!suppress) {
-                      notification.warning({
-                        key: `sv-ssh-timeout-${node_ip}`,
-                        message: 'SSH polling timeout',
-                        description: `Timeout waiting for ${node_ip} to come online.`,
-                        duration: 8,
-                        btn: (
-                          <Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
-                        ),
-                      });
-                    }
-                  }
+                    );
                   delete window.__cloudPolling[node_ip];
                   return;
                 }
@@ -1562,6 +1558,10 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
             if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
             window.__cloudPollingStart[node_ip] = startPollingTimeout;
+            };
+
+            // Initial schedule
+            scheduleFrontendPolling();
           });
           // --- End SSH Polling Section ---
 

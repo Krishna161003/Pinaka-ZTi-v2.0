@@ -34,10 +34,17 @@ const Report = ({ onDeploymentComplete }) => {
               if (prev === true && newStatus === false) {
                 const key = `open${Date.now()}`;
                 const btn = (
-                  <Button 
-                    type="primary" 
-                    size="small"
+                  <Button
+                    type="primary"
                     onClick={() => {
+                      try {
+                        sessionStorage.setItem('serverVirtualization_shouldResetOnNextMount', 'true');
+                        sessionStorage.setItem('lastMenuPath', '/iaas');
+                        sessionStorage.setItem('lastServerVirtualizationPath', '/iaas');
+                        sessionStorage.setItem('serverVirtualization_activeTab', '1');
+                        sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
+                        sessionStorage.setItem('disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
+                      } catch (_) { }
                       notification.close(key);
                       navigate('/iaas');
                     }}
@@ -51,14 +58,14 @@ const Report = ({ onDeploymentComplete }) => {
                   btn,
                   key,
                   duration: 12,
-                  placement: 'bottomRight'
+                  placement: 'topRight'
                 });
               }
               return newStatus;
             });
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }, 3000);
     // Initial check
     fetch(`https://${hostIP}:2020/node-deployment-progress`)
@@ -70,7 +77,7 @@ const Report = ({ onDeploymentComplete }) => {
           prevDeploymentStatus.current = newStatus;
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => clearInterval(interval);
   }, []);
 
@@ -84,7 +91,7 @@ const Report = ({ onDeploymentComplete }) => {
           sessionStorage.setItem('disabledTabs', JSON.stringify({ '1': true, '2': true, '3': true, '4': true, '5': true, '6': false }));
           sessionStorage.setItem('lastMenuPath', '/servervirtualization?tab=6');
           sessionStorage.setItem('lastServerVirtualizationPath', '/servervirtualization?tab=6');
-        } catch (_) {}
+        } catch (_) { }
       }
     };
   }, [deploymentInProgress]);
@@ -121,7 +128,7 @@ const Report = ({ onDeploymentComplete }) => {
         'selectedNodes',
       ];
       keysToRemove.forEach(k => sessionStorage.removeItem(k));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   // When deployment finishes, finalize deployments in backend (with session fallback)
@@ -136,7 +143,7 @@ const Report = ({ onDeploymentComplete }) => {
           if (nodesRaw) {
             nodes = JSON.parse(nodesRaw) || [];
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // If session missing, fetch pending nodes from backend filtered by type=primary
         if (!nodes || nodes.length === 0) {
@@ -186,7 +193,7 @@ const Report = ({ onDeploymentComplete }) => {
             if (Array.isArray(rows) && rows.length > 0) {
               nodes = rows.map(r => ({ serverid: r.serverid, serverip: r.serverip }));
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         // Load config map if present (role IPs); missing is OK
@@ -207,7 +214,7 @@ const Report = ({ onDeploymentComplete }) => {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'completed' })
-              }).catch(() => {});
+              }).catch(() => { });
               // 2) Finalize node deployment (upsert into deployed_server and activate license)
               const roleStr = Array.isArray(form?.selectedRoles) && form.selectedRoles.length > 0
                 ? form.selectedRoles.join(',')
@@ -219,7 +226,7 @@ const Report = ({ onDeploymentComplete }) => {
                   role: roleStr,
                   ...roleIps,
                 })
-              }).catch(() => {});
+              }).catch(() => { });
             } catch (e) {
               // Swallow per-node errors to avoid blocking others
             }
@@ -233,7 +240,7 @@ const Report = ({ onDeploymentComplete }) => {
           onDeploymentComplete();
         }
       };
-      runFinalize().catch(() => {});
+      runFinalize().catch(() => { });
     }
   }, [deploymentInProgress, onDeploymentComplete]);
 
@@ -272,7 +279,7 @@ const Report = ({ onDeploymentComplete }) => {
         const ips = Array.isArray(arr) ? arr.map(n => n?.serverip).filter(Boolean) : [];
         if (ips.length) return ips.join(', ');
       }
-    } catch (_) {}
+    } catch (_) { }
     try {
       const rawMap = sessionStorage.getItem('sv_networkApplyResult');
       if (rawMap) {
@@ -280,7 +287,7 @@ const Report = ({ onDeploymentComplete }) => {
         const ips = Object.keys(obj || {});
         if (ips.length) return ips.join(', ');
       }
-    } catch (_) {}
+    } catch (_) { }
     return sessionStorage.getItem('server_ip') || 'N/A';
   };
   const nodeIpsTitle = getNodeIpsTitle();
@@ -339,7 +346,7 @@ const Report = ({ onDeploymentComplete }) => {
                 sessionStorage.setItem('serverVirtualization_activeTab', '1');
                 sessionStorage.setItem('serverVirtualization_disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
                 sessionStorage.setItem('disabledTabs', JSON.stringify({ '2': true, '3': true, '4': true, '5': true, '6': true }));
-              } catch (_) {}
+              } catch (_) { }
               navigate('/iaas');
             }}
           >
