@@ -32,94 +32,145 @@ const Login = (props) => {
   const handleSSOSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     const { companyName, password } = ssoFormData;
 
     try {
-      // 1. Get encoded client secret from backend
-      const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
-      const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse.data;
-      
-      if (!encodedSecret || randomCharPos === undefined) {
-        throw new Error('Failed to retrieve client secret');
+      let secretResponse;
+      try {
+        secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`, {
+          timeout: 10000
+        });
+      } catch (err) {
+        if (err.code === 'ECONNABORTED' || err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
+          throw new Error('Unable to connect to the server. Please check your network connection.');
+        }
+        throw new Error('Failed to connect to authentication service. Please try again later.');
       }
-      
-      // Remove the extra random character from the specified position
-      const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
-      console.log('Decoded client secret');
 
-      // 2. Obtain the access token using client credentials
-      const tokenResponse = await axios.post(
-        `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
-        new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: 'zti-client',
-          client_secret: clientSecret,
-        })
-      );
+      const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse?.data || {};
+
+      if (!encodedSecret || randomCharPos === undefined) {
+        throw new Error('Authentication service configuration error. Please contact support.');
+      }
+
+      const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+
+      let tokenResponse;
+      try {
+        tokenResponse = await axios.post(
+          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+          new URLSearchParams({
+            grant_type: 'client_credentials',
+            client_id: 'zti-client',
+            client_secret: clientSecret,
+          }),
+          {
+            timeout: 15000,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          }
+        );
+      } catch (err) {
+        if (err.response) {
+          if (err.response.status === 401) {
+            throw new Error('Authentication service is currently unavailable. Please try again later.');
+          }
+          throw new Error('Authentication service error. Please try again.');
+        } else if (err.request) {
+          throw new Error('Unable to reach authentication service. Please check your connection.');
+        }
+        throw err;
+      }
 
       const accessToken = tokenResponse.data.access_token;
+      if (!accessToken) {
+        throw new Error('Failed to obtain access token. Please try again.');
+      }
 
-      // 2. Use the access token to authenticate the user via password grant
-      const userResponse = await axios.post(
-        `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
-        new URLSearchParams({
-          grant_type: 'password',
-          username: companyName,
-          password: password,
-          client_id: 'zti-client',
-          client_secret: clientSecret,
-          scope: 'openid',  // Request openid scope
-        }),
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (userResponse.data.access_token) {
-        // Store the access token separately
-        sessionStorage.setItem('accessToken', userResponse.data.access_token);
-
-        // Fetch user details from Keycloak
-        const userDetailsResponse = await axios.get(
-          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
+      let userResponse;
+      try {
+        userResponse = await axios.post(
+          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+          new URLSearchParams({
+            grant_type: 'password',
+            username: companyName,
+            password: password,
+            client_id: 'zti-client',
+            client_secret: clientSecret,
+            scope: 'openid',
+          }),
           {
+            timeout: 15000,
             headers: {
-              Authorization: `Bearer ${userResponse.data.access_token}`,
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Authorization': `Bearer ${accessToken}`,
             },
           }
         );
-
-        const userId = userDetailsResponse.data.sub; // Fetch the user ID
-
-        // Store authentication details in sessionStorage (except access token)
-        const loginDetails = {
-          loginStatus: true,
-          data: {
-            companyName: companyName,
-            id: userId, // Store the user ID
-          },
-        };
-
-        sessionStorage.setItem('loginDetails', JSON.stringify(loginDetails));
-
-        // Send user ID to backend for storage in MySQL (optional)
-        await axios.post(`https://${hostIP}:5000/store-user-id`, { userId });
-
-        // Redirect to home page with notification
-        checkLogin(true);
-        navigate('/', { replace: true, state: { notification: 'SSO Login Successful! Welcome back!' } });
-      } else {
-        setError('Invalid SSO credentials');
-        setLoading(false);
+      } catch (err) {
+        if (err.response) {
+          if (err.response.status === 401) {
+            throw new Error('Invalid username or password. Please try again.');
+          } else if (err.response.status === 400) {
+            throw new Error('Invalid request. Please check your credentials and try again.');
+          } else if (err.response.status >= 500) {
+            throw new Error('Authentication service is currently unavailable. Please try again later.');
+          }
+        }
+        throw err;
       }
+
+      if (!userResponse?.data?.access_token) {
+        throw new Error('Authentication failed. Please try again.');
+      }
+
+      sessionStorage.setItem('accessToken', userResponse.data.access_token);
+
+      let userDetailsResponse;
+      try {
+        userDetailsResponse = await axios.get(
+          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/userinfo`,
+          {
+            timeout: 10000,
+            headers: {
+              'Authorization': `Bearer ${userResponse.data.access_token}`,
+            },
+          }
+        );
+      } catch (err) {
+        console.error('Failed to fetch user details:', err);
+        // Continue with login even if user details fetch fails
+      }
+
+      const userId = userDetailsResponse?.data?.sub || 'unknown';
+
+      const loginDetails = {
+        loginStatus: true,
+        data: {
+          companyName: companyName,
+          id: userId,
+        },
+      };
+
+      sessionStorage.setItem('loginDetails', JSON.stringify(loginDetails));
+
+      try {
+        await axios.post(`https://${hostIP}:5000/store-user-id`, { userId }, { timeout: 5000 });
+      } catch (err) {
+        console.error('Failed to store user ID:', err);
+        // Continue with login even if storing user ID fails
+      }
+
+      checkLogin(true);
+      navigate('/', { replace: true, state: { notification: 'Login successful! Welcome back!' } });
     } catch (err) {
-      console.error(err);
-      setError('Invalid SSO credentials');
+      console.error('Login error:', err);
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+    } finally {
       setLoading(false);
     }
-    setLoading(false);
   };
 
   const renderSSOForm = () => (
