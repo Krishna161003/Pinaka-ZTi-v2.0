@@ -1317,7 +1317,7 @@ const Dashboard = () => {
                     </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Current: In {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, Out {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
+                      Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
                     </div>
                   </div>
                   <div style={{ height: 70, margin: '0 -20px 10px -20px' }}>
