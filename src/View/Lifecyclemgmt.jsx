@@ -420,7 +420,7 @@ const Lifecyclemgmt = () => {
                           type="primary"
                           icon={<PlayCircleOutlined />}
                           onClick={runLogCollection}
-                          style={{ marginRight: 8,width: '180px' }}
+                          style={{ marginRight: 8,width: '170px' }}
                         >
                           Run Log Collection
                         </Button>
@@ -428,7 +428,7 @@ const Lifecyclemgmt = () => {
                           aria-label="Refresh"
                           onClick={fetchTarFiles}
                           icon={<SyncOutlined />}
-                          style={{ borderColor: '#1890ff', color: '#1890ff',width: '120px' }}
+                          style={{ borderColor: '#1890ff', color: '#1890ff',width: '95px' }}
                         >
                           Refresh
                         </Button>
