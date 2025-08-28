@@ -325,42 +325,31 @@ const Dashboard = () => {
       <Line
         data={bandwidthHistory}
         height={110}
-        padding={[8, 16, 24, 40]}          // small extra right pad for end labels
         smooth
         xField="date"
         yField="value"
         seriesField="direction"
-        color={{ In: '#1677ff', Out: '#52c41a' }}
+        // Ensure color maps to the same field as series
+        colorField="direction"
+        color={['#1677ff', '#52c41a']} // order follows series order by data
+        // or use a mapping object:
+        // color={{ In: '#1677ff', Out: '#52c41a' }}
         lineStyle={{ lineWidth: 2 }}
-        legend={{ position: 'top-left', offsetY: 4 }}
-        tooltip={{ shared: true, showMarkers: true }}
-        xAxis={{
-          label: { autoHide: true, autoRotate: false, style: { fontSize: 10 } },
-          tickCount: 6,
-        }}
-        yAxis={{
-          min: 0,
-          nice: true,
-          grid: { line: { style: { lineDash: [3, 3], strokeOpacity: 0.25 } } },
-          label: { style: { fontSize: 10 } },
-        }}
-        // Option A: simple end labels with small font
         label={{
           selector: 'last',
-          offset: 6,
-          style: { fontSize: 10, fillOpacity: 0.9 },
-          connector: false,
-          content: (d) =>
-            `${d.direction}: ${typeof d.value === 'number' ? d.value.toFixed(0) : d.value}`,
+          text: (d) => `${d.direction}: ${
+            typeof d.value === 'number' ? d.value.toFixed(0) : d.value
+          }`,
+          textAlign: 'right',
+          textBaseline: 'bottom',
+          dx: -10,
+          dy: -10,
+          connector: true,
+          style: { fontSize: 10 },
         }}
-        // Option B (safer): remove end labels completely if space is tight
-        // label={false}
-        interactions={[{ type: 'legend-filter' }, { type: 'legend-active' }]}
       />
     );
   };
-  
-  
   
 
 
