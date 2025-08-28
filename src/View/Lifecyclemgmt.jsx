@@ -26,6 +26,7 @@ const Lifecyclemgmt = () => {
     const v = localStorage.getItem('lm_diagnostics');
     try { return v ? JSON.parse(v) : []; } catch { return []; }
   });
+  const [downloadingFiles, setDownloadingFiles] = useState({});
   const [polling, setPolling] = useState(false);
   const pollTimerRef = useRef(null);
   const lastStateRef = useRef(job?.state || null);
@@ -84,12 +85,17 @@ const Lifecyclemgmt = () => {
   // Download tar file
   const downloadTarFile = async (filename) => {
     if (!filename) return;
+    
     try {
+      // Set loading state for this file
+      setDownloadingFiles(prev => ({ ...prev, [filename]: true }));
+      
       const res = await fetch(`https://${hostIP}:2020/download-tar/${filename}`);
       if (!res.ok) {
         message.error('Failed to download tar file');
         return;
       }
+      
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -99,8 +105,12 @@ const Lifecyclemgmt = () => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      
     } catch (e) {
       message.error('Failed to download tar file');
+    } finally {
+      // Clear loading state
+      setDownloadingFiles(prev => ({ ...prev, [filename]: false }));
     }
   };
 
@@ -465,13 +475,14 @@ const Lifecyclemgmt = () => {
                             width: 120, 
                             render: (_t, record) => (
                               <Button
+                                type="primary"
                                 aria-label="Download Log"
                                 onClick={() => record?.filename && downloadTarFile(record.filename)}
-                                disabled={!record?.filename}
-                                icon={<DownloadOutlined />}
+                                disabled={!record?.filename || downloadingFiles[record.filename]}
+                                icon={downloadingFiles[record.filename] ? <SyncOutlined spin /> : <DownloadOutlined />}
                                 style={{ borderColor: '#1890ff', color: '#1890ff', width: '95px' }}
                               >
-                                Download
+                                {downloadingFiles[record.filename] ? 'Downloading...' : 'Download'}
                               </Button>
                               
                             ) 
