@@ -46,19 +46,20 @@ axios.interceptors.response.use(
     const url = cfg.baseURL ? new URL(cfg.url || '', cfg.baseURL).toString() : (cfg.url || '');
     const payload = toPayloadFromUrl(url, method);
 
-    // Only trigger for SSL certificate issues, not general network errors
-    const msg = String(err?.message || '');
-    const stack = String(err?.stack || '');
-    const combined = (msg + ' ' + stack).toLowerCase();
-    
     // Check for SSL certificate specific errors
-    const isSSLCertError = /err_cert|certificate|ssl|cert_authority_invalid|self_signed|unable to verify|certificate verify failed/.test(combined);
-    const isRefused = /err_connection_refused|econnrefused|connection refused/.test(combined);
-    const isTimeout = /timeout|timed out/.test(combined);
-    const isDNS = /dns|host not found|name resolution/.test(combined);
+    const msg = String(err?.message || '').toLowerCase();
+    const code = String(err?.code || '').toLowerCase();
+    const isSSLError = 
+      code.includes('cert_authority_invalid') ||
+      code.includes('err_cert_authority_invalid') ||
+      msg.includes('cert_authority_invalid') ||
+      msg.includes('self signed') ||
+      msg.includes('self-signed') ||
+      msg.includes('unable to verify') ||
+      msg.includes('certificate verify failed');
 
     // Only emit for SSL certificate issues, not other network problems
-    if (isNetwork && payload.url.startsWith('https://') && isSSLCertError && !isRefused && !isTimeout && !isDNS) {
+    if (isNetwork && payload.url.startsWith('https://') && isSSLError) {
       emitSSLError(payload);
     }
     return Promise.reject(err);
@@ -74,20 +75,22 @@ if (typeof window !== 'undefined' && window.fetch) {
       return res;
     } catch (e) {
       const msg = (e && e.message) || '';
-      const stack = (e && e.stack) || '';
-      const combined = (msg + ' ' + stack).toLowerCase();
-      const isNetwork = e instanceof TypeError || /failed to fetch|network error/i.test(combined);
+      const isNetwork = e instanceof TypeError || /failed to fetch|network error/i.test(msg);
       const url = typeof input === 'string' ? input : (input && input.url);
       const method = (init && init.method) || (typeof input === 'object' && input && input.method) || 'GET';
       const payload = toPayloadFromUrl(url || '', method);
-      // Only trigger for SSL certificate issues, not general network errors
-      const isSSLCertError = /err_cert|certificate|ssl|cert_authority_invalid|self_signed|unable to verify|certificate verify failed/.test(combined);
-      const isRefused = /err_connection_refused|econnrefused|connection refused/.test(combined);
-      const isTimeout = /timeout|timed out/.test(combined);
-      const isDNS = /dns|host not found|name resolution/.test(combined);
+      
+      // Check for SSL certificate errors
+      const lowerMsg = msg.toLowerCase();
+      const isSSLError = 
+        lowerMsg.includes('cert_authority_invalid') ||
+        lowerMsg.includes('self signed') ||
+        lowerMsg.includes('self-signed') ||
+        lowerMsg.includes('unable to verify') ||
+        lowerMsg.includes('certificate verify failed');
 
-      // Only emit for SSL certificate issues, not other network problems
-      if (isNetwork && payload.url.startsWith('https://') && isSSLCertError && !isRefused && !isTimeout && !isDNS) {
+      // Only emit for SSL certificate issues
+      if (isNetwork && payload.url.startsWith('https://') && isSSLError) {
         emitSSLError(payload);
       }
       throw e;

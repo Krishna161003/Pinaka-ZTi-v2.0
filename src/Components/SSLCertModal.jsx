@@ -44,9 +44,13 @@ export default function SSLCertModal() {
   useEffect(() => {
     // Subscribe once; probe origin before showing to avoid popups after SSL is accepted
     const unsub = onSSLError(async (p) => {
+      console.log('SSL Error detected:', p); // Debug log
       lastPayloadRef.current = p || null;
       const now = Date.now();
-      if (now < cooldownUntilRef.current) return; // still in cooldown
+      if (now < cooldownUntilRef.current) {
+        console.log('Still in cooldown, ignoring SSL error');
+        return; // still in cooldown
+      }
 
       const origin = p?.origin || null;
       const url = p?.url || null;
@@ -84,8 +88,9 @@ export default function SSLCertModal() {
           persistOkOrigins();
         }
         // Show the modal
+        console.log('Showing SSL error modal for:', p);
         setPayload(p || null);
-        if (!visible) setVisible(true);
+        setVisible(true);
       }
     });
     return () => {
@@ -94,6 +99,7 @@ export default function SSLCertModal() {
   }, [visible]);
 
   const handleClose = () => {
+    console.log('Closing SSL modal');
     setVisible(false);
     cooldownUntilRef.current = Date.now() + 30000; // cooldown (ms) to prevent frequent popups
   };
