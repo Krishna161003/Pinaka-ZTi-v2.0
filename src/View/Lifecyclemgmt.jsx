@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, message, Upload, Button, Alert, Tabs, Table } from 'antd';
-import { InboxOutlined, SyncOutlined, DownloadOutlined } from '@ant-design/icons';
+import { InboxOutlined, SyncOutlined, DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
 const { Dragger } = Upload;
@@ -22,6 +22,10 @@ const Lifecyclemgmt = () => {
     const v = localStorage.getItem('lm_history');
     try { return v ? JSON.parse(v) : []; } catch { return []; }
   });
+  const [diagnostics, setDiagnostics] = useState(() => {
+    const v = localStorage.getItem('lm_diagnostics');
+    try { return v ? JSON.parse(v) : []; } catch { return []; }
+  });
   const [polling, setPolling] = useState(false);
   const pollTimerRef = useRef(null);
   const lastStateRef = useRef(job?.state || null);
@@ -34,6 +38,70 @@ const Lifecyclemgmt = () => {
 
   const persistHistory = (items) => {
     localStorage.setItem('lm_history', JSON.stringify(items || []));
+  };
+
+  const persistDiagnostics = (items) => {
+    localStorage.setItem('lm_diagnostics', JSON.stringify(items || []));
+  };
+
+  // Run log collection
+  const runLogCollection = async () => {
+    try {
+      const res = await fetch(`https://${hostIP}:2020/run-log-collection`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        message.success('Log collection started successfully');
+        // Refresh the tar files list after successful execution
+        fetchTarFiles();
+      } else {
+        message.error(data.error || 'Failed to start log collection');
+      }
+    } catch (error) {
+      message.error('Failed to start log collection');
+    }
+  };
+
+  // Fetch tar files from Flask backend
+  const fetchTarFiles = async () => {
+    try {
+      const res = await fetch(`https://${hostIP}:2020/list-tar-files`);
+      if (!res.ok) {
+        message.error('Failed to fetch tar files');
+        return;
+      }
+      const data = await res.json();
+      if (data.files) {
+        setDiagnostics(data.files);
+        persistDiagnostics(data.files);
+      }
+    } catch (error) {
+      message.error('Failed to fetch tar files');
+    }
+  };
+
+  // Download tar file
+  const downloadTarFile = async (filename) => {
+    if (!filename) return;
+    try {
+      const res = await fetch(`https://${hostIP}:2020/download-tar/${filename}`);
+      if (!res.ok) {
+        message.error('Failed to download tar file');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      message.error('Failed to download tar file');
+    }
   };
 
   // Fetch lifecycle history from Node backend (fallback to localStorage on error)
@@ -149,6 +217,14 @@ const Lifecyclemgmt = () => {
   useEffect(() => {
     if (activeTab === 'history') {
       fetchHistoryFromServer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Load tar files when switching to Diagnostic tab
+  useEffect(() => {
+    if (activeTab === 'diagnostic') {
+      fetchTarFiles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -329,6 +405,77 @@ const Lifecyclemgmt = () => {
                           ) },
                         ]}
                         dataSource={(history || []).map((h, idx) => ({ key: h.id || String(idx), ...h }))}
+                        pagination={{ pageSize: 10 }}
+                      />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'diagnostic',
+                  label: 'Diagnostic',
+                  children: (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                        <Button
+                          type="primary"
+                          icon={<PlayCircleOutlined />}
+                          onClick={runLogCollection}
+                          style={{ marginRight: 8 }}
+                        >
+                          Run Log Collection
+                        </Button>
+                        <Button
+                          aria-label="Refresh"
+                          onClick={fetchTarFiles}
+                          icon={<SyncOutlined />}
+                          style={{ borderColor: '#1890ff', color: '#1890ff' }}
+                        >
+                          Refresh
+                        </Button>
+                      </div>
+                      <Table
+                        size="middle"
+                        columns={[
+                          { 
+                            title: 'S.NO', 
+                            key: 'sno', 
+                            width: 90, 
+                            render: (_t, _r, idx) => idx + 1 
+                          },
+                          { 
+                            title: 'File Name', 
+                            dataIndex: 'filename', 
+                            key: 'filename'
+                          },
+                          { 
+                            title: 'Size (MB)', 
+                            dataIndex: 'size_mb', 
+                            key: 'size_mb',
+                            width: 120
+                          },
+                          { 
+                            title: 'Created At', 
+                            dataIndex: 'created_at', 
+                            key: 'created_at',
+                            width: 180
+                          },
+                          { 
+                            title: 'Download', 
+                            key: 'download', 
+                            width: 120, 
+                            render: (_t, record) => (
+                              <Button
+                                type="primary"
+                                onClick={() => record?.filename && downloadTarFile(record.filename)}
+                                disabled={!record?.filename}
+                                icon={<DownloadOutlined />}
+                              >
+                                Download
+                              </Button>
+                            ) 
+                          }
+                        ]}
+                        dataSource={(diagnostics || []).map((d, idx) => ({ key: d.filename || String(idx), ...d }))}
                         pagination={{ pageSize: 10 }}
                       />
                     </div>

@@ -4,11 +4,12 @@
 # sudo setcap cap_net_raw+ep /usr/bin/python3.11
 
 
-from flask import Flask, request, jsonify, Response, stream_with_context
+from flask import Flask, request, jsonify, Response, stream_with_context, send_file
 from flask_cors import CORS
 from datetime import datetime
 from scapy.all import ARP, Ether, srp
 from collections import deque, defaultdict
+from pathlib import Path
 import psutil
 import os
 import json
@@ -2747,6 +2748,162 @@ def get_client_secret():
         return jsonify({"error": f"File {CLIENT_SECRET_FILE} not found"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# Configuration - modify these paths as needed
+SCRIPT_PATH = "/home/pinakasupprt/.pinaka_wd/"  # Path to your script that creates tar
+TAR_STORAGE_PATH = "/home/pinakasupprt/.pinaka_wd/diagnostic_log/"  # Where script stores tar files
+
+# Ensure storage directory exists
+os.makedirs(TAR_STORAGE_PATH, exist_ok=True)
+@app.route('/run-log-collection', methods=['POST'])
+def run_log_collection():
+    """
+    Endpoint to run the shell script that creates and stores tar file
+    """
+    try:
+        # Check if script exists
+        if not os.path.exists(SCRIPT_PATH):
+            return jsonify({"error": f"Script not found at {SCRIPT_PATH}"}), 404
+        
+        # Check if script is executable
+        if not os.access(SCRIPT_PATH, os.X_OK):
+            return jsonify({"error": f"Script is not executable: {SCRIPT_PATH}"}), 403
+        
+        # Run the shell script - it handles tar creation and storage internally
+        result = subprocess.run([
+            'bash', SCRIPT_PATH
+        ], capture_output=True, text=True, timeout=300, cwd=os.path.dirname(SCRIPT_PATH))
+        
+        if result.returncode != 0:
+            return jsonify({
+                "error": "Script execution failed", 
+                "stderr": result.stderr,
+                "stdout": result.stdout,
+                "return_code": result.returncode
+            }), 500
+        
+        return jsonify({
+            "message": "Log collection script executed successfully",
+            "stdout": result.stdout,
+            "stderr": result.stderr if result.stderr else None,
+            "executed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Script execution timed out (5 minutes)"}), 500
+    except FileNotFoundError:
+        return jsonify({"error": "bash command not found on system"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to run script: {str(e)}"}), 500
+
+
+@app.route('/list-tar-files', methods=['GET'])
+def list_tar_files():
+    """
+    Endpoint to list all tar files in the storage directory
+    """
+    try:
+        tar_files = []
+        
+        if not os.path.exists(TAR_STORAGE_PATH):
+            return jsonify({"files": [], "message": "Storage directory not found"})
+        
+        for filename in os.listdir(TAR_STORAGE_PATH):
+            if filename.endswith(('.tar', '.tar.gz', '.tar.bz2', '.tgz')):
+                filepath = os.path.join(TAR_STORAGE_PATH, filename)
+                file_stats = os.stat(filepath)
+                
+                tar_files.append({
+                    "filename": filename,
+                    "size_bytes": file_stats.st_size,
+                    "size_mb": round(file_stats.st_size / (1024 * 1024), 2),
+                    "created_at": datetime.fromtimestamp(file_stats.st_ctime).strftime("%Y-%m-%d %H:%M:%S"),
+                    "modified_at": datetime.fromtimestamp(file_stats.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                    "download_url": f"/download-tar/{filename}"
+                })
+        
+        # Sort by creation time (newest first)
+        tar_files.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        return jsonify({
+            "files": tar_files,
+            "total_files": len(tar_files),
+            "storage_path": TAR_STORAGE_PATH
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to list tar files: {str(e)}"}), 500
+
+@app.route('/download-tar/<filename>', methods=['GET'])
+def download_tar_file(filename):
+    """
+    Endpoint to download a specific tar file
+    """
+    try:
+        # Security check: ensure filename doesn't contain path traversal
+        if '..' in filename or '/' in filename or '\\' in filename:
+            return jsonify({"error": "Invalid filename"}), 400
+        
+        filepath = os.path.join(TAR_STORAGE_PATH, filename)
+        
+        # Check if file exists
+        if not os.path.exists(filepath):
+            return jsonify({"error": "File not found"}), 404
+        
+        # Check if it's actually a tar file
+        if not filename.endswith(('.tar', '.tar.gz', '.tar.bz2', '.tgz')):
+            return jsonify({"error": "Not a valid tar file"}), 400
+        
+        # Determine mimetype based on extension
+        if filename.endswith('.gz') or filename.endswith('.tgz'):
+            mimetype = 'application/gzip'
+        elif filename.endswith('.bz2'):
+            mimetype = 'application/x-bzip2'
+        else:
+            mimetype = 'application/x-tar'
+        
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=filename,
+            mimetype=mimetype
+        )
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to download file: {str(e)}"}), 500
+
+@app.route('/script-status', methods=['GET'])
+def script_status():
+    """
+    Check if the script exists and get storage directory info
+    """
+    try:
+        script_exists = os.path.exists(SCRIPT_PATH)
+        storage_exists = os.path.exists(TAR_STORAGE_PATH)
+        
+        # Get storage directory size
+        total_size = 0
+        file_count = 0
+        if storage_exists:
+            for filename in os.listdir(TAR_STORAGE_PATH):
+                if filename.endswith(('.tar', '.tar.gz', '.tar.bz2', '.tgz')):
+                    filepath = os.path.join(TAR_STORAGE_PATH, filename)
+                    total_size += os.path.getsize(filepath)
+                    file_count += 1
+        
+        return jsonify({
+            "script_path": SCRIPT_PATH,
+            "script_exists": script_exists,
+            "storage_path": TAR_STORAGE_PATH,
+            "storage_exists": storage_exists,
+            "tar_files_count": file_count,
+            "total_storage_mb": round(total_size / (1024 * 1024), 2)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to get status: {str(e)}"}), 500
+
 
 
 if __name__ == "__main__":
