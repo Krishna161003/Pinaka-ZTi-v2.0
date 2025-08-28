@@ -161,9 +161,9 @@ const DeploymentOptions = ({ onStart }) => {
                   className="option-text"
                   style={{ fontSize: '1em', color: '#333', lineHeight: '1.6' }}
                 >
-                  <strong>All-in-One Setup:</strong> A streamlined, self-contained cloud environment
+                  {/* <strong>All-in-One Setup:</strong> A streamlined, self-contained cloud environment
                   where all OpenStack services are deployed on a single server, perfect for
-                  development and testing.<b>(need to change def)</b>
+                  development and testing.<b>(need to change def)</b> */}
                 </div>
                 <Button
                   className="custom-button"

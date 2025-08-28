@@ -648,7 +648,7 @@ const Dashboard = () => {
 
   // Columns and data for Cloud resources table
   const cloudTableColumns = [
-    { title: 'Instances', dataIndex: 'instances', key: 'instances', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'VMs', dataIndex: 'instances', key: 'instances', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
     { title: 'vCPU (Core)', dataIndex: 'vcpu', key: 'vcpu', width: '30%', render: (vcpu) => <UsageBar used={vcpu?.used} total={vcpu?.total} color="#4c8dff" /> },
     { title: 'Configured Memory (GiB)', dataIndex: 'memory', key: 'memory', width: '30%', render: (mem) => <UsageBar used={mem?.used} total={mem?.total} color="#4c8dff" /> },
     { title: 'Volumes', dataIndex: 'volumes', key: 'volumes', width: '20%', render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
