@@ -58,8 +58,8 @@ axios.interceptors.response.use(
       msg.includes('unable to verify') ||
       msg.includes('certificate verify failed');
 
-    // Only emit for SSL certificate issues, not other network problems
-    if (isNetwork && payload.url.startsWith('https://') && isSSLError) {
+    // Emit for any HTTPS network error. The UI will probe/suppress CORS-only failures.
+    if (isNetwork && payload.url.startsWith('https://')) {
       emitSSLError(payload);
     }
     return Promise.reject(err);
@@ -89,8 +89,8 @@ if (typeof window !== 'undefined' && window.fetch) {
         lowerMsg.includes('unable to verify') ||
         lowerMsg.includes('certificate verify failed');
 
-      // Only emit for SSL certificate issues
-      if (isNetwork && payload.url.startsWith('https://') && isSSLError) {
+      // Emit for any HTTPS network error. The UI will probe/suppress CORS-only failures.
+      if (isNetwork && payload.url.startsWith('https://')) {
         emitSSLError(payload);
       }
       throw e;
