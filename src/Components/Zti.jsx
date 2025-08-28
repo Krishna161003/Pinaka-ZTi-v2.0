@@ -92,7 +92,7 @@ export default function Zti({ children }) {
                 userSelect: "none",
               }}
             >
-              Add ZTi Cloud
+              Add ZTI Cloud
             </span>
           </div>
         </Col>
