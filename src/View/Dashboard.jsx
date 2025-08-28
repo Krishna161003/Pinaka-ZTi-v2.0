@@ -321,30 +321,36 @@ const Dashboard = () => {
 
 
   const BandwidthLine = ({ bandwidthHistory }) => {
-    const config = {
-      data: bandwidthHistory,
-      // width: 280,
-      height: 110,
-      smooth: true,
-      xField: 'date',
-      yField: 'value',
-      seriesField: 'direction',
-      lineStyle: { lineWidth: 2 },
-      color: ({ direction }) => (direction === 'In' ? '#1677ff' : '#52c41a'),
-      label: {
-        selector: 'last',
-        text: (d) => `${d.direction}: ${typeof d.value === 'number' ? d.value.toFixed(0) : d.value}`,
-        textAlign: 'right',
-        textBaseline: 'bottom',
-        dx: -10,
-        dy: -10,
-        connector: true,
-        style: { fontSize: 10 },
-      },
-    };
-    return <Line {...config} />;
+    return (
+      <Line
+        data={bandwidthHistory}
+        height={110}
+        smooth
+        xField="date"
+        yField="value"
+        seriesField="direction"
+        // Ensure color maps to the same field as series
+        colorField="direction"
+        color={['#1677ff', '#52c41a']} // order follows series order by data
+        // or use a mapping object:
+        // color={{ In: '#1677ff', Out: '#52c41a' }}
+        lineStyle={{ lineWidth: 2 }}
+        label={{
+          selector: 'last',
+          text: (d) => `${d.direction}: ${
+            typeof d.value === 'number' ? d.value.toFixed(0) : d.value
+          }`,
+          textAlign: 'right',
+          textBaseline: 'bottom',
+          dx: -10,
+          dy: -10,
+          connector: true,
+          style: { fontSize: 10 },
+        }}
+      />
+    );
   };
-
+  
 
 
   // Still fetch memory and single CPU value for other UI
