@@ -147,7 +147,7 @@ const DeploymentOptions = ({ onStart }) => {
           <div
             className={`option-box ${selectedOption === 'Server Virtualization' ? 'selected' : ''}`}
           >
-            <h5>Server Virtualization</h5>
+            {/* <h5>Server Virtualization</h5> */}
             <div className="option">
               <div
                 className="option-content front"
