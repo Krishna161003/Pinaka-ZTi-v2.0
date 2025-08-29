@@ -749,6 +749,10 @@ def submit_network_config():
 
 def is_interface_up(interface):
     """Check if the given network interface is up. If not, attempt to bring it up."""
+    # Skip checking interfaces that start with "enx"
+    if interface.startswith("enx"):
+        return True
+    
     try:
         result = subprocess.run(
             ["ip", "link", "show", interface],
@@ -2848,7 +2852,7 @@ def upload_status(job_id):
 # Path to your files containing the client secret (primary and fallback)
 CLIENT_SECRET_FILES = [
     "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env",  # Primary path
-    "/home/pinakasupport/.pinaka_wd/.env"  # Fallback path
+    "/home/pinakasupport/.pinaka_wd/Pinaka-ZTi-v2.0/.env"  # Fallback path
 ]
 
 import random

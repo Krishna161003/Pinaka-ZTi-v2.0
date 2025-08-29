@@ -16,15 +16,28 @@ export function buildDeployConfigPayload(form) {
     let typeArr = Array.isArray(row.type) ? row.type : (row.type ? [row.type] : []);
     typeArr = typeArr.map(t => {
       // Map interface types to required formats
-      if (t === 'Management') return 'Mgmt';
+      const lowerT = t.toLowerCase();
+      
+      // Management type mappings (case insensitive)
+      if (lowerT === 'management' || lowerT === 'mgmt') return 'Mgmt';
+      
+      // External_Traffic type mappings (case insensitive)
+      if (lowerT === 'external_traffic' || lowerT === 'external traffic' || lowerT === 'externaltraffic') return 'External_Traffic';
+      
+      // Other type mappings
+      if (lowerT === 'vxlan') return 'VXLAN';
+      if (lowerT === 'storage') return 'Storage';
+      if (lowerT === 'primary') return 'Primary';
+      if (lowerT === 'secondary') return 'Secondary';
+      
+      // Exact matches (preserve original case for already correct formats)
+      if (t === 'Mgmt') return 'Mgmt';
       if (t === 'VXLAN') return 'VXLAN';
       if (t === 'External_Traffic') return 'External_Traffic';
-      if (t.toLowerCase() === 'primary') return 'Primary';
-      if (t.toLowerCase() === 'secondary') return 'Secondary';
-      if (t.toLowerCase() === 'mgmt' || t.toLowerCase() === 'management') return 'Mgmt';
-      if (t.toLowerCase() === 'vxlan') return 'VXLAN';
-      if (t.toLowerCase() === 'storage') return 'Storage';
-      if (t.toLowerCase() === 'external traffic' || t.toLowerCase() === 'external_traffic') return 'External_Traffic';
+      if (t === 'Storage') return 'Storage';
+      if (t === 'Primary') return 'Primary';
+      if (t === 'Secondary') return 'Secondary';
+      
       return t;
     });
     const ifaceObj = {

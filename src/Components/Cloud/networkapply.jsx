@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typography, Space, Tooltip, message, Spin, Modal, notification } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { buildNetworkConfigPayload } from './networkapply.format';
@@ -426,46 +427,86 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     const savedLicenseDetails = getLicenseDetailsMap();
 
     if (savedForms && savedStatus) {
-      // Merge saved forms with any updated license details
+      // Merge saved forms with any updated license details and add forms for new nodes
       const parsedForms = JSON.parse(savedForms);
-      const updatedForms = parsedForms.map(form => ({
-        ...form,
-        licenseType: savedLicenseDetails[form.ip]?.type || form.licenseType || '-',
-        licensePeriod: savedLicenseDetails[form.ip]?.period || form.licensePeriod || '-',
-        licenseCode: savedLicenseDetails[form.ip]?.licenseCode || form.licenseCode || '-',
-        selectedDisks: Array.isArray(form.selectedDisks)
-          ? form.selectedDisks.map(d => {
-              if (typeof d === 'string') return d;
-              if (d && typeof d === 'object') {
-                return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
-              }
-              return String(d ?? '');
-            })
-          : [],
-      }));
+      const parsedStatus = JSON.parse(savedStatus);
+      
+      // Create forms for all licenseNodes, preserving existing ones
+      const updatedForms = licenseNodes.map((node, index) => {
+        // Find existing form for this node
+        const existingForm = parsedForms.find(f => f.ip === node.ip);
+        if (existingForm) {
+          // Update existing form with latest license details
+          return {
+            ...existingForm,
+            licenseType: savedLicenseDetails[node.ip]?.type || existingForm.licenseType || '-',
+            licensePeriod: savedLicenseDetails[node.ip]?.period || existingForm.licensePeriod || '-',
+            licenseCode: savedLicenseDetails[node.ip]?.licenseCode || existingForm.licenseCode || '-',
+            selectedDisks: Array.isArray(existingForm.selectedDisks)
+              ? existingForm.selectedDisks.map(d => {
+                  if (typeof d === 'string') return d;
+                  if (d && typeof d === 'object') {
+                    return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                  }
+                  return String(d ?? '');
+                })
+              : [],
+          };
+        } else {
+          // Create new form for new node
+          return {
+            ip: node.ip,
+            configType: 'default',
+            useBond: false,
+            tableData: generateRows('default', false),
+            defaultGateway: '',
+            defaultGatewayError: '',
+            licenseType: savedLicenseDetails[node.ip]?.type || '-',
+            licensePeriod: savedLicenseDetails[node.ip]?.period || '-',
+            licenseCode: savedLicenseDetails[node.ip]?.licenseCode || '-',
+            selectedDisks: [],
+            diskError: '',
+            selectedRoles: [],
+            roleError: '',
+          };
+        }
+      });
+      
+      // Create card status for all licenseNodes, preserving existing ones
+      const updatedStatus = licenseNodes.map((node, index) => {
+        // Find existing status for this node
+        const existingFormIndex = parsedForms.findIndex(f => f.ip === node.ip);
+        if (existingFormIndex !== -1 && parsedStatus[existingFormIndex]) {
+          return parsedStatus[existingFormIndex];
+        } else {
+          // Default status for new node
+          return { loading: false, applied: false };
+        }
+      });
 
       setForms(updatedForms);
-      setCardStatus(JSON.parse(savedStatus));
+      setCardStatus(updatedStatus);
       // Reset per-card button loaders to idle for current forms length
       setBtnLoading(updatedForms.map(() => false));
     } else {
-      setForms(
-        licenseNodes.map(node => ({
-          ip: node.ip,
-          configType: 'default',
-          useBond: false,
-          tableData: generateRows('default', false),
-          defaultGateway: '',
-          defaultGatewayError: '',
-          licenseType: savedLicenseDetails[node.ip]?.type || '-',
-          licensePeriod: savedLicenseDetails[node.ip]?.period || '-',
-          licenseCode: savedLicenseDetails[node.ip]?.licenseCode || '-',
-          selectedDisks: [],
-          diskError: '',
-          selectedRoles: [],
-          roleError: '',
-        }))
-      );
+      // No saved forms, create fresh ones for all nodes
+      const newForms = licenseNodes.map(node => ({
+        ip: node.ip,
+        configType: 'default',
+        useBond: false,
+        tableData: generateRows('default', false),
+        defaultGateway: '',
+        defaultGatewayError: '',
+        licenseType: savedLicenseDetails[node.ip]?.type || '-',
+        licensePeriod: savedLicenseDetails[node.ip]?.period || '-',
+        licenseCode: savedLicenseDetails[node.ip]?.licenseCode || '-',
+        selectedDisks: [],
+        diskError: '',
+        selectedRoles: [],
+        roleError: '',
+      }));
+      
+      setForms(newForms);
       setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
       setBtnLoading(licenseNodes.map(() => false));
     }
@@ -524,13 +565,31 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     forms.forEach((f, idx) => {
       const ip = f?.ip;
       if (!ip) return;
+      
+      // Determine the correct SSH target IP based on config type
+      let ssh_target_ip;
+      if (f.configType === 'default') {
+        // For default config, use primary type interface IP
+        const primaryRow = f.tableData?.find(row => row.type === 'primary');
+        ssh_target_ip = primaryRow?.ip || ip; // fallback to main IP if primary not found
+      } else if (f.configType === 'segregated') {
+        // For segregated config, use Mgmt type interface IP
+        const MgmtRow = f.tableData?.find(row => 
+          Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
+        );
+        ssh_target_ip = MgmtRow?.ip || ip; // fallback to main IP if Mgmt not found
+      } else {
+        // Fallback to main node IP for any other config type
+        ssh_target_ip = ip;
+      }
+      
       const status = cardStatus[idx] || {};
       if (!status.loading || status.applied) return;
 
       // Skip if timers already exist for this IP
-      if ((window.__cloudPolling && window.__cloudPolling[ip]) || (window.__cloudPollingStart && window.__cloudPollingStart[ip])) return;
+      if ((window.__cloudPolling && window.__cloudPolling[ssh_target_ip]) || (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip])) return;
 
-      const startAt = delayMap[ip] || 0;
+      const startAt = delayMap[ssh_target_ip] || 0;
       const elapsed = startAt ? (Date.now() - startAt) : 0;
       const remaining = Math.max(POLL_DELAY_MS - elapsed, 0);
 
@@ -547,76 +606,96 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
             }
             
             // Show persistent retry notification using global notification system
-            const key = `ssh-timeout-${ip}`;
+            const key = `ssh-timeout-${ssh_target_ip}`;
             if (window.__cloudGlobalNotifications) {
+              // Capture variables in closure for retry function
+              const retryTargetIp = ssh_target_ip;
+              const retryOriginalIp = ip;
+              const retryIdx = idx;
+              
               window.__cloudGlobalNotifications.showNotification(
                 key,
                 'Connection Timeout',
-                `Failed to connect to ${ip} after multiple attempts. The node may be taking longer than expected to come up.`,
+                `Failed to connect to ${ssh_target_ip} after multiple attempts. The node may be taking longer than expected to come up.`,
                 () => {
                   // Re-trigger backend scheduling and re-schedule frontend polling with delay
                   const ssh_user = 'pinakasupport';
                   const ssh_pass = '';
                   const ssh_key = '';
+                  
+                  message.info(`Retrying SSH polling for ${retryTargetIp}. Will begin after 90 seconds.`);
+                  
                   try {
                     fetch(`https://${hostIP}:2020/poll-ssh-status`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ips: [ip], ssh_user, ssh_pass, ssh_key })
-                    }).catch(() => {});
-                  } catch (_) {}
+                      body: JSON.stringify({ ips: [retryTargetIp], ssh_user, ssh_pass, ssh_key })
+                    }).then(() => {
+                      // Reset the card status to loading state for retry
+                      setCardStatusForIpInSession(retryOriginalIp, { loading: true, applied: false });
+                      if (window.__cloudMountedNetworkApply) {
+                        setCardStatus(prev => prev.map((s, i) => i === retryIdx ? { loading: true, applied: false } : s));
+                      }
+                    }).catch(err => {
+                      message.error(`Failed to restart SSH polling for ${retryTargetIp}: ${err.message}`);
+                    });
+                  } catch (_) {
+                    message.error(`Failed to restart SSH polling for ${retryTargetIp}`);
+                  }
+                  
                   // Clear any existing timers and set a fresh delayed start
                   try {
-                    if (window.__cloudPolling && window.__cloudPolling[ip]) {
-                      clearInterval(window.__cloudPolling[ip]);
-                      delete window.__cloudPolling[ip];
+                    if (window.__cloudPolling && window.__cloudPolling[retryTargetIp]) {
+                      clearInterval(window.__cloudPolling[retryTargetIp]);
+                      delete window.__cloudPolling[retryTargetIp];
                     }
-                    if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
-                      clearTimeout(window.__cloudPollingStart[ip]);
-                      delete window.__cloudPollingStart[ip];
+                    if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
+                      clearTimeout(window.__cloudPollingStart[retryTargetIp]);
+                      delete window.__cloudPollingStart[retryTargetIp];
                     }
                   } catch (_) {}
-                  setDelayStartForIp(ip, Date.now());
+                  
+                  setDelayStartForIp(retryTargetIp, Date.now());
                   const to = setTimeout(() => {
                     beginInterval();
-                    if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
-                      delete window.__cloudPollingStart[ip];
+                    if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
+                      delete window.__cloudPollingStart[retryTargetIp];
                     }
                   }, POLL_DELAY_MS);
                   if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-                  window.__cloudPollingStart[ip] = to;
+                  window.__cloudPollingStart[retryTargetIp] = to;
                 }
               );
             }
             
-            message.error(`SSH polling timeout for ${ip}. Please check the node manually.`);
-            if (window.__cloudPolling) delete window.__cloudPolling[ip];
-            setDelayStartForIp(ip, null);
+            message.error(`SSH polling timeout for ${ssh_target_ip}. Please check the node manually.`);
+            if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
+            setDelayStartForIp(ssh_target_ip, null);
             return;
           }
 
-          fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ip)}`)
+          fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ssh_target_ip)}`)
             .then(res => res.json())
             .then(data => {
-              if (data.status === 'success' && data.ip === ip) {
+              if (data.status === 'success' && data.ip === ssh_target_ip) {
                 setCardStatusForIpInSession(ip, { loading: false, applied: true });
                 if (window.__cloudMountedNetworkApply) {
                   setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: true } : s));
                 }
                 message.success(`Node ${data.ip} is back online!`);
-                notifySshSuccess(ip);
+                notifySshSuccess(ssh_target_ip);
                 clearInterval(pollInterval);
-                if (window.__cloudPolling) delete window.__cloudPolling[ip];
-                if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
-                  delete window.__cloudPollingStart[ip];
+                if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
+                if (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip]) {
+                  delete window.__cloudPollingStart[ssh_target_ip];
                 }
-                setDelayStartForIp(ip, null);
+                setDelayStartForIp(ssh_target_ip, null);
                 // Ensure form data is stored
                 const nodeForm = forms[idx];
                 const nodeIp = nodeForm?.ip || `node${idx + 1}`;
                 if (nodeForm) storeFormData(nodeIp, nodeForm);
-              } else if (data.status === 'fail' && data.ip === ip) {
-                infoRestartThrottled(ip);
+              } else if (data.status === 'fail' && data.ip === ssh_target_ip) {
+                infoRestartThrottled(ssh_target_ip);
               }
             })
             .catch(err => {
@@ -625,18 +704,18 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         }, POLL_INTERVAL_MS);
 
         if (!window.__cloudPolling) window.__cloudPolling = {};
-        window.__cloudPolling[ip] = pollInterval;
+        window.__cloudPolling[ssh_target_ip] = pollInterval;
       };
 
       if (remaining > 0) {
         const to = setTimeout(() => {
           beginInterval();
-          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
-            delete window.__cloudPollingStart[ip];
+          if (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip]) {
+            delete window.__cloudPollingStart[ssh_target_ip];
           }
         }, remaining);
         if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-        window.__cloudPollingStart[ip] = to;
+        window.__cloudPollingStart[ssh_target_ip] = to;
       } else {
         beginInterval();
       }
@@ -720,6 +799,49 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           otherRow.type = 'primary';
         }
         updated[otherIndex] = otherRow;
+      } else if (field === 'type' && f.configType === 'segregated') {
+        // Ensure only one row can have External_Traffic and make it exclusive within the row
+        let nextTypes = Array.isArray(value) ? value : [];
+        const someOtherHasExternal = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External_Traffic'));
+        
+        // Handle External_Traffic exclusivity
+        if (nextTypes.includes('External_Traffic')) {
+          if (someOtherHasExternal) {
+            // Remove External_Traffic and notify
+            nextTypes = nextTypes.filter(t => t !== 'External_Traffic');
+            try { message.warning('Only one interface can be set to External_Traffic per node.'); } catch (_) {}
+          } else {
+            // Make External_Traffic exclusive for this row
+            nextTypes = ['External_Traffic'];
+          }
+        }
+        
+        // Handle Mgmt exclusivity - can coexist with other types but only on one interface
+        if (nextTypes.includes('Mgmt')) {
+          const someOtherHasMgmt = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt'));
+          if (someOtherHasMgmt) {
+            // Remove Mgmt from other rows
+            updated.forEach((r, idx) => {
+              if (idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt')) {
+                r.type = r.type.filter(t => t !== 'Mgmt');
+              }
+            });
+          }
+        }
+        
+        row.type = nextTypes;
+        // When External_Traffic selected for this row, clear IP/Subnet and related errors
+        if (Array.isArray(row.type) && row.type.includes('External_Traffic')) {
+          row.ip = '';
+          row.subnet = '';
+          if (row.errors) {
+            delete row.errors.ip;
+            delete row.errors.subnet;
+            delete row.errors.dns;
+          }
+        }
+        updated[rowIdx] = row;
+        return { ...f, tableData: updated };
       } else if (field === 'defaultGateway') {
         // Handle default gateway separately
         const newForm = { ...f, defaultGateway: value };
@@ -884,10 +1006,15 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         title: 'Type',
         dataIndex: 'type',
         render: (_, record, rowIdx) => {
-          let managementTaken = false;
+          let MgmtTaken = false;
           if (form.configType === 'segregated') {
-            managementTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Management'));
+            MgmtTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Mgmt'));
           }
+          let externalTaken = false;
+          if (form.configType === 'segregated') {
+            externalTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('External_Traffic'));
+          }
+          const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
               mode={form.configType === 'segregated' ? 'multiple' : undefined}
@@ -900,28 +1027,44 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
             >
               {form.configType === 'segregated' ? (
                 <>
-                  {!managementTaken || (Array.isArray(record.type) && record.type.includes('Management')) ? (
-                    <Option value="Management">
-                      <Tooltip placement="right" title="Management" >
-                        Mgmt
+                  {hasExt ? (
+                    // When External_Traffic is selected on this row, hide all other options
+                    <Option value="External_Traffic">
+                      <Tooltip placement="right" title="External_Traffic">
+                        External_Traffic
                       </Tooltip>
                     </Option>
-                  ) : null}
-                  <Option value="VXLAN">
-                    <Tooltip placement="right" title="VXLAN">
-                      VXLAN
-                    </Tooltip>
-                  </Option>
-                  <Option value="Storage">
-                    <Tooltip placement="right" title="Storage">
-                      Storage
-                    </Tooltip>
-                  </Option>
-                  <Option value="External Traffic">
-                    <Tooltip placement="right" title="External Traffic">
-                      External Traffic
-                    </Tooltip>
-                  </Option>
+                  ) : (
+                    <>
+                      {!MgmtTaken || (Array.isArray(record.type) && record.type.includes('Mgmt')) ? (
+                        <Option value="Mgmt">
+                          <Tooltip placement="right" title="Management" >
+                            Mgmt
+                          </Tooltip>
+                        </Option>
+                      ) : null}
+                      <Option value="VXLAN">
+                        <Tooltip placement="right" title="VXLAN">
+                          VXLAN
+                        </Tooltip>
+                      </Option>
+                      {/* Only show Storage if disks are present */}
+                      {Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
+                        <Option value="Storage">
+                          <Tooltip placement="right" title="Storage">
+                            Storage
+                          </Tooltip>
+                        </Option>
+                      )}
+                      {!externalTaken || (Array.isArray(record.type) && record.type.includes('External_Traffic')) ? (
+                        <Option value="External_Traffic">
+                          <Tooltip placement="right" title="External_Traffic">
+                            External_Traffic
+                          </Tooltip>
+                        </Option>
+                      ) : null}
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -954,7 +1097,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               value={record.ip}
               placeholder="Enter IP Address"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))}
             />
           </Form.Item>
         ),
@@ -972,7 +1115,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               value={record.subnet}
               placeholder="Enter Subnet"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))}
             />
           </Form.Item>
         ),
@@ -990,7 +1133,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               value={record.dns}
               placeholder="Enter Nameserver"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'dns', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary')}
+              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))}
             />
           </Form.Item>
         ),
@@ -1008,6 +1151,22 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
+    // Enforce only one External_Traffic in segregated mode
+    if (form.configType === 'segregated') {
+      const extCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('External_Traffic') ? 1 : 0), 0);
+      if (extCount > 1) {
+        message.error('Only one interface can be set to External_Traffic per node.');
+        return;
+      }
+    }
+    // Enforce only one Mgmt in segregated mode
+    if (form.configType === 'segregated') {
+      const mgmtCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('Mgmt') ? 1 : 0), 0);
+      if (mgmtCount > 1) {
+        message.error('Only one interface can be set to Mgmt per node.');
+        return;
+      }
+    }
     for (let i = 0; i < form.tableData.length; i++) {
       const row = form.tableData[i];
       if (form.useBond && !row.bondName?.trim()) {
@@ -1018,8 +1177,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         message.error(`Row ${i + 1}: Please select a Type.`);
         return;
       }
-      // Validate required fields (skip for secondary in default mode)
-      if (!(form.configType === 'default' && row.type === 'secondary')) {
+      const isExternal = form.configType === 'segregated' && Array.isArray(row.type) && row.type.includes('External_Traffic');
+      // Validate required fields (skip for secondary in default mode and External_Traffic in segregated)
+      if (!(form.configType === 'default' && row.type === 'secondary') && !isExternal) {
         for (const field of ['ip', 'subnet', 'dns']) {
           if (!row[field]) {
             message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
@@ -1027,7 +1187,14 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           }
         }
       }
-      if (Object.keys(row.errors || {}).length > 0) {
+      // Ignore IP/Subnet/DNS errors for External_Traffic rows
+      const filteredErrors = { ...(row.errors || {}) };
+      if (isExternal) {
+        delete filteredErrors.ip;
+        delete filteredErrors.subnet;
+        delete filteredErrors.dns;
+      }
+      if (Object.keys(filteredErrors).length > 0) {
         message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
         return;
       }
@@ -1133,8 +1300,25 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           sessionStorage.setItem(BOOT_ENDTIME_KEY, JSON.stringify(bootEndTimes));
 
           // --- SSH Polling Section ---
+          // Determine the correct IP to use for SSH polling based on config type
+          let ssh_target_ip;
+          if (form.configType === 'default') {
+            // For default config, use primary type interface IP
+            const primaryRow = form.tableData?.find(row => row.type === 'primary');
+            ssh_target_ip = primaryRow?.ip || form.ip; // fallback to main IP if primary not found
+          } else if (form.configType === 'segregated') {
+            // For segregated config, use Mgmt type interface IP
+            const MgmtRow = form.tableData?.find(row => 
+              Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
+            );
+            ssh_target_ip = MgmtRow?.ip || form.ip; // fallback to main IP if Mgmt not found
+          } else {
+            // Fallback to main node IP for any other config type
+            ssh_target_ip = form.ip;
+          }
+          
           // Gather all required info for the polling API
-          const node_ip = form.ip;
+          const node_ip = ssh_target_ip; // Use the determined target IP for SSH
           const ssh_user = 'pinakasupport';
           const ssh_pass = ''; // Do not use password authentication
           const ssh_key = ''; // Leave empty to use server-side .pem file (ps_key.pem)
@@ -1171,7 +1355,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 // Stop polling if we've exceeded the maximum attempts
                 if (pollCount > POLL_MAX_POLLS) {
                   clearInterval(pollInterval);
-                  setCardStatusForIpInSession(node_ip, { loading: false, applied: false });
+                  setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
                   if (window.__cloudMountedNetworkApply) {
                     setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: false } : s));
                   }
@@ -1187,7 +1371,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                   .then(data => {
                     if (data.status === 'success' && data.ip === node_ip) {
                       // Persist status to sessionStorage so it reflects on remount or in other menus
-                      setCardStatusForIpInSession(node_ip, { loading: false, applied: true });
+                      setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
                       if (window.__cloudMountedNetworkApply) {
                         setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
                       }
@@ -1659,15 +1843,15 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     }
 
     // Prepare POST data for /api/child-deployment-activity-log
-    // Each node must have serverip, type, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
+    // Each node must have serverip, type, Mgmt, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
     const nodes = Object.values(configs).map(form => ({
       serverip: form.ip,
       type: form.configType,
       // Send all selected roles as a comma-separated string to store multiple roles in DB
       role: Array.isArray(form.selectedRoles) && form.selectedRoles.length > 0 ? form.selectedRoles.join(',') : 'child',
-      Management: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Management') : row.type === 'Management')?.ip || '',
+      Mgmt: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt')?.ip || '',
       Storage: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Storage') : row.type === 'Storage')?.ip || '',
-      External_Traffic: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('External Traffic') : row.type === 'External Traffic')?.ip || '',
+      External_Traffic: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('External_Traffic') : row.type === 'External_Traffic')?.ip || '',
       VXLAN: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('VXLAN') : row.type === 'VXLAN')?.ip || '',
       license_code: form.licenseCode || '',
       license_type: form.licenseType || '',

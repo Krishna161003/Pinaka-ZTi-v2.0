@@ -72,6 +72,15 @@ echo "✅ SSL certificates ready"
 
 cd - || { echo "❌ Failed to return to original directory"; exit 1; }
 
+NETWORK_NAME="pinakastra-cloud_my-network"
+
+if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+    echo "Network '$NETWORK_NAME' not found. Creating..."
+    docker network create "$NETWORK_NAME"
+else
+    echo "Network '$NETWORK_NAME' already exists."
+fi
+
 # ===============================================================
 # STEP 2: Start Keycloak
 # ===============================================================

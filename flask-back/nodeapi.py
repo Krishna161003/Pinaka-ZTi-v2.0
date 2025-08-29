@@ -458,6 +458,10 @@ def submit_network_config():
 
 def is_interface_up(interface):
     """Check if the given network interface is up. If not, attempt to bring it up."""
+    # Skip checking interfaces that start with "enx"
+    if interface.startswith("enx"):
+        return True
+    
     try:
         result = subprocess.run(
             ["ip", "link", "show", interface],

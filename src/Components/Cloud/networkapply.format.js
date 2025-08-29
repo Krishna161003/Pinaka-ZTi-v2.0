@@ -12,6 +12,9 @@ export function buildNetworkConfigPayload(form) {
   // Track bond names to bond keys
   const bondNameToKey = {};
 
+  // Track if we've set the gateway for the first interface
+  let isFirstInterface = true;
+
   // First, process all bond rows (if any)
   if (useBond) {
     tableData.forEach(row => {
@@ -26,14 +29,21 @@ export function buildNetworkConfigPayload(form) {
         // Only primary/management/storage/VXLAN gets Properties
         if (
           (configType === 'default' && row.type === 'primary') ||
-          (configType === 'segregated' && Array.isArray(row.type) && row.type.length > 0 && !row.type.includes('External Traffic'))
+          (configType === 'segregated' && Array.isArray(row.type) && row.type.length > 0 && !row.type.includes('External_Traffic'))
         ) {
-          using_interfaces[key]["Properties"] = {
+          const properties = {
             IP_ADDRESS: row.ip || '',
             Netmask: row.subnet || '',
-            DNS: row.dns || '',
-            gateway: defaultGateway || ''
+            DNS: row.dns || ''
           };
+          
+          // Only add gateway to the first interface that gets Properties
+          if (isFirstInterface) {
+            properties.gateway = defaultGateway || '';
+            isFirstInterface = false; // Ensure only first interface gets the gateway
+          }
+          
+          using_interfaces[key]["Properties"] = properties;
         }
         // Add all interfaces as Bond_Slave
         (Array.isArray(row.interface) ? row.interface : [row.interface]).forEach(iface => {
@@ -49,8 +59,6 @@ export function buildNetworkConfigPayload(form) {
       }
     });
   }
-  // Track if we've set the gateway for the first interface
-  let isFirstInterface = true;
   
   // Then, process all non-bond rows
   tableData.forEach(row => {
@@ -62,9 +70,9 @@ export function buildNetworkConfigPayload(form) {
     let typeArr = Array.isArray(row.type) ? row.type : (row.type ? [row.type] : []);
     typeArr = typeArr.map(t => {
       // Map interface types to required formats
-      if (t === 'Management') return 'Mgmt';
+      if (t === 'Mgmt') return 'Mgmt';
       if (t === 'VXLAN') return 'VXLAN';
-      if (t === 'External Traffic') return 'External_Traffic';
+      if (t === 'External_Traffic') return 'External_Traffic';
       return t;
     });
     using_interfaces[intKey] = {
@@ -76,7 +84,7 @@ export function buildNetworkConfigPayload(form) {
     if (
       (configType === 'default' && typeArr.includes('primary')) ||
       (configType === 'default' && row.type === 'primary') ||
-      (configType === 'segregated' && typeArr.length > 0 && !typeArr.includes('External Traffic'))
+      (configType === 'segregated' && typeArr.length > 0 && !typeArr.includes('External_Traffic'))
     ) {
       const properties = {
         IP_ADDRESS: row.ip || '',
