@@ -182,21 +182,21 @@ const Login = ({ checkLogin = () => {} }) => {
   const renderSSOForm = () => (
     <form name="sso-login" onSubmit={handleSSOSubmit}>
       <div className={styles.formGroup}>
-        <label>User Name:</label>
+        <label>Username</label>
         <Input
-          prefix={<HomeOutlined style={{ marginRight: 8 }} />}
+          prefix={<HomeOutlined style={{ color: '#6b7280' }} />}
           type="text"
           name="companyName"
           value={ssoFormData.companyName}
           onChange={handleSSOChange}
-          placeholder="Enter your user name"
+          placeholder="Enter your username"
           required
         />
       </div>
       <div className={styles.formGroup}>
-        <label>Password:</label>
+        <label>Password</label>
         <Input.Password
-          prefix={<LockOutlined style={{ marginRight: 8 }} />}
+          prefix={<LockOutlined style={{ color: '#6b7280' }} />}
           name="password"
           value={ssoFormData.password}
           onChange={handleSSOChange}
@@ -205,29 +205,30 @@ const Login = ({ checkLogin = () => {} }) => {
         />
       </div>
       {error && <Alert message={error} type="error" showIcon />}
-      <Button type="primary" htmlType="submit" loading={loading}>Login</Button>
+      <Button 
+        type="primary" 
+        htmlType="submit" 
+        loading={loading}
+        block
+      >
+        {loading ? 'Logging in...' : 'LOGIN'}
+      </Button>
     </form>
   );
 
   return (
     <div className={styles.App}>
-      <div className="container-fluid ps-md-0">
-        <div className="row g-0">
-          <div className={`d-md-flex col-md-8 col-lg-6 ${styles.bgImage}`}></div>
-          <div className="col-md-8 col-lg-6">
-            <div className={`${styles.container} border p-4`}>
-              <div className={`${styles.loginForm} text-center`}>
-                <div className={styles.logoContainer}>
-                  <img src={img1} alt="Logo" className={`${styles.logo} mx-auto d-block`} />
-                </div>
-                <h2 style={{
-                  fontSize: '18px',
-                  marginTop: '20px',
-                  color: 'fffff',
-                  textAlign: 'center'
-                }}>SSO Login</h2>
-                {renderSSOForm()}
+      <div className="container-fluid p-0">
+        <div className="row g-0 min-vh-100">
+          <div className={`col-lg-7 ${styles.bgImage}`}></div>
+          <div className="col-lg-5 d-flex align-items-center justify-content-center">
+            <div className={styles.loginForm}>
+              <div className={styles.logoContainer}>
+                <img src={img1} alt="Logo" className={styles.logo} />
               </div>
+              <h1 className={styles.welcomeTitle}>Welcome back</h1>
+              {/* <p className={styles.subtitle}>Login to the Dashboard</p> */}
+              {renderSSOForm()}
             </div>
           </div>
         </div>
