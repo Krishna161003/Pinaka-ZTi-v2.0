@@ -178,6 +178,8 @@ function checkAndUpdateExpiredLicenses() {
   });
 
 // Fetch deployed server IPs for a given cloudname (and optional user filter)
+// Retrieves distinct server IPs from deployed_server table for a specific cloud
+// Supports optional user filtering and returns IP addresses for network operations
 app.get('/api/deployed-server-ips', (req, res) => {
   try {
     const { cloudname, user_id } = req.query;
@@ -240,6 +242,8 @@ app.use(
 
 
 // Check if a license code already exists
+// Checks if a license code already exists in the database
+// Returns license details and availability status for validation purposes
 app.post('/api/check-license-exists', (req, res) => {
   const { license_code } = req.body;
   
@@ -287,6 +291,8 @@ app.post('/api/check-license-exists', (req, res) => {
 });
 
 // Insert multiple child node deployment activity logs (type = 'secondary') for Cloud module
+// Creates multiple child node deployment activity logs with type 'secondary'
+// Handles license binding and generates unique server IDs for each node
 app.post('/api/child-deployment-activity-log', async (req, res) => {
   const nodes = req.body.nodes; // Array of node objects
   const { user_id, username } = req.body;
@@ -381,6 +387,8 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
 });
 
 // Finalize a child node deployment (Cloud) from deployment_activity_log into deployed_server (type = 'secondary')
+// Finalizes child node deployment by moving from activity log to deployed_server table
+// Activates licenses and sets start/end dates for license management
 app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
   const { serverid } = req.params;
 
@@ -507,6 +515,8 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
 });
 
 // API: List pending child (secondary) deployments with optional filters
+// Retrieves pending child deployments from deployment_activity_log with optional filters
+// Returns deployment status and configuration details for monitoring and management
 app.get('/api/pending-child-deployments', (req, res) => {
   const { status = 'progress', user_id, cloudname } = req.query || {};
   let sql = `SELECT serverid, serverip, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
@@ -531,6 +541,8 @@ app.get('/api/pending-child-deployments', (req, res) => {
 });
 
 // Get license details by server ID
+// Checks password update status for a specific user from the database
+// Returns update_pwd_status flag to determine if user has completed initial setup
 app.get("/api/check-password-status/:userId", (req, res) => {
   const { userId } = req.params;
 
@@ -571,6 +583,8 @@ app.get("/api/check-password-status/:userId", (req, res) => {
 
 
 // /run-script API to update password and set user status
+// Executes password update script with user credentials and host information
+// Updates user password status in database after successful script execution
 app.post("/run-script", (req, res) => {
   const { userUsername, userId, oldPassword, newPassword, hostIP } = req.body;
 
@@ -684,6 +698,8 @@ try {
   process.exit(1);
 }
 
+// Simple health check endpoint to verify Node.js backend is running
+// Returns basic status message for service monitoring and testing
 app.get('/', (req, res) => {
   res.send('NODE BACKEND IS RUNNING SUCCESSFULLY!');
 });
@@ -863,6 +879,8 @@ db.connect((err) => {
 });
 
 // Insert lifecycle management history item
+// Stores lifecycle management history items with patch information and logs
+// Supports upsert operations for updating existing history entries
 app.post('/api/lifecycle-history', (req, res) => {
   try {
     const { id, info, date, user_id, log } = req.body || {};
@@ -902,6 +920,8 @@ app.post('/api/lifecycle-history', (req, res) => {
 });
 
 // Fetch lifecycle management history items
+// Retrieves lifecycle management history items with optional user filtering
+// Returns patch history sorted by date for lifecycle management tracking
 app.get('/api/lifecycle-history', (req, res) => {
   try {
     const { user_id } = req.query || {};
@@ -926,6 +946,8 @@ app.get('/api/lifecycle-history', (req, res) => {
 });
 
 // Fetch the stored lifecycle log for a given history id as a downloadable .log file
+// Downloads lifecycle log file for a specific history entry as plain text
+// Returns log content with proper headers for file download functionality
 app.get('/api/lifecycle-history/:id/log', (req, res) => {
   try {
     const { id } = req.params || {};
@@ -974,6 +996,8 @@ app.get('/api/deployment-activity-log/latest-in-progress/:user_id', (req, res) =
 });
 
 // Get latest in-progress secondary deployment activity log for a user (from deployment_activity_log)
+// Retrieves the latest in-progress secondary deployment for a specific user
+// Returns secondary deployment status and configuration details for monitoring
 app.get('/api/deployment-activity-log/latest-in-progress/secondary/:user_id', (req, res) => {
   const { user_id } = req.params;
   const sql = `
@@ -997,6 +1021,8 @@ app.get('/api/deployment-activity-log/latest-in-progress/secondary/:user_id', (r
 // Insert new deployment activity log
 const { nanoid } = require('nanoid');
 
+// Creates new deployment activity log entry for host deployment tracking
+// Generates unique server IDs and handles license information for deployment management
 app.post('/api/deployment-activity-log', (req, res) => {
   const { user_id, username, cloudname, serverip, vip, Management, External_Traffic, Storage, VXLAN } = req.body;
   if (!user_id || !username || !cloudname || !serverip) {
@@ -1088,6 +1114,8 @@ app.post('/api/deployment-activity-log', (req, res) => {
 });
 
 // Update deployment activity log status to completed
+// Updates deployment activity log status for a specific server deployment
+// Allows status changes from progress to completed or other states
 app.patch('/api/deployment-activity-log/:serverid', (req, res) => {
   const { serverid } = req.params;
   const { status } = req.body;
@@ -1103,6 +1131,8 @@ app.patch('/api/deployment-activity-log/:serverid', (req, res) => {
 });
 
 // API to fetch license details for a serverid
+// Retrieves license details for a specific server including status and dates
+// Checks for expired licenses and returns comprehensive license information
 app.get('/api/license-details/:serverid', (req, res) => {
   const { serverid } = req.params;
   
@@ -1124,6 +1154,8 @@ app.get('/api/license-details/:serverid', (req, res) => {
 
 // Create or update license entry for a server
 // Expects body: { license_code, license_type, license_period, serverid, status }
+// Creates or updates license entry for a server with activation and date management
+// Handles perpetual and time-based licenses with proper status and date calculations
 app.put('/api/update-license/:serverid', (req, res) => {
   const { serverid } = req.params;
   const { license_code, license_type, license_period, status } = req.body || {};
@@ -1215,6 +1247,8 @@ app.get('/api/deployment-activity-log/latest-in-progress/:user_id', (req, res) =
 
 
 // API: Get dashboard counts for Cloud, Flight Deck, and Squadron
+// Retrieves dashboard counts for Cloud and Squadron deployments for a user
+// Returns cloud count and squadron count for dashboard statistics and monitoring
 app.get('/api/dashboard-counts/:userId', async (req, res) => {
   const { userId } = req.params;
 
@@ -1257,6 +1291,8 @@ app.get('/api/dashboard-counts/:userId', async (req, res) => {
 });
 
 // API: Get deployed servers (alias of child-nodes; source: deployed_server)
+// Retrieves all deployed servers with optional user filtering
+// Returns server information from deployed_server table for inventory management
 app.get('/api/deployed-servers', (req, res) => {
   const userId = req.query.userId;
   let sql = "SELECT * FROM deployed_server";
@@ -1275,6 +1311,8 @@ app.get('/api/deployed-servers', (req, res) => {
 });
 
 // API: Get server details by IP from deployed_server table
+// Retrieves server details by IP address from deployed_server table
+// Returns server ID, IP, and role information for server identification
 app.get('/api/server-details-by-ip', (req, res) => {
   const { ip, userId } = req.query;
   
@@ -1308,6 +1346,8 @@ app.get('/api/server-details-by-ip', (req, res) => {
 });
 
 // API: Get first cloudname from deployed_server globally (earliest row)
+// Retrieves the first cloudname from deployed_server table globally
+// Returns the earliest cloudname for system configuration and defaults
 app.get('/api/first-cloudname', (req, res) => {
   const sql = `
     SELECT cloudname FROM deployed_server
@@ -1326,6 +1366,8 @@ app.get('/api/first-cloudname', (req, res) => {
 });
 
 // API: Get distinct server IPs from deployed_server for dropdowns
+// Retrieves distinct server IPs for dropdown selection with user filtering
+// Returns IP addresses for UI dropdown components and server selection
 app.get('/api/deployed-server-ips-dropdown', (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json([req.hostname]);
@@ -1342,6 +1384,8 @@ app.get('/api/deployed-server-ips-dropdown', (req, res) => {
 });
 
 // API: Get all squadron nodes for Squadron tab (from deployed_server)
+// Retrieves squadron nodes from deployed_server table excluding host nodes
+// Returns node information with credentials and VIP details for squadron management
 app.get('/api/squadron-nodes', (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json([]);
@@ -1380,6 +1424,8 @@ app.get('/api/squadron-nodes', (req, res) => {
 });
 
 // API: Get cloud deployments summary (uses deployed_server table)
+// Retrieves cloud deployments summary with node counts and credential information
+// Returns cloud statistics and representative server details for dashboard display
 app.get('/api/cloud-deployments-summary', (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json([]);
@@ -1445,6 +1491,8 @@ app.get('/api/cloud-deployments-summary', (req, res) => {
 });
 
 // Insert multiple node deployment activity logs into deployment_activity_log (type = 'primary')
+// Creates multiple node deployment activity logs with type 'primary'
+// Handles license binding and generates unique server IDs for squadron deployments
 app.post('/api/node-deployment-activity-log', async (req, res) => {
   const nodes = req.body.nodes; // Array of node objects
   const { user_id, username, cloudname } = req.body;
@@ -1510,6 +1558,8 @@ app.post('/api/node-deployment-activity-log', async (req, res) => {
 });
 
 // Update node deployment activity log status (deployment_activity_log)
+// Updates node deployment activity log status for a specific server
+// Allows status changes for squadron deployment progress tracking
 app.patch('/api/node-deployment-activity-log/:serverid', (req, res) => {
   const { serverid } = req.params;
   const { status } = req.body;
@@ -1525,6 +1575,8 @@ app.patch('/api/node-deployment-activity-log/:serverid', (req, res) => {
 });
 
 // Finalize a node deployment from deployment_activity_log into deployed_server (type = 'primary')
+// Finalizes node deployment by moving from activity log to deployed_server table
+// Activates licenses and sets start/end dates for squadron deployment completion
 app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
   const { serverid } = req.params;
   const { role } = req.body || {}; // Ignored; role is taken from log table
@@ -1649,6 +1701,8 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
 });
 
 // API: List pending node deployments filtered by status/type (defaults: progress/primary)
+// Retrieves pending node deployments with optional status and type filtering
+// Returns deployment status and configuration details for squadron monitoring
 app.get('/api/pending-node-deployments', (req, res) => {
   const { status = 'progress', type = 'primary', user_id, cloudname } = req.query || {};
   let sql = `SELECT serverid, serverip, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
@@ -1673,6 +1727,8 @@ app.get('/api/pending-node-deployments', (req, res) => {
 });
 
 // API: Get server counts (total, online, offline)
+// Retrieves server counts including total, online, and offline servers
+// Uses Flask API to check server status and returns comprehensive inventory statistics
 app.get('/api/server-counts', async (req, res) => {
   const hostIP = req.hostname;
   try {
@@ -1749,6 +1805,8 @@ https.createServer(options, app).listen(5000, () => {
 });
 
 // Mark child deployment activity log as completed
+// Updates child deployment activity log status for a specific server
+// Allows status changes for child deployment progress tracking and management
 app.patch('/api/child-deployment-activity-log/:serverid', (req, res) => {
   const { serverid } = req.params;
   const { status } = req.body;
@@ -1899,6 +1957,8 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
 
 
 // API: Check if Host entry exists for a user (cloudName ignored)
+// Checks if a host entry exists for a specific user in deployed_server table
+// Returns boolean flag to determine if user has any deployed servers
 app.get('/api/host-exists', (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ message: 'userId is required' });
@@ -1917,6 +1977,8 @@ app.get('/api/host-exists', (req, res) => {
   });
 });
 
+// Stores user ID in the users table for user management and tracking
+// Creates new user entry if it doesn't exist using INSERT IGNORE
 app.post('/store-user-id', (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ message: 'User ID is required' });
@@ -1928,6 +1990,8 @@ app.post('/store-user-id', (req, res) => {
   });
 });
 
+// Validates cloud name availability by checking deployment_activity_log table
+// Returns availability status to prevent duplicate cloud name creation
 app.post("/check-cloud-name", async (req, res) => {
   const { cloudName } = req.body;
 

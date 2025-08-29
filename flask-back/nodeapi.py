@@ -124,6 +124,8 @@ def trigger_program():
         return {"success": False, "message": str(e)}
 
 
+# Validates and decrypts license codes using MAC address and socket count verification
+# Returns license details including type, period, and validation status
 @app.route("/decrypt-code", methods=["POST"])
 def decrypt_code_endpoint():
 
@@ -305,6 +307,8 @@ def validate_subnet_mask(mask):
     except (ValueError, AttributeError):
         return False
 
+# Validates and saves network configuration including interfaces, bonds, and network settings
+# Performs comprehensive validation of IP addresses, DNS, and network availability
 @app.route("/submit-network-config", methods=["POST"])
 def submit_network_config():
     try:
@@ -606,6 +610,8 @@ def get_disk_list():
         return str(e)
 
 
+# Retrieves list of available disks excluding the root disk and small partitions
+# Returns disk information including name, size, and WWN identifiers
 @app.route("/get-disks", methods=["GET"])
 def get_disks():
     """API endpoint to get the list of available disks."""
@@ -616,7 +622,8 @@ def get_disks():
 
 # ------------------------------------------------ local Interface list Start --------------------------------------------
 
-
+# Retrieves available network interfaces and CPU socket count from the system
+# Returns interface list and hardware information for network configuration
 @app.route("/get-interfaces", methods=["GET"])
 def get_interfaces():
     # Initialize the interfaces list
@@ -651,6 +658,8 @@ def get_cpu_socket_count():
 
 # ------------------- System Utilization Endpoint -------------------
 import psutil
+# Returns current CPU and memory utilization percentages and absolute values
+# Updates historical data buffers for trending and monitoring purposes
 @app.route('/system-utilization', methods=['GET'])
 def system_utilization():
     try:
@@ -678,6 +687,8 @@ def system_utilization():
             "error": str(e)
         }), 200
 
+# Returns historical CPU and memory utilization data from the last 60 samples
+# Provides time-series data for system performance monitoring and analysis
 @app.route('/system-utilization-history', methods=['GET'])
 def system_utilization_history():
     try:
@@ -708,6 +719,8 @@ def get_available_interfaces():
     except Exception:
         return []
 
+# Returns list of available network interfaces excluding virtual and loopback interfaces
+# Provides interface names for network configuration and management
 @app.route("/interfaces", methods=["GET"])
 def interfaces():
     iface_list = get_available_interfaces()
@@ -797,6 +810,8 @@ def add_bandwidth_history(interface):
 def get_bandwidth_history():
     return list(timestamped_bandwidth_history)
 
+# Monitors network health by measuring bandwidth usage and latency for specified interface
+# Returns real-time network performance metrics including throughput and ping times
 @app.route("/network-health", methods=["GET"])
 def network_health():
     interfaces = get_available_interfaces()
@@ -826,6 +841,8 @@ def network_health():
         "interface": interface
     })
 
+# Returns historical bandwidth usage data for network interfaces over time
+# Provides network traffic analysis and trending information for capacity planning
 @app.route('/bandwidth-history', methods=['GET'])
 def bandwidth_history():
     interface = request.args.get('interface')
@@ -901,12 +918,16 @@ def get_local_health_status():
     except Exception as e:
         return {"status": "Error", "message": str(e)}
 
+# Performs comprehensive system health check including CPU, memory, and disk usage
+# Returns health status with warning/critical thresholds and detailed metrics
 @app.route('/check-health', methods=['GET'])
 def check_health():
     result = get_local_health_status()
     return jsonify(result)
 
 
+# Returns detailed disk usage information for all partitions on the root disk
+# Provides storage capacity analysis including total, used space, and usage percentages
 @app.route('/disk-usage', methods=['GET'])
 def disk_usage():
     """Return detailed disk usage for all mount points on the root disk.
@@ -955,6 +976,8 @@ def disk_usage():
         }), 200
 
 
+# Retrieves Docker container status and statistics from the local system
+# Returns container count, status (up/down), and detailed container information
 @app.route('/docker-info', methods=['GET'])
 def docker_info():
     result = get_docker_info()

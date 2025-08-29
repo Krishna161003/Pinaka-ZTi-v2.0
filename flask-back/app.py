@@ -190,6 +190,8 @@ def validate_remote(env_type, host, username, pem_path):
 
 
 # ---------- API Endpoint ----------
+# Validates server requirements for development or production environments
+# Supports both local and remote validation modes
 @app.route("/validate", methods=["POST"])
 def validate():
     data = request.json
@@ -216,6 +218,8 @@ def validate():
 # ------------------------------------------------ local Interface list Start --------------------------------------------
 
 
+# Retrieves available network interfaces and CPU socket count from the system
+# Returns interface list and hardware information for network configuration
 @app.route("/get-interfaces", methods=["GET"])
 def get_interfaces():
     # Initialize the interfaces list
@@ -337,6 +341,8 @@ def export_license_period(key_type):
     return period
 
 
+# Validates and decrypts license codes using MAC address and socket count verification
+# Returns license details including type, period, and validation status
 @app.route("/decrypt-code", methods=["POST"])
 def decrypt_code_endpoint():
 
@@ -450,6 +456,8 @@ def check_license_used(file_path, license_code):
 
 
 # ------------------------------------------------- Save and validate deploy config start----------------------------    
+# Validates and saves network configuration including interfaces, bonds, and network settings
+# Performs comprehensive validation of IP addresses, DNS, and network availability
 @app.route("/submit-network-config", methods=["POST"])
 def submit_network_config():
     try:
@@ -778,6 +786,8 @@ def is_interface_up(interface):
         return False
 
 
+# Checks if a Virtual IP (VIP) address is available and not already in use
+# Validates IP format and performs network reachability tests
 @app.route('/is-vip-available', methods=['GET'])
 def is_vip_available_api():
     vip = request.args.get('vip')
@@ -924,6 +934,8 @@ def get_disk_list():
         return str(e)
 
 
+# Retrieves list of available disks excluding the root disk and small partitions
+# Returns disk information including name, size, and WWN identifiers
 @app.route("/get-disks", methods=["GET"])
 def get_disks():
     """API endpoint to get the list of available disks."""
@@ -937,6 +949,8 @@ def get_disks():
 # ------------------- System Utilization Endpoint -------------------
 import psutil
 
+# Returns current CPU and memory utilization percentages and absolute values
+# Updates historical data buffers for trending and monitoring purposes
 @app.route('/system-utilization', methods=['GET'])
 def system_utilization():
     try:
@@ -964,6 +978,8 @@ def system_utilization():
             "error": str(e)
         }), 200
 
+# Returns historical CPU and memory utilization data from the last 60 samples
+# Provides time-series data for system performance monitoring and analysis
 @app.route('/system-utilization-history', methods=['GET'])
 def system_utilization_history():
     try:
@@ -993,6 +1009,8 @@ def get_available_interfaces():
     except Exception:
         return []
 
+# Returns list of available network interfaces excluding virtual and loopback interfaces
+# Provides interface names for network configuration and management
 @app.route("/interfaces", methods=["GET"])
 def interfaces():
     iface_list = get_available_interfaces()
@@ -1081,6 +1099,8 @@ def add_bandwidth_history(interface):
 def get_bandwidth_history():
     return list(timestamped_bandwidth_history)
 
+# Monitors network health by measuring bandwidth usage and latency for specified interface
+# Returns real-time network performance metrics including throughput and ping times
 @app.route("/network-health", methods=["GET"])
 def network_health():
     interfaces = get_available_interfaces()
@@ -1110,6 +1130,8 @@ def network_health():
         "interface": interface
     })
 
+# Returns historical bandwidth usage data for network interfaces over time
+# Provides network traffic analysis and trending information for capacity planning
 @app.route('/bandwidth-history', methods=['GET'])
 def bandwidth_history():
     interface = request.args.get('interface')
@@ -1185,11 +1207,15 @@ def get_local_health_status():
     except Exception as e:
         return {"status": "Error", "message": str(e)}
 
+# Performs comprehensive system health check including CPU, memory, and disk usage
+# Returns health status with warning/critical thresholds and detailed metrics
 @app.route('/check-health', methods=['GET'])
 def check_health():
     result = get_local_health_status()
     return jsonify(result)
 
+# Returns detailed disk usage information for all partitions on the root disk
+# Provides storage capacity analysis including total, used space, and usage percentages
 @app.route('/disk-usage', methods=['GET'])
 def disk_usage():
     """Return detailed disk usage for all mount points on the root disk.
@@ -1237,6 +1263,8 @@ def disk_usage():
             "error": str(e)
         }), 200
 
+# Retrieves Docker container status and statistics from the local system
+# Returns container count, status (up/down), and detailed container information
 @app.route('/docker-info', methods=['GET'])
 def docker_info():
     result = get_docker_info()
@@ -1285,6 +1313,8 @@ def get_docker_info():
             'error': str(e)
         }
 
+# Checks SSH connectivity status of remote nodes using PEM key authentication
+# Returns node status (UP/DOWN) with detailed error information for troubleshooting
 @app.route('/node-status', methods=['GET'])
 def node_status():
     ip = request.args.get('ip')
@@ -1416,6 +1446,8 @@ def scan_network(network):
 
     return active_nodes
 
+# Performs ARP network scan to discover active nodes in the specified subnet
+# Returns list of discovered devices with IP addresses, MAC addresses, and timestamps
 @app.route('/scan', methods=['GET'])
 def scan_network_api():
     logging.info("Received scan request")
@@ -1457,6 +1489,8 @@ def scan_network_api():
 
 # ------------------- Server Control Endpoint starts -------------------
 
+# Controls remote server operations including status check, shutdown, and reboot
+# Uses SSH with PEM key authentication to execute system commands on target servers
 @app.route('/server-control', methods=['POST'])
 def server_control():
     data = request.get_json()
@@ -1514,18 +1548,24 @@ def server_control():
 # ------------------- Server Control Endpoint ends -------------------
 
 # Keep these routes for backward compatibility
+# Legacy endpoint for checking server status - redirects to server-control endpoint
+# Maintains backward compatibility for existing client applications
 @app.route('/check-server-status', methods=['POST'])
 def check_server_status():
     data = request.get_json()
     data['action'] = 'status'
     return server_control()
 
+# Legacy endpoint for server shutdown - redirects to server-control endpoint
+# Maintains backward compatibility for existing client applications
 @app.route('/server-shutdown', methods=['POST'])
 def server_shutdown():
     data = request.get_json()
     data['action'] = 'shutdown'
     return server_control()
 
+# Legacy endpoint for server reboot - redirects to server-control endpoint
+# Maintains backward compatibility for existing client applications
 @app.route('/server-reboot', methods=['POST'])
 def server_reboot():
     data = request.get_json()
@@ -1536,6 +1576,8 @@ def server_reboot():
 
 # ------------------- Store Deployment Configs Endpoint -------------------
 
+# Stores deployment configurations for cluster nodes in JSON format
+# Creates deployment progress markers and manages node configuration files
 @app.route('/store-deployment-configs', methods=['POST'])
 def store_deployment_configs():
     data = request.get_json()
@@ -1600,6 +1642,8 @@ import threading
 import queue
 
 
+# Initiates SSH polling for multiple IP addresses with 90-second delay before starting
+# Uses background threads to continuously test SSH connectivity until success or timeout
 @app.route('/poll-ssh-status', methods=['POST'])
 def poll_ssh_status():
     """
@@ -1733,6 +1777,8 @@ def poll_ssh_status():
 # Global storage for SSH polling results
 ssh_polling_results = {}
 
+# Retrieves SSH polling results for specific IP addresses from background polling
+# Returns one-time SSH status results and removes them from the polling queue
 @app.route('/check-ssh-status', methods=['GET'])
 def check_ssh_status():
     """
@@ -1765,6 +1811,8 @@ def check_ssh_status():
 
 
 
+# Checks deployment progress status by looking for deployment marker files
+# Returns whether deployment is currently in progress or has completed
 @app.route('/node-deployment-progress', methods=['GET'])
 def node_deployment_progress():
     try:
@@ -1789,6 +1837,8 @@ def node_deployment_progress():
 
 #--------------------------------------------License Update Start------------------------------------------------
 
+# Updates license information in remote JSON configuration files via SSH
+# Enables Docker service and starts containers after license application
 @app.route("/apply-license", methods=["POST"])
 def apply_license():
     """
@@ -1926,6 +1976,8 @@ def apply_license():
 #--------------------------------------------License Update End--------------------------------------------------
 
 #--------------------------------------------License Enforcement Start-----------------------------------------
+# Enforces license expiration by stopping Docker containers and disabling Docker service
+# Uses SSH to execute commands on remote servers for license enforcement
 @app.route("/license/enforce-expired", methods=["POST"])
 def enforce_expired():
     """
@@ -1984,6 +2036,8 @@ def enforce_expired():
 #--------------------------------------------License Enforcement End-------------------------------------------
 
 #--------------------------------------------Docker Remote Control Start-------------------------------------------
+# Controls Docker containers on remote servers via SSH including stop and restart operations
+# Supports targeting specific services or all containers based on service patterns
 @app.route("/docker/control", methods=["POST"])
 def docker_control():
     """
@@ -2096,6 +2150,8 @@ def docker_control():
 #--------------------------------------------Docker Remote Control End-------------------------------------------
 
 #--------------------------------------------Openstack Operation Start-------------------------------------------
+# Retrieves OpenStack resource usage statistics including instances, vCPU, memory, and volumes
+# Connects to OpenStack API to gather comprehensive cloud resource utilization data
 @app.route("/resource-usage", methods=["GET"])
 def get_resource_usage():
     os.environ["OS_CLIENT_CONFIG_FILE"] = "/etc/kolla/clouds.yaml"
@@ -2178,6 +2234,8 @@ def run_openstack_command(command, env_vars):
         return {"error": e.output}
 
 
+# Retrieves OpenStack service status including compute, network, and volume services
+# Uses OpenStack CLI commands to gather service health and availability information
 @app.route("/api/openstack_data")
 def get_openstack_data():
     env_vars = load_openstack_env()
@@ -2203,6 +2261,8 @@ def get_openstack_data():
     )
 
 
+# Retrieves Ceph OSD (Object Storage Device) statistics from remote Ceph cluster
+# Connects to Ceph dashboard host to gather storage cluster health information
 @app.route("/ceph/osd-count", methods=["GET"])
 def get_osd_count():
     try:
@@ -2376,6 +2436,8 @@ def start_background_kolla(command: str) -> dict:
     }
 
 
+# Executes kolla-ansible commands in background for OpenStack deployment management
+# Supports various actions like mariadb recovery, reconfiguration, and service management
 @app.route("/kolla/run", methods=["POST"])
 def kolla_run():
     """
@@ -2411,6 +2473,8 @@ def kolla_run():
     })
 
 
+# Returns the last N lines from kolla-ansible command log file for monitoring
+# Provides efficient tail functionality for real-time log monitoring and debugging
 @app.route("/kolla/logs/last", methods=["GET"])
 def kolla_logs_last():
     """
@@ -2440,6 +2504,8 @@ def kolla_logs_last():
     return jsonify({"log": last, "lines": len(last)})
 
 
+# Provides Server-Sent Events (SSE) stream for real-time kolla-ansible log monitoring
+# Enables live log streaming for continuous monitoring of deployment and configuration processes
 @app.route("/kolla/logs/stream", methods=["GET"])
 def kolla_logs_stream():
     """
@@ -2469,6 +2535,8 @@ def kolla_logs_stream():
 
 
 # (Optional) Simple health
+# Simple health check endpoint for kolla-ansible service status and configuration
+# Returns basic information about work directory and log file availability
 @app.route("/kolla/health", methods=["GET"])
 def health():
     return jsonify({"ok": True, "work_dir": WORK_DIR, "log_file_exists": os.path.exists(LOG_FILE)})
@@ -2528,6 +2596,8 @@ def is_zip_encrypted(zip_path):
         except RuntimeError:
             return True  # If it raises an error, it's encrypted
 
+# Handles encrypted ZIP file uploads for lifecycle management and system updates
+# Extracts, validates, and executes upgrade scripts with comprehensive error handling
 @app.route("/upload", methods=["POST"])
 def upload_file():
     # Prevent concurrent runs while a script is active
@@ -2706,6 +2776,8 @@ def upload_file():
 
     return jsonify({"job_id": job_id, "status": "queued", "message": "Upload received"}), 202
 
+# Retrieves status of uploaded file processing jobs including progress and results
+# Returns detailed job information including execution logs and completion status
 @app.route("/upload/status/<job_id>", methods=["GET"])
 def upload_status(job_id):
     status = load_job_status(job_id)
@@ -2722,6 +2794,8 @@ CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <--
 import random
 import string
 
+# Retrieves client secret from environment file with obfuscation for security
+# Returns encoded secret with random character insertion for enhanced security
 @app.route("/get-client-secret", methods=["GET"])
 def get_client_secret():
     try:
@@ -2758,6 +2832,8 @@ CHUNK_SIZE = 8192
 
 # Ensure storage directory exists
 os.makedirs(TAR_STORAGE_PATH, exist_ok=True)
+# Executes diagnostic script to collect system logs and create compressed tar archives
+# Manages log collection process with timeout handling and comprehensive error reporting
 @app.route('/run-log-collection', methods=['POST'])
 def run_log_collection():
     """
@@ -2800,6 +2876,8 @@ def run_log_collection():
         return jsonify({"error": f"Failed to run script: {str(e)}"}), 500
 
 
+# Lists all available tar files in the diagnostic log storage directory
+# Returns file metadata including size, creation time, and download URLs
 @app.route('/list-tar-files', methods=['GET'])
 def list_tar_files():
     """
@@ -2845,6 +2923,8 @@ def generate_file_stream(filepath):
                 break
             yield chunk
 
+# Downloads tar files from diagnostic log storage with security validation
+# Prevents path traversal attacks and validates file extensions for secure downloads
 @app.route('/download-tar/<filename>', methods=['GET'])
 def download_tar_file(filename):
     # Prevent path traversal via safe_join
@@ -2872,6 +2952,8 @@ def download_tar_file(filename):
         direct_passthrough=True
     )
     
+# Checks status of diagnostic script and storage directory configuration
+# Returns information about script availability and storage usage statistics
 @app.route('/script-status', methods=['GET'])
 def script_status():
     """
