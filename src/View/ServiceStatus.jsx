@@ -3,6 +3,8 @@ import Layout1 from '../Components/layout';
 import { theme, Layout, Tabs, Table, Badge, Button, Input, Modal, Select } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import serviceStatus from '../Images/Service_status.png';
+import serviceOperations from '../Images/Service_operation_icon.png';
 
 const { Content } = Layout;
 const hostIP = window.location.hostname;
@@ -763,7 +765,10 @@ const ServiceStatus = () => {
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
-              <h2 style={{ marginTop: '0px' }}>Service Status </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <img src={serviceStatus} style={{ width: "74px", height: "74px" }} />
+                <h2 style={{ margin: 0 }}>Service Status</h2>
+              </div>
             </div>
             <div
               role="button"
@@ -783,7 +788,10 @@ const ServiceStatus = () => {
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
-              <h2 style={{ marginTop: '0px' }}>Service Operations </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <img src={serviceOperations} style={{ width: "74px", height: "74px" }} />
+                <h2 style={{ margin: 0 }}>Service Operations</h2>
+              </div>
             </div>
           </div>
           <div style={{

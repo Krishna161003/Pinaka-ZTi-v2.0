@@ -429,7 +429,7 @@ const Administration = () => {
               // borderRadius: borderRadiusLG,
             }}
           >
-            <h4>User Management</h4>
+            <h2>User Management</h2>
             <Divider />
             <Button
               style={{ width: "100px" }}

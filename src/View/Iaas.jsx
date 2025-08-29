@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout1 from '../Components/layout';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { theme, Layout, Tabs, Table, Button, Modal, Spin, Alert, Input, message } from 'antd';
+import iaas from '../Images/IAAS_icon.png';
 import { SearchOutlined, CopyTwoTone } from '@ant-design/icons';
 
 // LicenseDetailsModalContent: fetches and displays license details for a serverid
@@ -1063,10 +1064,13 @@ const Iaas = () => {
               padding: 30,
               minHeight: "auto",
               background: colorBgContainer,
-              // borderRadius: borderRadiusLG,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '20px'
             }}
           >
-            <h2 style={{ marginTop: '0px' }}>Infrastructure as a Service (IaaS)</h2>
+            <img src={iaas} style={{ width: "74px", height: "74px" }} />
+            <h2 style={{ margin: 0 }}>Infrastructure as a Service (IaaS)</h2>
           </div>
 
           <div

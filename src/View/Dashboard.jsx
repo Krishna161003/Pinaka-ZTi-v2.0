@@ -6,6 +6,9 @@ import { useNavigate } from "react-router-dom";
 import node from "../Images/FlightDeck.png";
 import squad from "../Images/Squadron2.png";
 import osd from "../Images/OSD.png";
+import downImage from '../Images/down_arrow.png';
+import totalImage from '../Images/Total_icon2.png';
+import upImage from '../Images/up_15362984.png';
 import { Area, Line } from '@ant-design/plots';
 import axios from "axios";
 
@@ -62,19 +65,6 @@ const Dashboard = () => {
   const resourceErrorShownRef = useRef(false);
   // Node SSH status
   const [nodeStatus, setNodeStatus] = useState('Loading');
-
-  // Loading spinner component for cards
-  const CardSpinner = ({ size = 'default' }) => (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: size === 'small' ? '60px' : '120px',
-      width: '100%'
-    }}>
-      <Spin size={size} />
-    </div>
-  );
 
   // --- CPU & Memory Utilization State ---
   const [cpuData, setCpuData] = useState(0);
@@ -366,7 +356,6 @@ const Dashboard = () => {
   useEffect(() => {
     async function fetchUtilization() {
       try {
-        setLoadingStates(prev => ({ ...prev, system: true }));
         const res = await fetch(`https://${selectedHostIP}:2020/system-utilization`);
         const data = await res.json();
         if (
@@ -395,8 +384,6 @@ const Dashboard = () => {
           message.error(`Failed to fetch system utilization from ${selectedHostIP}`);
           lastErrorIpRef.current = selectedHostIP;
         }
-      } finally {
-        setLoadingStates(prev => ({ ...prev, system: false }));
       }
     }
     fetchUtilization();
@@ -405,7 +392,6 @@ const Dashboard = () => {
   }, [selectedHostIP]);
 
   useEffect(() => {
-    setLoadingStates(prev => ({ ...prev, network: true }));
     fetch(`https://${selectedHostIP}:2020/interfaces`)
       .then(res => res.json())
       .then(data => {
@@ -423,9 +409,6 @@ const Dashboard = () => {
           message.error(`Failed to fetch interfaces from ${selectedHostIP}`);
           lastErrorIpRef.current = selectedHostIP;
         }
-      })
-      .finally(() => {
-        setLoadingStates(prev => ({ ...prev, network: false }));
       });
   }, [selectedHostIP]);
 
@@ -520,7 +503,6 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        setLoadingStates(prev => ({ ...prev, health: true }));
         const res = await axios.get(`https://${selectedHostIP}:2020/check-health`);
         const data = res.data || {};
         setHealthStatus((data.status || 'ERROR').toUpperCase());
@@ -532,8 +514,6 @@ const Dashboard = () => {
       } catch (err) {
         setHealthStatus("ERROR");
         setHealthDetails({ metrics: null, thresholds: null, reasons: [] });
-      } finally {
-        setLoadingStates(prev => ({ ...prev, health: false }));
       }
     };
 
@@ -558,17 +538,6 @@ const Dashboard = () => {
     cloudCount: 0,
     squadronCount: 0
   });
-
-  // Individual loading states for each card
-  const [loadingStates, setLoadingStates] = useState({
-    squadron: true,
-    osd: true,
-    system: true,
-    health: true,
-    docker: true,
-    network: true,
-    resources: true
-  });
   // Cloud name (earliest) to show in Cloud card
   const [cloudName, setCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
   // Server counts (from backend /api/server-counts)
@@ -577,12 +546,6 @@ const Dashboard = () => {
   const [hoveredCard, setHoveredCard] = useState(null);
   // OSD counts from backend
   const [osdCounts, setOsdCounts] = useState({ total_osds: 0, up_osds: 0, in_osds: 0 });
-  // Storage data from Ceph OSD endpoint
-  const [storageData, setStorageData] = useState({ 
-    total_tb: 0, 
-    used_tb: 0, 
-    available_tb: 0 
-  });
 
   // Docker containers state (live from backend)
   const [dockerContainers, setDockerContainers] = useState([]);
@@ -693,152 +656,28 @@ const Dashboard = () => {
       dataIndex: 'vcpu', 
       key: 'vcpu', 
       width: '33%', 
-      render: (vcpu) => {
-        const vcpuAvailable = (vcpu?.total || 0) - (vcpu?.used || 0);
-        const tooltip = (
-          <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
-            <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 14 }}>vCPU Capacity & Usage</div>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Metric</th>
-                  <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Total Capacity</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{vcpu?.total || 0} Cores</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Used Cores</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#faad14', fontWeight: 600 }}>{vcpu?.used || 0} Cores</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Available Cores</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#52c41a', fontWeight: 600 }}>{vcpuAvailable} Cores</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Usage Percentage</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: (vcpu?.total || 0) > 0 ? (((vcpu?.used || 0) / (vcpu?.total || 1)) * 100 >= 80 ? '#f5222d' : '#52c41a') : '#8c8c8c' }}>
-                    {(vcpu?.total || 0) > 0 ? (((vcpu?.used || 0) / (vcpu?.total || 1)) * 100).toFixed(1) : '0.0'}%
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        );
-        return (
-          <UsageBar 
-            used={vcpu?.used || 0} 
-            total={vcpu?.total || 0} 
-            color="#4c8dff" 
-            tooltip={tooltip}
-            tooltipWidth={280}
-          />
-        );
-      }
+      render: (vcpu) => <UsageBar used={vcpu?.used} total={vcpu?.total} color="#4c8dff" /> 
     },
     { 
       title: 'Memory (GiB)', 
       dataIndex: 'memory', 
       key: 'memory', 
       width: '33%', 
-      render: (mem) => {
-        const memAvailable = (mem?.total || 0) - (mem?.used || 0);
-        const tooltip = (
-          <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
-            <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 14 }}>Memory Capacity & Usage</div>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Metric</th>
-                  <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Total Capacity</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{mem?.total || 0} GiB</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Used Memory</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#faad14', fontWeight: 600 }}>{mem?.used || 0} GiB</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Available Memory</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#52c41a', fontWeight: 600 }}>{memAvailable} GiB</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Usage Percentage</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: (mem?.total || 0) > 0 ? (((mem?.used || 0) / (mem?.total || 1)) * 100 >= 80 ? '#f5222d' : '#52c41a') : '#8c8c8c' }}>
-                    {(mem?.total || 0) > 0 ? (((mem?.used || 0) / (mem?.total || 1)) * 100).toFixed(1) : '0.0'}%
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        );
-        return (
-          <UsageBar 
-            used={mem?.used || 0} 
-            total={mem?.total || 0} 
-            color="#4c8dff" 
-            tooltip={tooltip}
-            tooltipWidth={280}
-          />
-        );
-      }
+      render: (mem) => <UsageBar used={mem?.used} total={mem?.total} color="#4c8dff" /> 
     },
     { 
       title: 'vStorage (TB)', 
       dataIndex: 'storage', 
       key: 'storage',
       width: '34%',
-      render: (storage) => {
-        const tooltip = (
-          <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
-            <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 14 }}>Storage Capacity & Usage</div>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Metric</th>
-                  <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Total Capacity</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{storage?.total || 0} TB</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Used Space</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#faad14', fontWeight: 600 }}>{storage?.used || 0} TB</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Available Space</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', color: '#52c41a', fontWeight: 600 }}>{storageData.available_tb} TB</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '4px 8px' }}>Usage Percentage</td>
-                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: (storage?.total || 0) > 0 ? (((storage?.used || 0) / (storage?.total || 1)) * 100 >= 80 ? '#f5222d' : '#52c41a') : '#8c8c8c' }}>
-                    {(storage?.total || 0) > 0 ? (((storage?.used || 0) / (storage?.total || 1)) * 100).toFixed(1) : '0.0'}%
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        );
-        return (
-          <UsageBar 
-            used={storage?.used || 0} 
-            total={storage?.total || 0} 
-            color="#4c8dff" 
-            tooltip={tooltip}
-            tooltipWidth={280}
-          />
-        );
-      }
+      render: (storage) => (
+        <UsageBar 
+          used={storage?.used || 0} 
+          total={storage?.total || 10} 
+          color="#52c41a" 
+          tooltip={`Used: ${storage?.used || 0} TB / Total: ${storage?.total || 10} TB`}
+        />
+      )
     },
   ];
 
@@ -865,7 +704,7 @@ const Dashboard = () => {
       key: 'resource_summary',
       vcpu: { used: cloudStats.vcpuUsed, total: cloudStats.vcpuTotal },
       memory: { used: cloudStats.memUsedGiB, total: cloudStats.memTotalGiB },
-      storage: { used: storageData.used_tb, total: storageData.total_tb } // Use real Ceph storage data
+      storage: { used: 3.2, total: 10 } // Example storage data in TB
     }
   ];
 
@@ -883,7 +722,6 @@ const Dashboard = () => {
     let cancelled = false;
     const fetchResourceUsage = async () => {
       try {
-        setLoadingStates(prev => ({ ...prev, resources: true }));
         const res = await fetch(`https://${hostIP}:2020/resource-usage`);
         const data = await res.json();
         if (!cancelled && data && !data.error) {
@@ -900,10 +738,6 @@ const Dashboard = () => {
         if (!cancelled && !resourceErrorShownRef.current) {
           console.error(`Failed to fetch cloud resource usage from ${hostIP}`);
           resourceErrorShownRef.current = true;
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingStates(prev => ({ ...prev, resources: false }));
         }
       }
     };
@@ -954,7 +788,6 @@ const Dashboard = () => {
   useEffect(() => {
     async function fetchDockerInfo() {
       try {
-        setLoadingStates(prev => ({ ...prev, docker: true }));
         const res = await fetch(`https://${selectedHostIP}:2020/docker-info`);
         const data = await res.json();
         if (data && Array.isArray(data.containers)) {
@@ -987,8 +820,6 @@ const Dashboard = () => {
           message.error(`Failed to fetch docker info from ${selectedHostIP}`);
           lastErrorIpRef.current = selectedHostIP;
         }
-      } finally {
-        setLoadingStates(prev => ({ ...prev, docker: false }));
       }
     }
     fetchDockerInfo();
@@ -1004,7 +835,7 @@ const Dashboard = () => {
       key: 'dockerId',
       width: '25%',
       render: (text) => (
-        <span style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+        <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>
           {text}
         </span>
       )
@@ -1015,7 +846,7 @@ const Dashboard = () => {
       key: 'containerName',
       width: '50%',
       render: (text) => (
-        <span style={{ fontWeight: '500' }}>
+        <span>
           {text}
         </span>
       )
@@ -1100,7 +931,6 @@ const Dashboard = () => {
     let cancelled = false;
     async function fetchServerCounts() {
       try {
-        setLoadingStates(prev => ({ ...prev, squadron: true }));
         const res = await fetch(`https://${hostIP}:5000/api/server-counts`);
         const data = await res.json();
         if (!cancelled && data) {
@@ -1115,10 +945,6 @@ const Dashboard = () => {
           message.error('Failed to fetch server counts');
           lastErrorIpRef.current = hostIP;
         }
-      } finally {
-        if (!cancelled) {
-          setLoadingStates(prev => ({ ...prev, squadron: false }));
-        }
       }
     }
     fetchServerCounts();
@@ -1126,13 +952,13 @@ const Dashboard = () => {
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
-  // Fetch OSD counts and storage data from Flask backend
+  // Fetch OSD counts from Flask backend
   useEffect(() => {
     let cancelled = false;
     const fetchOsdCounts = async () => {
       try {
-        setLoadingStates(prev => ({ ...prev, osd: true }));
         const res = await fetch(`https://${hostIP}:2020/ceph/osd-count`);
+        // const res = await fetch('https://192.168.20.4:2020/ceph/osd-count');
         const data = await res.json();
         if (!cancelled) {
           if (data && typeof data === 'object' && 'total_osds' in data) {
@@ -1141,34 +967,17 @@ const Dashboard = () => {
               up_osds: Number(data.up_osds) || 0,
               in_osds: Number(data.in_osds) || 0,
             });
-            
-            // Calculate storage data in TB
-            const totalBytes = Number(data.storage_total_bytes) || 0;
-            const usedBytes = Number(data.storage_used_bytes) || 0;
-            const availableBytes = Number(data.storage_available_bytes) || 0;
-            
-            setStorageData({
-              total_tb: Number((totalBytes / (1024 ** 4)).toFixed(2)), // Convert bytes to TB
-              used_tb: Number((usedBytes / (1024 ** 4)).toFixed(2)),
-              available_tb: Number((availableBytes / (1024 ** 4)).toFixed(2))
-            });
           } else {
             setOsdCounts({ total_osds: 0, up_osds: 0, in_osds: 0 });
-            setStorageData({ total_tb: 0, used_tb: 0, available_tb: 0 });
           }
         }
       } catch (err) {
         if (!cancelled) {
           setOsdCounts({ total_osds: 0, up_osds: 0, in_osds: 0 });
-          setStorageData({ total_tb: 0, used_tb: 0, available_tb: 0 });
           if (lastErrorIpRef.current !== hostIP) {
-            message.error('Failed to fetch OSD counts and storage data');
+            message.error('Failed to fetch OSD counts');
             lastErrorIpRef.current = hostIP;
           }
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingStates(prev => ({ ...prev, osd: false }));
         }
       }
     };
@@ -1232,30 +1041,24 @@ const Dashboard = () => {
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
-                    {loadingStates.squadron ? (
-                      <CardSpinner size="small" />
-                    ) : (
-                      <>
-                        <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          border: '1px solid #e8eef7',
-                          marginTop: '2px',
-                          fontSize: '13px',
-                          fontWeight: '500',
-                          color: '#2c3e50',
-                          textAlign: 'center'
-                        }}>
-                          <span style={{ color: '#4caf50' }}>Up <strong>{serverCounts.online_count}</strong></span>
-                          <span style={{ color: '#e0e0e0' }}>|</span>
-                          <span style={{ color: '#f44336' }}>Down <strong>{serverCounts.offline_count}</strong></span>
-                        </div>
-                      </>
-                    )}
+                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none" }}>{counts.squadronCount}</span>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid #e8eef7',
+                      marginTop: '2px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#2c3e50',
+                      textAlign: 'center'
+                    }}>
+                      <span style={{ color: '#4caf50' }}>Up <strong>{serverCounts.online_count}</strong></span>
+                      <span style={{ color: '#e0e0e0' }}>|</span>
+                      <span style={{ color: '#f44336' }}>Down <strong>{serverCounts.offline_count}</strong></span>
+                    </div>
                   </div>
                 </div>
               </Col>
@@ -1269,31 +1072,25 @@ const Dashboard = () => {
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>OSD</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
-                    {loadingStates.osd ? (
-                      <CardSpinner size="small" />
-                    ) : (
-                      <>
-                        <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>{osdCounts.total_osds}</span>
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          // background: '#f5f7fa',
-                          border: '1px solid #e8eef7',
-                          marginTop: '2px',
-                          fontSize: '13px',
-                          fontWeight: '500',
-                          color: '#2c3e50',
-                          textAlign: 'center'
-                        }}>
-                          <span style={{ color: '#4caf50' }}>In <strong>{osdCounts.in_osds}</strong></span>
-                          <span style={{ color: '#e0e0e0' }}>|</span>
-                          <span style={{ color: '#2196f3' }}>Up <strong>{osdCounts.up_osds}</strong></span>
-                        </div>
-                      </>
-                    )}
+                    <span style={{ fontSize: "32px", fontWeight: "bold", color: "#1890ff", userSelect: "none", }}>{osdCounts.total_osds}</span>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      // background: '#f5f7fa',
+                      border: '1px solid #e8eef7',
+                      marginTop: '2px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      color: '#2c3e50',
+                      textAlign: 'center'
+                    }}>
+                      <span style={{ color: '#4caf50' }}>In <strong>{osdCounts.in_osds}</strong></span>
+                      <span style={{ color: '#e0e0e0' }}>|</span>
+                      <span style={{ color: '#2196f3' }}>Up <strong>{osdCounts.up_osds}</strong></span>
+                    </div>
                   </div>
                 </div>
               </Col>
@@ -1306,17 +1103,18 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "60px", justifyContent: "center", marginLeft: "20px" }}>
-                    <span style={{ fontSize: "20px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
+                    <h4 style={{ userSelect: "none", textAlign: "center",marginBottom: "4px" }}>Cloud Name</h4>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "30px" }}>
-                    <span style={{
+                    <h4 style={{
                       fontSize: "20px",
                       fontWeight: "600",
                       color: "#1890ff",
                       userSelect: "none",
                       textTransform: 'uppercase',
-                      letterSpacing: '1px'
-                    }}>{cloudName || 'N/A'}</span>
+                      letterSpacing: '1px',
+                      marginBottom: "4px"
+                    }}>{cloudName || 'N/A'}</h4>
                   </div>
                 </div>
               </Col>
@@ -1332,31 +1130,23 @@ const Dashboard = () => {
               }}
             >
               <div style={{ marginBottom: 24 }}>
-                {loadingStates.resources ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '120px' }}>
-                    <Spin size="large" />
-                  </div>
-                ) : (
-                  <>
-                    <Table
-                      columns={resourceColumns}
-                      dataSource={resourceData}
-                      pagination={false}
-                      size="small"
-                      rowKey="key"
-                      style={{ marginBottom: 16 }}
-                      bordered
-                    />
-                    <Table
-                      columns={vmVolumesColumns}
-                      dataSource={vmVolumesData}
-                      pagination={false}
-                      size="small"
-                      rowKey="key"
-                      bordered
-                    />
-                  </>
-                )}
+                <Table
+                  columns={resourceColumns}
+                  dataSource={resourceData}
+                  pagination={false}
+                  size="small"
+                  rowKey="key"
+                  style={{ marginBottom: 16 }}
+                  bordered
+                />
+                <Table
+                  columns={vmVolumesColumns}
+                  dataSource={vmVolumesData}
+                  pagination={false}
+                  size="small"
+                  rowKey="key"
+                  bordered
+                />
               </div>
             </div>
             <div
@@ -1415,11 +1205,11 @@ const Dashboard = () => {
             >
               <h4 style={{ userSelect: "none", marginTop: "-16px" }} >Performance</h4>
               <Divider style={{ margin: "-16px 0 0 0" }} />
-              <Row gutter={24} justify="start" style={{ marginLeft: "2px" }}>
+              <Row gutter={[24]} style={{ margin: 0, display: 'flex', marginLeft: '2px' }}>
                 <Col
+                  span={8}
                   className="gutter-row"
-                  span={7}
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, marginRight: '16px',  }}
                 >
                   <div>
                     <span
@@ -1429,7 +1219,8 @@ const Dashboard = () => {
                         marginLeft: "1px",
                         userSelect: "none",
                         display: "block",
-                        marginBottom: "8px"
+                        marginBottom: "8px",
+                        
                       }}
                     >
                       Status
@@ -1569,15 +1360,11 @@ const Dashboard = () => {
                         textAlign: 'center'
                       }}
                     >
-                      {loadingStates.health ? (
-                        <Spin size="default" />
-                      ) : (
-                        healthStatus
-                      )}
+                      {healthStatus}
                     </div>
                   </div>
                 </Col>
-                <Col className="gutter-row" span={7} style={performancewidgetStyle}>
+                <Col className="gutter-row" span={8} style={{...performancewidgetStyle, marginRight: '10px'}}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Network Traffic</span>
@@ -1590,26 +1377,19 @@ const Dashboard = () => {
                       />
                     </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
-                    {loadingStates.network ? (
-                      <CardSpinner />
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                          Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
-                        </div>
-                        <div style={{ height: 70, margin: '0 -20px 10px -20px' }}>
-                          <BandwidthLine bandwidthHistory={getSmoothedBandwidthHistory(bandwidthHistory, 5)} />
-                        </div>
-                      </>
-                    )}
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
+                    </div>
+                  </div>
+                  <div style={{ height: 70, margin: '0 -10px 10px -10px' }}>
+                    <BandwidthLine bandwidthHistory={getSmoothedBandwidthHistory(bandwidthHistory, 5)} />
                   </div>
                 </Col>
               </Row>
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "290px" }}>
+              <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px', marginRight: '2px' }}>
                 <Col
                   className="gutter-row"
-                  span={11} // Each column takes up 7 spans
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, flex: '1', minWidth: '450px', marginRight: '16px' }}
                 >
                   <div>
                     <span
@@ -1625,24 +1405,17 @@ const Dashboard = () => {
                       CPU Usage Trend
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
-                    {loadingStates.system ? (
-                      <CardSpinner />
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                          Current: {cpuData.toFixed(1)}%
-                        </div>
-                        <div style={{ height: '180px' }}>
-                          <CPUUsageChart />
-                        </div>
-                      </>
-                    )}
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Current: {cpuData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <CPUUsageChart />
+                    </div>
                   </div>
                 </Col>
                 <Col
                   className="gutter-row"
-                  span={11} // Each column takes up 7 spans
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, flex: '1', minWidth: '450px', marginRight: '16px' }}
                 >
                   <div>
                     <span
@@ -1658,25 +1431,19 @@ const Dashboard = () => {
                       Memory Usage Trend
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
-                    {loadingStates.system ? (
-                      <CardSpinner />
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                          Used: {usedMemory} MB / {totalMemory} MB
-                          Usage: {memoryData.toFixed(1)}%
-                        </div>
-                        <div style={{ height: '180px' }}>
-                          <MemoryUsageChart />
-                        </div>
-                      </>
-                    )}
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Used: {usedMemory} MB / {totalMemory} MB
+                      Usage: {memoryData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <MemoryUsageChart />
+                    </div>
                   </div>
                 </Col>
               </Row>
               {/* Disk Usage section */}
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px" }}>
-              <Col className="gutter-row" span={24} style={performancewidgetStyle}>
+              <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px' }}>
+              <Col className="gutter-row" style={{ ...performancewidgetStyle, width: '100%', marginLeft: '2px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span
@@ -1771,29 +1538,26 @@ const Dashboard = () => {
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
                       padding: "10px 20px",
-                      height: "20px", // Reduced height
+                      height: "20px",
                       fontSize: "18px",
                       fontWeight: "500",
+                      gap: "8px"
                     }}
                   >
-                    <span style={{ userSelect: "none" }}>UP</span>
-                    {loadingStates.docker ? (
-                      <Spin size="small" />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: "20px",
-                          fontWeight: "bold",
-                          color: "#52c41a",
-                          userSelect: "none",
-                        }}
-                      >
-                        {dockerUp}
-                      </span>
-                    )}
+                    <img src={upImage} style={{ width: "24px", height: "24px" }} />
+                    <span style={{ userSelect: "none", marginRight: "auto" }}>Up</span>
+                    <span
+                      style={{
+                        fontSize: "20px",
+                        fontWeight: "bold",
+                        color: "#52c41a",
+                        userSelect: "none",
+                      }}
+                    >
+                      {dockerUp}
+                    </span>
                   </div>
                 </Col>
 
@@ -1801,29 +1565,26 @@ const Dashboard = () => {
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
                       padding: "10px 20px",
                       height: "20px",
                       fontSize: "18px",
                       fontWeight: "500",
+                      gap: "8px"
                     }}
                   >
-                    <span style={{ userSelect: "none" }}>DOWN</span>
-                    {loadingStates.docker ? (
-                      <Spin size="small" />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: "20px",
-                          fontWeight: "bold",
-                          color: "#cf1322",
-                          userSelect: "none",
-                        }}
-                      >
-                        {dockerDown}
-                      </span>
-                    )}
+                    <img src={downImage} style={{ width: "24px", height: "24px" }} />
+                    <span style={{ userSelect: "none", marginRight: "auto" }}>Down</span>
+                    <span
+                      style={{
+                        fontSize: "20px",
+                        fontWeight: "bold",
+                        color: "#cf1322",
+                        userSelect: "none",
+                      }}
+                    >
+                      {dockerDown}
+                    </span>
                   </div>
                 </Col>
 
@@ -1831,29 +1592,26 @@ const Dashboard = () => {
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
                       padding: "10px 20px",
                       height: "20px",
                       fontSize: "18px",
                       fontWeight: "500",
+                      gap: "8px"
                     }}
                   >
-                    <span style={{ userSelect: "none" }}>Total</span>
-                    {loadingStates.docker ? (
-                      <Spin size="small" />
-                    ) : (
-                      <span
-                        style={{
-                          fontSize: "20px",
-                          fontWeight: "bold",
-                          color: "rgb(30, 42, 209)",
-                          userSelect: "none",
-                        }}
-                      >
-                        {dockerTotal}
-                      </span>
-                    )}
+                    <img src={totalImage} style={{ width: "24px", height: "24px" }} />
+                    <span style={{ userSelect: "none", marginRight: "auto" }}>Total</span>
+                    <span
+                      style={{
+                        fontSize: "20px",
+                        fontWeight: "bold",
+                        color: "rgb(30, 42, 209)",
+                        userSelect: "none",
+                      }}
+                    >
+                      {dockerTotal}
+                    </span>
                   </div>
                 </Col>
               </Row>
@@ -1878,38 +1636,32 @@ const Dashboard = () => {
               />
 
               {/* Docker Containers Table */}
-              {loadingStates.docker ? (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-                  <Spin size="large" />
-                </div>
-              ) : (
-                <Table
-                  dataSource={filteredContainers}
-                  columns={dockerColumns}
-                  pagination={{
-                    current: dockerCurrentPage,
-                    pageSize: dockerPageSize,
-                    showSizeChanger: true,
-                    pageSizeOptions: [5, 10, 20, 50],
-                    showQuickJumper: true,
-                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} containers`,
-                    onChange: (page, size) => {
-                      setDockerCurrentPage(page);
-                      if (size && size !== dockerPageSize) {
-                        setDockerPageSize(size);
-                        sessionStorage.setItem('docker_page_size', String(size));
-                      }
-                    },
-                    onShowSizeChange: (_, size) => {
-                      setDockerCurrentPage(1);
+              <Table
+                dataSource={filteredContainers}
+                columns={dockerColumns}
+                pagination={{
+                  current: dockerCurrentPage,
+                  pageSize: dockerPageSize,
+                  showSizeChanger: true,
+                  pageSizeOptions: [5, 10, 20, 50],
+                  showQuickJumper: true,
+                  showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} containers`,
+                  onChange: (page, size) => {
+                    setDockerCurrentPage(page);
+                    if (size && size !== dockerPageSize) {
                       setDockerPageSize(size);
                       sessionStorage.setItem('docker_page_size', String(size));
-                    },
-                  }}
-                  rowKey="dockerId"
-                  size="middle"
-                />
-              )}
+                    }
+                  },
+                  onShowSizeChange: (_, size) => {
+                    setDockerCurrentPage(1);
+                    setDockerPageSize(size);
+                    sessionStorage.setItem('docker_page_size', String(size));
+                  },
+                }}
+                rowKey="dockerId"
+                size="middle"
+              />
             </div>
 
           </div>

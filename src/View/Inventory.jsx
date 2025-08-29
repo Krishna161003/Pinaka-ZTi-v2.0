@@ -4,7 +4,7 @@ import { Layout, Row, Col, Table, theme, Button, Badge, message, Popconfirm, Inp
 import { SyncOutlined } from '@ant-design/icons';
 
 import upImage from '../Images/up_15362984.png';
-import downImage from '../Images/down_15362973.png';
+import downImage from '../Images/down_arrow.png';
 import node from '../Images/database_666406.png';
 import axios from 'axios';
 
