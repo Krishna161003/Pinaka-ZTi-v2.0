@@ -185,7 +185,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
   };
 
   const nextAvailableHostname = (usedSet, preferredNumber = 1) => {
-    const make = (n) => `SQDN-${String(n).padStart(2, '0')}`;
+    const make = (n) => `SQDN-${String(n).padStart(3, '0')}`;
     let n = Math.max(1, preferredNumber);
     while (usedSet.has(make(n))) n++;
     return make(n);

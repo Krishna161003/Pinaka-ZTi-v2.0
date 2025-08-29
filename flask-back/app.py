@@ -64,6 +64,14 @@ def get_cpu_history():
 def get_memory_history():
     return list(timestamped_memory_history)
 
+# Ceph data cache
+ceph_cache = {
+    "data": None,
+    "timestamp": 0,
+    "updating": False
+}
+cache_expiry_seconds = 30  # Cache expires after 30 seconds
+
 # ------------------------------------------------ Server Validation Start --------------------------------------------
 #  Validation criteria
 ENV_REQUIREMENTS = {
@@ -2261,57 +2269,106 @@ def get_openstack_data():
     )
 
 
+# Helper function to fetch Ceph data from cluster
+def fetch_ceph_data():
+    ssh = None
+    try:
+        cred_file = os.path.expanduser("/home/pinakasupport/.pinaka_wd/.markers/ceph_dashboard_credentials.txt")
+        if not os.path.exists(cred_file):
+            return None
+        
+        with open(cred_file, "r") as f:
+            content = f.read()
+        
+        match = re.search(r"https://([^:]+):\d+", content)
+        if not match:
+            return None
+        hostname = match.group(1)
+        
+        ssh_user = "pinakasupport"
+        ssh_key = os.path.expanduser("~/.ssh/id_rsa")
+        if not os.path.exists(ssh_key):
+            return None
+        
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname=hostname, username=ssh_user, key_filename=ssh_key, timeout=20, banner_timeout=30)
+        
+        cmd = "sudo cephadm shell -- ceph -s --format json"
+        stdin, stdout, stderr = ssh.exec_command(cmd, timeout=40)
+        
+        start_time = time.time()
+        while not stdout.channel.exit_status_ready():
+            if time.time() - start_time > 35:
+                raise Exception("Timeout")
+            time.sleep(0.1)
+        
+        output = stdout.read().decode().strip()
+        if not output:
+            return None
+        
+        status = json.loads(output)
+        osdmap = status.get("osdmap", {})
+        pgmap = status.get("pgmap", {})
+        
+        return {
+            "total_osds": osdmap.get("num_osds", 0),
+            "up_osds": osdmap.get("num_up_osds", 0),
+            "in_osds": osdmap.get("num_in_osds", 0),
+            "storage_total_bytes": pgmap.get("bytes_total", 0),
+            "storage_used_bytes": pgmap.get("bytes_used", 0),
+            "storage_available_bytes": pgmap.get("bytes_avail", 0),
+        }
+    except:
+        return None
+    finally:
+        if ssh:
+            try:
+                ssh.close()
+            except:
+                pass
+
+def update_ceph_cache():
+    global ceph_cache
+    try:
+        ceph_cache["updating"] = True
+        new_data = fetch_ceph_data()
+        if new_data:
+            ceph_cache["data"] = new_data
+            ceph_cache["timestamp"] = time.time()
+    finally:
+        ceph_cache["updating"] = False
+
 # Retrieves Ceph OSD (Object Storage Device) statistics from remote Ceph cluster
 # Connects to Ceph dashboard host to gather storage cluster health information
 @app.route("/ceph/osd-count", methods=["GET"])
 def get_osd_count():
-    try:
-        # Read Ceph credentials file
-        cred_file = os.path.expanduser("/home/pinakasupport/.pinaka_wd/.markers/ceph_dashboard_credentials.txt")
-        with open(cred_file, "r") as f:
-            content = f.read()
-
-        # Extract hostname from the Dashboard URL line
-        match = re.search(r"https://([^:]+):\d+", content)
-        if not match:
-            return jsonify({"error": "Could not parse hostname from credentials file"}), 500
-        hostname = match.group(1)
-
-        # SSH credentials (assuming same user running Flask, adjust as needed)
-        ssh_user = "pinakasupport"   # or pinakasupport if Ceph is managed under that user
-        ssh_key = os.path.expanduser("~/.ssh/id_rsa")  # or password if required
-
-        # Connect to remote Ceph node
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname, username=ssh_user, key_filename=ssh_key)
-
-        # Run the Ceph command remotely
-        cmd = "cephadm shell -- ceph osd stat --format json"
-        stdin, stdout, stderr = ssh.exec_command(cmd)
-
-        result = stdout.read().decode().strip()
-        err = stderr.read().decode().strip()
-
-        ssh.close()
-
-        if err:
-            return jsonify({"error": err}), 500
-
-        # Parse JSON output
-        osd_stat = json.loads(result)
-
-        data = {
-            "total_osds": osd_stat.get("num_osds", 0),
-            "up_osds": osd_stat.get("num_up_osds", 0),
-            "in_osds": osd_stat.get("num_in_osds", 0)
-        }
-
-        return jsonify(data)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+    global ceph_cache
+    current_time = time.time()
+    cache_age = current_time - ceph_cache["timestamp"]
+    cache_valid = ceph_cache["data"] is not None and cache_age < cache_expiry_seconds
+    
+    if cache_valid:
+        if cache_age > 20 and not ceph_cache["updating"]:
+            threading.Thread(target=update_ceph_cache, daemon=True).start()
+        return jsonify(ceph_cache["data"])
+    
+    if not ceph_cache["updating"]:
+        fresh_data = fetch_ceph_data()
+        if fresh_data:
+            ceph_cache["data"] = fresh_data
+            ceph_cache["timestamp"] = current_time
+            return jsonify(fresh_data)
+    
+    if ceph_cache["data"] is not None:
+        if not ceph_cache["updating"]:
+            threading.Thread(target=update_ceph_cache, daemon=True).start()
+        return jsonify(ceph_cache["data"])
+    
+    return jsonify({
+        "total_osds": 0, "up_osds": 0, "in_osds": 0,
+        "storage_total_bytes": 0, "storage_used_bytes": 0, "storage_available_bytes": 0
+    }), 503
 
 
 # ----- Paths & env -----
@@ -2788,8 +2845,11 @@ def upload_status(job_id):
 
 #--------------------------------------------Lifecycle Management End-------------------------------------------
 
-# Path to your file containing the client secret
-CLIENT_SECRET_FILE = "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env"  # <-- change this
+# Path to your files containing the client secret (primary and fallback)
+CLIENT_SECRET_FILES = [
+    "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env",  # Primary path
+    "/home/pinakasupport/.pinaka_wd/.env"  # Fallback path
+]
 
 import random
 import string
@@ -2798,29 +2858,53 @@ import string
 # Returns encoded secret with random character insertion for enhanced security
 @app.route("/get-client-secret", methods=["GET"])
 def get_client_secret():
+    def try_extract_secret_from_file(filepath):
+        """Try to extract client secret from a given file path"""
+        try:
+            with open(filepath, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("REACT_APP_CLIENT_SECRET=") and '=' in line:
+                        # Extract the value after the first '=' and remove any surrounding quotes
+                        client_secret = line.split('=', 1)[1].strip('"\'')
+                        if client_secret:
+                            return client_secret
+            return None
+        except FileNotFoundError:
+            return None
+        except Exception:
+            return None
+    
+    # Try each file path until we find the client secret
+    client_secret = None
+    used_file = None
+    
+    for filepath in CLIENT_SECRET_FILES:
+        client_secret = try_extract_secret_from_file(filepath)
+        if client_secret:
+            used_file = filepath
+            break
+    
+    if not client_secret:
+        # None of the files contained the client secret
+        files_checked = ", ".join(CLIENT_SECRET_FILES)
+        return jsonify({
+            "error": f"REACT_APP_CLIENT_SECRET not found in any of the checked files: {files_checked}"
+        }), 404
+    
     try:
-        with open(CLIENT_SECRET_FILE, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("REACT_APP_CLIENT_SECRET=") and '=' in line:
-                    # Extract the value after the first '=' and remove any surrounding quotes
-                    client_secret = line.split('=', 1)[1].strip('"\'')
-                    if client_secret:
-                        # Add a random character at a random position
-                        random_char = random.choice(string.ascii_letters + string.digits)
-                        insert_pos = random.randint(0, len(client_secret))
-                        encoded_secret = client_secret[:insert_pos] + random_char + client_secret[insert_pos:]
-                        
-                        # Return both the encoded secret and the position of the extra character
-                        return jsonify({
-                            "client_secret": encoded_secret,
-                            "random_char_pos": insert_pos
-                        })
-            
-            return jsonify({"error": "REACT_APP_CLIENT_SECRET not found in .env file"}), 404
-            
-    except FileNotFoundError:
-        return jsonify({"error": f"File {CLIENT_SECRET_FILE} not found"}), 404
+        # Add a random character at a random position for obfuscation
+        random_char = random.choice(string.ascii_letters + string.digits)
+        insert_pos = random.randint(0, len(client_secret))
+        encoded_secret = client_secret[:insert_pos] + random_char + client_secret[insert_pos:]
+        
+        # Return both the encoded secret and the position of the extra character
+        return jsonify({
+            "client_secret": encoded_secret,
+            "random_char_pos": insert_pos,
+            "source_file": used_file  # Optional: for debugging purposes
+        })
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

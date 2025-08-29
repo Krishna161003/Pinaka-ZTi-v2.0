@@ -190,7 +190,7 @@ def decrypt_code_endpoint():
         return jsonify({"success": False, "message": "Code not found!"}), 404
 
     # Path to the license.txt file
-    license_file_path = "/home/pinakasupport/Documents/GitHub/Pinaka-ZTi-v1.5/flask-back/license/license.txt"
+    license_file_path = "/home/pinakasupport/license.txt"
 
     # Check if the license code already exists in the license.txt file
     if check_license_used(license_file_path, encrypted_code):
@@ -1026,7 +1026,6 @@ def get_docker_info():
             'error': str(e)
         }
 # ------------------- System Utilization End -------------------
-
 
 
 # ------------------------------------------------ local Interface list End --------------------------------------------

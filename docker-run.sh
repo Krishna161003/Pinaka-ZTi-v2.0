@@ -97,6 +97,8 @@ if docker-compose -f docker-compose-keycloak.yml up --build -d; then
             if ./role_assigned.sh; then
                 echo "✅ role_assigned.sh executed"
                 # Start the rest of the stack
+                # sudo systemctl stop nginx.service
+                # sudo systemctl disable nginx.service
                 docker-compose up --build -d
             else
                 echo "❌ Failed to execute role_assigned.sh."
@@ -115,4 +117,6 @@ else
     exit 1
 fi
 
-cp .env ./flask-back/.env
+cp .env /home/pinakasupport/.pinaka_wd/
+# sudo systemctl stop web-app.service
+# sudo systemctl disable web-app.service
