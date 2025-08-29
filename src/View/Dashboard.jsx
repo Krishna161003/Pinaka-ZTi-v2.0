@@ -6,6 +6,9 @@ import { useNavigate } from "react-router-dom";
 import node from "../Images/FlightDeck.png";
 import squad from "../Images/Squadron2.png";
 import osd from "../Images/OSD.png";
+import downImage from '../Images/down_arrow.png';
+import totalImage from '../Images/Total_icon2.png';
+import upImage from '../Images/up_15362984.png';
 import { Area, Line } from '@ant-design/plots';
 import axios from "axios";
 
@@ -1415,11 +1418,11 @@ const Dashboard = () => {
             >
               <h4 style={{ userSelect: "none", marginTop: "-16px" }} >Performance</h4>
               <Divider style={{ margin: "-16px 0 0 0" }} />
-              <Row gutter={24} justify="start" style={{ marginLeft: "2px" }}>
+              <Row gutter={[24]} style={{ margin: 0, display: 'flex', marginLeft: '2px' }}>
                 <Col
+                  span={8}
                   className="gutter-row"
-                  span={7}
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, marginRight: '16px',  }}
                 >
                   <div>
                     <span
@@ -1429,7 +1432,8 @@ const Dashboard = () => {
                         marginLeft: "1px",
                         userSelect: "none",
                         display: "block",
-                        marginBottom: "8px"
+                        marginBottom: "8px",
+
                       }}
                     >
                       Status
@@ -1569,15 +1573,11 @@ const Dashboard = () => {
                         textAlign: 'center'
                       }}
                     >
-                      {loadingStates.health ? (
-                        <Spin size="default" />
-                      ) : (
-                        healthStatus
-                      )}
+                      {healthStatus}
                     </div>
                   </div>
                 </Col>
-                <Col className="gutter-row" span={7} style={performancewidgetStyle}>
+                <Col className="gutter-row" span={8} style={{...performancewidgetStyle, marginRight: '10px'}}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Network Traffic</span>
@@ -1590,26 +1590,19 @@ const Dashboard = () => {
                       />
                     </div>
                     <Divider style={{ margin: "0 0 16px 0" }} />
-                    {loadingStates.network ? (
-                      <CardSpinner />
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                          Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
-                        </div>
-                        <div style={{ height: 70, margin: '0 -20px 10px -20px' }}>
-                          <BandwidthLine bandwidthHistory={getSmoothedBandwidthHistory(bandwidthHistory, 5)} />
-                        </div>
-                      </>
-                    )}
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
+                    </div>
+                  </div>
+                  <div style={{ height: 70, margin: '0 -10px 10px -10px' }}>
+                    <BandwidthLine bandwidthHistory={getSmoothedBandwidthHistory(bandwidthHistory, 5)} />
                   </div>
                 </Col>
               </Row>
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px", height: "290px" }}>
+              <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px', marginRight: '2px' }}>
                 <Col
                   className="gutter-row"
-                  span={11} // Each column takes up 7 spans
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, flex: '1', minWidth: '450px', marginRight: '16px' }}
                 >
                   <div>
                     <span
@@ -1625,24 +1618,17 @@ const Dashboard = () => {
                       CPU Usage Trend
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
-                    {loadingStates.system ? (
-                      <CardSpinner />
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                          Current: {cpuData.toFixed(1)}%
-                        </div>
-                        <div style={{ height: '180px' }}>
-                          <CPUUsageChart />
-                        </div>
-                      </>
-                    )}
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Current: {cpuData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <CPUUsageChart />
+                    </div>
                   </div>
                 </Col>
                 <Col
                   className="gutter-row"
-                  span={11} // Each column takes up 7 spans
-                  style={performancewidgetStyle}
+                  style={{ ...performancewidgetStyle, flex: '1', minWidth: '450px', marginRight: '16px' }}
                 >
                   <div>
                     <span
@@ -1658,25 +1644,21 @@ const Dashboard = () => {
                       Memory Usage Trend
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
-                    {loadingStates.system ? (
-                      <CardSpinner />
-                    ) : (
-                      <>
-                        <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                          Used: {usedMemory} MB / {totalMemory} MB
-                          Usage: {memoryData.toFixed(1)}%
-                        </div>
-                        <div style={{ height: '180px' }}>
-                          <MemoryUsageChart />
-                        </div>
-                      </>
-                    )}
+                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                      Used: {usedMemory} MB / {totalMemory} MB
+                      Usage: {memoryData.toFixed(1)}%
+                    </div>
+                    <div style={{ height: '180px' }}>
+                      <MemoryUsageChart />
+                    </div>
                   </div>
                 </Col>
               </Row>
-              {/* Disk Usage section */}
-              <Row gutter={24} justify="start" style={{ marginTop: 24, marginLeft: "2px" }}>
-              <Col className="gutter-row" span={24} style={performancewidgetStyle}>
+
+
+               {/* Disk Usage section */}
+              <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px' }}>
+              <Col className="gutter-row" style={{ ...performancewidgetStyle, width: '100%', marginLeft: '2px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span
@@ -1748,6 +1730,9 @@ const Dashboard = () => {
                   </div>
                 </Col>
               </Row>
+
+
+
             </div>
             <div
               style={{
@@ -1779,7 +1764,8 @@ const Dashboard = () => {
                       fontWeight: "500",
                     }}
                   >
-                    <span style={{ userSelect: "none" }}>UP</span>
+                    <img src={upImage} style={{ width: "24px", height: "24px" }} />
+                    <span style={{ userSelect: "none" }}>Up</span>
                     {loadingStates.docker ? (
                       <Spin size="small" />
                     ) : (
@@ -1809,7 +1795,8 @@ const Dashboard = () => {
                       fontWeight: "500",
                     }}
                   >
-                    <span style={{ userSelect: "none" }}>DOWN</span>
+                    <img src={downImage} style={{ width: "24px", height: "24px" }} />
+                    <span style={{ userSelect: "none" }}>Down</span>
                     {loadingStates.docker ? (
                       <Spin size="small" />
                     ) : (
@@ -1839,6 +1826,7 @@ const Dashboard = () => {
                       fontWeight: "500",
                     }}
                   >
+                    <img src={totalImage} style={{ width: "24px", height: "24px" }} />
                     <span style={{ userSelect: "none" }}>Total</span>
                     {loadingStates.docker ? (
                       <Spin size="small" />

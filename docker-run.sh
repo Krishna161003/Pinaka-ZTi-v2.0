@@ -94,6 +94,28 @@ if docker-compose -f docker-compose-keycloak.yml up --build -d; then
     done
     echo "✅ Keycloak is ready."
 
+# Function to stop and disable a service only if it's running/enabled
+stop_and_disable_service() {
+    local service_name=$1
+
+    if systemctl is-active --quiet "$service_name"; then
+        echo "⏳ Stopping $service_name..."
+        sudo systemctl stop "$service_name"
+        echo "✅ $service_name stopped."
+    else
+        echo "ℹ️ $service_name is not running."
+    fi
+
+    if systemctl is-enabled --quiet "$service_name"; then
+        echo "⏳ Disabling $service_name..."
+        sudo systemctl disable "$service_name"
+        echo "✅ $service_name disabled."
+    else
+        echo "ℹ️ $service_name is not enabled."
+    fi
+}
+
+
     # ===========================================================
     # STEP 3: Keycloak Setup Scripts
     # ===========================================================
@@ -106,8 +128,7 @@ if docker-compose -f docker-compose-keycloak.yml up --build -d; then
             if ./role_assigned.sh; then
                 echo "✅ role_assigned.sh executed"
                 # Start the rest of the stack
-                sudo systemctl stop nginx.service
-                sudo systemctl disable nginx.service
+                stop_and_disable_service nginx.service
                 docker-compose up --build -d
             else
                 echo "❌ Failed to execute role_assigned.sh."
@@ -127,5 +148,4 @@ else
 fi
 
 cp .env /home/pinakasupport/.pinaka_wd/
-sudo systemctl stop web-app.service
-sudo systemctl disable web-app.service
+stop_and_disable_service web-app.service

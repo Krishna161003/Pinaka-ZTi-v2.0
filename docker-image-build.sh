@@ -1,11 +1,11 @@
 #!/bin/bash
 set -x
 
-# sudo docker stop registry
-# sudo docker rm registry
-# sudo docker volume rm registry-data
+sudo docker stop registry
+sudo docker rm registry
+sudo docker volume rm registry-data
 
-# sudo docker run -d -p 4000:5000 --name registry registry:2
+sudo docker run -d -p 4000:5000 --name registry registry:2
 
 
 docker build -t pinaka-zti-v2.0-react-app:1.1 .
