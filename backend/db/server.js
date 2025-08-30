@@ -1339,7 +1339,7 @@ app.get('/api/server-details-by-ip', (req, res) => {
     return res.status(400).json({ error: 'IP parameter is required' });
   }
 
-  let sql = "SELECT serverid, serverip, role FROM deployed_server WHERE serverip = ?";
+  let sql = "SELECT serverid, serverip, hostname, role FROM deployed_server WHERE serverip = ?";
   const params = [ip];
   
   if (userId) {
@@ -1359,7 +1359,7 @@ app.get('/api/server-details-by-ip', (req, res) => {
       res.json(results[0]);
     } else {
       // Return null if no server found for this IP
-      res.json({ serverid: null, serverip: ip, role: null });
+      res.json({ serverid: null, serverip: ip, hostname: null, role: null });
     }
   });
 });

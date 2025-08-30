@@ -597,72 +597,6 @@ const SquadronNodesTable = () => {
       render: (hostname) => hostname || <span style={{ color: '#999' }}>-</span>
     },
     {
-      title: 'Network Info',
-      key: 'networkInfo',
-      width: 120,
-      align: 'center',
-      render: (_, record) => {
-        const networkConfigs = [];
-        
-        // Only add network configs that have actual values (not null, undefined, or empty string)
-        if (record.Management && record.Management.trim()) {
-          networkConfigs.push({ label: 'Management', value: record.Management });
-        }
-        if (record.Storage && record.Storage.trim()) {
-          networkConfigs.push({ label: 'Storage', value: record.Storage });
-        }
-        if (record.External_Traffic && record.External_Traffic.trim()) {
-          networkConfigs.push({ label: 'External Traffic', value: record.External_Traffic });
-        }
-        if (record.VXLAN && record.VXLAN.trim()) {
-          networkConfigs.push({ label: 'VXLAN', value: record.VXLAN });
-        }
-
-        // If no network configurations exist, don't show anything (not even a dash)
-        if (networkConfigs.length === 0) {
-          return null;
-        }
-
-        const items = networkConfigs.map((config, index) => ({
-          key: index.toString(),
-          label: (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: '200px' }}>
-              <strong>{config.label}:</strong>
-              <span style={{ marginLeft: '8px', userSelect: 'text' }}>{config.value}</span>
-              <CopyTwoTone 
-                twoToneColor="#1890ff" 
-                style={{ cursor: 'pointer', marginLeft: '8px' }} 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  copyToClipboard(config.value);
-                }}
-              />
-            </div>
-          )
-        }));
-
-        // Only show the three-dotted icon if there are actual network configurations
-        return (
-          <Dropdown
-            menu={{ items }}
-            trigger={['click']}
-            placement="bottomLeft"
-          >
-            <Button 
-              type="text" 
-              icon={<MoreOutlined />} 
-              style={{ 
-                border: 'none', 
-                background: 'transparent',
-                color: '#1890ff',
-                cursor: 'pointer'
-              }}
-            />
-          </Dropdown>
-        );
-      }
-    },
-    {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
@@ -730,6 +664,72 @@ const SquadronNodesTable = () => {
       width: 120,
       align: 'center',
 
+    },
+    {
+      title: '',
+      key: 'networkInfo',
+      width: 50,
+      align: 'center',
+      render: (_, record) => {
+        const networkConfigs = [];
+        
+        // Only add network configs that have actual values (not null, undefined, or empty string)
+        if (record.Management && record.Management.trim()) {
+          networkConfigs.push({ label: 'Management', value: record.Management });
+        }
+        if (record.Storage && record.Storage.trim()) {
+          networkConfigs.push({ label: 'Storage', value: record.Storage });
+        }
+        if (record.External_Traffic && record.External_Traffic.trim()) {
+          networkConfigs.push({ label: 'External Traffic', value: record.External_Traffic });
+        }
+        if (record.VXLAN && record.VXLAN.trim()) {
+          networkConfigs.push({ label: 'VXLAN', value: record.VXLAN });
+        }
+
+        // If no network configurations exist, don't show anything (not even a dash)
+        if (networkConfigs.length === 0) {
+          return null;
+        }
+
+        const items = networkConfigs.map((config, index) => ({
+          key: index.toString(),
+          label: (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: '200px' }}>
+              <strong>{config.label}:</strong>
+              <span style={{ marginLeft: '8px', userSelect: 'text' }}>{config.value}</span>
+              <CopyTwoTone 
+                twoToneColor="#1890ff" 
+                style={{ cursor: 'pointer', marginLeft: '8px' }} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(config.value);
+                }}
+              />
+            </div>
+          )
+        }));
+
+        // Only show the three-dotted icon if there are actual network configurations
+        return (
+          <Dropdown
+            menu={{ items }}
+            trigger={['click']}
+            placement="bottomLeft"
+          >
+            <Button 
+              type="text" 
+              icon={<MoreOutlined />} 
+              style={{ 
+                border: 'none', 
+                background: 'transparent',
+                color: '#1890ff',
+                cursor: 'pointer'
+              }}
+            />
+          </Dropdown>
+        );
+      }
     }
   ];
 

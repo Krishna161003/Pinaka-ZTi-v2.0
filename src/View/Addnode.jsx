@@ -309,7 +309,9 @@ const App = () => {
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Deploy" key="4" disabled={disabledTabs["4"]}>
-          <NetworkApply onGoToReport={() => {
+          <NetworkApply 
+            key={`network-apply-${JSON.stringify(licenseNodes)}`}
+            onGoToReport={() => {
             // Disable tabs 1-4 and enable tab 5, then navigate without full reload
             setDisabledTabs(prev => ({ ...prev, '1': true, '2': true, '3': true, '4': true, '5': false }));
             setActiveTab('5');

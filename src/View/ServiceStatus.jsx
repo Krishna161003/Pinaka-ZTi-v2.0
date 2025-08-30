@@ -5,6 +5,8 @@ import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import serviceStatus from '../Images/Service_status.png';
 import serviceOperations from '../Images/Service_operation_icon.png';
+import reconfigureServicesText from '../Components/Reconfigure_services.txt';
+import dockerServicesText from '../Components/Docker_service.txt';
 
 const { Content } = Layout;
 const hostIP = window.location.hostname;
@@ -307,14 +309,62 @@ const ServiceStatus = () => {
   const [nodeOptions, setNodeOptions] = React.useState(['All']);
   const [nodeLoading, setNodeLoading] = React.useState(false);
   const [hasDeployedServers, setHasDeployedServers] = React.useState(false);
-  const DUMMY_SERVICE_OPTIONS = ['All', 'octavia','octavia_worker','nova-compute', 'nova-scheduler', 'neutron-server', 'neutron-dhcp-agent', 'cinder-volume', 'glance-api', 'keystone'];
-  const serviceOptions = React.useMemo(() => DUMMY_SERVICE_OPTIONS, [DUMMY_SERVICE_OPTIONS]);
+  // Load services from the text file and create service options
+  const [serviceOptions, setServiceOptions] = React.useState(['All']);
+  const [dockerServiceOptions, setDockerServiceOptions] = React.useState(['All']);
+  
+  // Load services from Reconfigure_services.txt
+  React.useEffect(() => {
+    const loadServices = async () => {
+      try {
+        const response = await fetch(reconfigureServicesText);
+        const text = await response.text();
+        const services = text.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
+        setServiceOptions(services);
+      } catch (error) {
+        console.error('Error loading services from file:', error);
+        // Fallback to hardcoded services if file loading fails
+        setServiceOptions(['All', 'nova', 'neutron', 'cinder', 'glance', 'keystone']);
+      }
+    };
+    loadServices();
+  }, []);
+
+  // Load docker services from Docker_service.txt
+  React.useEffect(() => {
+    const loadDockerServices = async () => {
+      try {
+        const response = await fetch(dockerServicesText);
+        const text = await response.text();
+        const dockerServices = text.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
+        setDockerServiceOptions(dockerServices);
+      } catch (error) {
+        console.error('Error loading docker services from file:', error);
+        // Fallback to hardcoded docker services if file loading fails
+        setDockerServiceOptions(['All', 'nova_compute', 'neutron_server', 'cinder_volume', 'glance_api', 'keystone']);
+      }
+    };
+    loadDockerServices();
+  }, []);
   const nodeSelectOptions = React.useMemo(() => (
     nodeOptions.map(v => ({ label: v, value: v, disabled: selectedNodes.includes('All') && v !== 'All' }))
   ), [nodeOptions, selectedNodes]);
   const serviceSelectOptions = React.useMemo(() => (
-    serviceOptions.map(v => ({ label: v, value: v, disabled: selectedServices.includes('All') && v !== 'All' }))
+    (serviceOptions || []).map(v => ({ label: v, value: v, disabled: selectedServices.includes('All') && v !== 'All' }))
   ), [serviceOptions, selectedServices]);
+  
+  // Docker service select options for stop and restart operations
+  const dockerServiceSelectOptions = React.useMemo(() => (
+    (dockerServiceOptions || []).map(v => ({ label: v, value: v, disabled: selectedStopServices.includes('All') && v !== 'All' }))
+  ), [dockerServiceOptions, selectedStopServices]);
+  
+  const dockerServiceSelectOptionsRestart = React.useMemo(() => (
+    (dockerServiceOptions || []).map(v => ({ label: v, value: v, disabled: selectedRestartServices.includes('All') && v !== 'All' }))
+  ), [dockerServiceOptions, selectedRestartServices]);
   // For Stop/Restart modals: node dropdown must exclude 'All'
   const nodeSelectOptionsNoAll = React.useMemo(() => (
     (nodeOptions || []).filter(v => v !== 'All').map(v => ({ label: v, value: v }))
@@ -1024,7 +1074,7 @@ const ServiceStatus = () => {
                         style={{ width: '100%' }}
                         placeholder="Select service(s)"
                         maxTagCount="responsive"
-                        options={serviceSelectOptions}
+                        options={dockerServiceSelectOptions}
                       />
                     </div>
                   </div>
@@ -1063,7 +1113,7 @@ const ServiceStatus = () => {
                         style={{ width: '100%' }}
                         placeholder="Select service(s)"
                         maxTagCount="responsive"
-                        options={serviceSelectOptions}
+                        options={dockerServiceSelectOptionsRestart}
                       />
                     </div>
                   </div>

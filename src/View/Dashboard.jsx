@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 import Layout1 from "../Components/layout";
 import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
 import { InfoCircleOutlined } from '@ant-design/icons';
@@ -98,7 +98,7 @@ const Dashboard = () => {
   const [selectedHostIP, setSelectedHostIP] = useState(() => localStorage.getItem('dashboard_selectedHostIP') || window.location.hostname);
 
   // Server details state
-  const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', role: '' });
+  const [serverDetails, setServerDetails] = useState({ serverid: '', serverip: '', hostname: '', role: '' });
 
   // Fetch server details by IP
   const fetchServerDetailsByIP = async (ip) => {
@@ -110,21 +110,26 @@ const Dashboard = () => {
         setServerDetails({
           serverid: data.serverid || '',
           serverip: data.serverip || ip,
+          hostname: data.hostname || '',
           role: data.role || ''
         });
       } else {
         // If no server found, show Flight Deck details
+        const isFlightDeck = ip === window.location.hostname;
         setServerDetails({
           serverid: 'FD-MAIN',
           serverip: ip,
+          hostname: isFlightDeck ? 'FD-001' : '',
           role: 'Flight Deck'
         });
       }
     } catch (e) {
       console.error('Error fetching server details:', e);
+      const isFlightDeck = ip === window.location.hostname;
       setServerDetails({
         serverid: 'FD-MAIN',
         serverip: ip,
+        hostname: isFlightDeck ? 'FD-001' : '',
         role: 'Flight Deck'
       });
     }
@@ -1395,6 +1400,10 @@ const Dashboard = () => {
                   <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Server ID:</span>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: '#1890ff' }}>{serverDetails.serverid || 'Loading...'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Hostname:</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#722ed1' }}>{serverDetails.hostname || 'Loading...'}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: '#666', fontWeight: '500' }}>Role:</span>

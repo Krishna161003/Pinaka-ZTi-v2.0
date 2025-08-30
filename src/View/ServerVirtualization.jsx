@@ -405,7 +405,6 @@ const App = () => {
               }
             }}
             onRemoveNode={(ip, removedRecord, removedIndex) => {
-              // Remove from validatedNodes (source for ActivateKey)
               setValidatedNodes(prev => {
                 const next = prev.filter(n => n.ip !== ip);
                 try { sessionStorage.setItem('validatedNodes', JSON.stringify(next)); } catch (_) { }
@@ -466,6 +465,7 @@ const App = () => {
         </Tabs.TabPane>
         <Tabs.TabPane tab="Deploy" key="5" disabled={disabledTabs["5"]}>
           <Deployment
+            key={`deployment-${JSON.stringify(validatedNodes)}`}
             onGoToReport={() => {
               const updated = { "1": true, "2": true, "3": true, "4": true, "5": true, "6": false };
               setDisabledTabs(updated);

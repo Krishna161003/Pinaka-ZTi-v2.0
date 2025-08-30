@@ -13,7 +13,7 @@ const hostIP = window.location.hostname;
 const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
   const cloudName = getCloudName();
   const [data, setData] = useState(results || []);
-  const [infoModal, setInfoModal] = useState({ visible: false, details: '' });
+  const [infoModal, setInfoModal] = useState({ visible: false, details: '', record: null });
 
   // Sync data with results or nodes (from Cloud validate.jsx)
   useEffect(() => {
@@ -169,16 +169,7 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
       render: (_, record) => (
         <Button
           onClick={() => {
-            const recommended = { cpu_cores: 48, memory_gb: 128, disks: 4, network: 2 };
-            const actual = record.validationData || {};
-            const validation = (actual && typeof actual.validation === 'object') ? actual.validation : {};
-            const details = [
-              `CPU Cores: ${actual.cpu_cores ?? 'N/A'} (Recommended: ${recommended.cpu_cores}) (${validation.cpu === true ? '✓' : validation.cpu === false ? '✗' : '-'})`,
-              `Memory: ${actual.memory_gb ?? 'N/A'}GB (Recommended: ${recommended.memory_gb}GB) (${validation.memory === true ? '✓' : validation.memory === false ? '✗' : '-'})`,
-              `Disks: ${actual.data_disks ?? 'N/A'} (Recommended: ${recommended.disks}) (${validation.disks === true ? '✓' : validation.disks === false ? '✗' : '-'})`,
-              `Network Interfaces: ${actual.network_interfaces ?? 'N/A'} (Recommended: ${recommended.network}) (${validation.network === true ? '✓' : validation.network === false ? '✗' : '-'})`
-            ].join('\n');
-            setInfoModal({ visible: true, details });
+            setInfoModal({ visible: true, details: '', record });
           }}
           disabled={!record.result}
           style={{ width: '95px' }}
@@ -238,10 +229,94 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
       <Modal
         title="Validation Details"
         open={infoModal.visible}
-        onCancel={() => setInfoModal({ visible: false, details: '' })}
+        onCancel={() => setInfoModal({ visible: false, details: '', record: null })}
         footer={null}
+        width={600}
       >
-        <div style={{ whiteSpace: 'pre-line' }}>{infoModal.details}</div>
+        {infoModal.record && (() => {
+          const recommended = { cpu_cores: 48, memory_gb: 128, disks: 4, network: 2 };
+          const actual = infoModal.record.validationData || {};
+          const validation = (actual && typeof actual.validation === 'object') ? actual.validation : {};
+          
+          const tableData = [
+            {
+              key: 'cpu',
+              component: 'CPU Cores',
+              actual: actual.cpu_cores ?? 'N/A',
+              recommended: recommended.cpu_cores,
+              status: validation.cpu === true ? '✓ Pass' : validation.cpu === false ? '✗ Fail' : '-'
+            },
+            {
+              key: 'memory',
+              component: 'Memory',
+              actual: actual.memory_gb ? `${actual.memory_gb}GB` : 'N/A',
+              recommended: `${recommended.memory_gb}GB`,
+              status: validation.memory === true ? '✓ Pass' : validation.memory === false ? '✗ Fail' : '-'
+            },
+            {
+              key: 'disks',
+              component: 'Disks',
+              actual: actual.data_disks ?? 'N/A',
+              recommended: recommended.disks,
+              status: validation.disks === true ? '✓ Pass' : validation.disks === false ? '✗ Fail' : '-'
+            },
+            {
+              key: 'network',
+              component: 'Network Interfaces',
+              actual: actual.network_interfaces ?? 'N/A',
+              recommended: recommended.network,
+              status: validation.network === true ? '✓ Pass' : validation.network === false ? '✗ Fail' : '-'
+            }
+          ];
+          
+          const columns = [
+            {
+              title: 'Component',
+              dataIndex: 'component',
+              key: 'component',
+              width: 150
+            },
+            {
+              title: 'Actual',
+              dataIndex: 'actual',
+              key: 'actual',
+              align: 'center',
+              width: 100
+            },
+            {
+              title: 'Recommended',
+              dataIndex: 'recommended',
+              key: 'recommended',
+              align: 'center',
+              width: 120
+            },
+            {
+              title: 'Status',
+              dataIndex: 'status',
+              key: 'status',
+              align: 'center',
+              width: 100,
+              render: (status) => (
+                <span style={{
+                  color: status.includes('✓') ? '#52c41a' : status.includes('✗') ? '#ff4d4f' : '#666',
+                  fontWeight: status !== '-' ? 'bold' : 'normal'
+                }}>
+                  {status}
+                </span>
+              )
+            }
+          ];
+          
+          return (
+            <Table
+              dataSource={tableData}
+              columns={columns}
+              pagination={false}
+              size="small"
+              bordered
+            />
+          );
+        })()}
       </Modal>
     </div>
   );
