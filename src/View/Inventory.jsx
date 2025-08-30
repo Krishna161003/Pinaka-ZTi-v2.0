@@ -5,7 +5,7 @@ import { SyncOutlined } from '@ant-design/icons';
 
 import upImage from '../Images/up_15362984.png';
 import downImage from '../Images/down_arrow.png';
-import node from '../Images/database_666406.png';
+import node from '../Images/13_inventory.png';
 import axios from 'axios';
 
 const hostIP = window.location.hostname;
@@ -18,7 +18,7 @@ const style = {
   marginRight: '25px',
   // borderRadius: '10px',
   cursor: 'pointer',
-  boxShadow: '10px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
 };
 
 const Inventory = () => {

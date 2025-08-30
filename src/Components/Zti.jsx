@@ -2,8 +2,8 @@ import React from "react";
 import Layout1 from "./layout";
 import { theme, Layout, Col, Row, Tooltip } from "antd";
 import { useNavigate } from "react-router-dom";
-import addnode from "../Images/database_666401.png";
-import node from "../Images/database_666406.png";
+import addnode from "../Images/10_Add_ZTI-Cloud.png";
+import node from "../Images/11_Add_Squadron.png";
 
 const style = {
   background: '#fff',
@@ -12,7 +12,8 @@ const style = {
   marginRight: '25px',
   // borderRadius: '10px',
   cursor: 'pointer',
-  boxShadow: '10px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+
 };
 
 const { Content } = Layout;
@@ -84,16 +85,16 @@ export default function Zti({ children }) {
         >
           <div style={{ display: "flex", alignItems: "center" }}>
             <img src={node} alt="server" style={{ width: "60px", height: "60px", marginLeft: "30px", userSelect: "none" }}></img>
-            <span
+            <h2
               style={{
-                fontSize: "18px",
                 fontWeight: "500",
                 marginLeft: "30px",
                 userSelect: "none",
+                marginTop: "15px",
               }}
             >
-              Add ZTi Cloud 
-            </span>
+              Add ZTi Cloud
+            </h2>
           </div>  
         </Col>
 
@@ -110,16 +111,16 @@ export default function Zti({ children }) {
           <Tooltip title="ZTi cloud not deployed" placement="top" open={hostExists ? false : undefined} disabled={hostExists}>
             <div style={{ display: "flex", alignItems: "center" }}>
               <img src={addnode} alt="cloud--v1" style={{ width: "60px", height: "60px", marginLeft: "30px", userSelect: "none" }}></img>
-              <span
+              <h2
                 style={{
-                  fontSize: "18px",
                   fontWeight: "500",
                   marginLeft: "30px",
-                  userSelect: "none"
+                  userSelect: "none",
+                  marginTop: "15px",
                 }}
               >
                 Add Squadron Node
-              </span>
+              </h2>
             </div>
           </Tooltip>
         </Col>
@@ -135,12 +136,13 @@ export default function Zti({ children }) {
             <img src="data:image/png;base64,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" alt="cloud-development--v3"
 
               style={{ width: "60px", height: "60px", marginLeft: "30px", userSelect: "none" }}></img>
-            <span
+            <h2
               style={{
-                fontSize: "18px",
+                fontSize: "20px",
                 fontWeight: "500",
                 marginLeft: "30px",
-                userSelect: "none"
+                userSelect: "none",
+                marginTop: "15px",
               }}
             >
               Edge Cloud
