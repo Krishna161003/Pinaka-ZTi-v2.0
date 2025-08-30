@@ -65,7 +65,7 @@ chmod 644 keystore.p12 keycloak.crt keycloak.key
 # Copy certs to required directories
 mkdir -p /home/pinaka/ssl
 cp keycloak.crt keycloak.key keystore.p12 /home/pinaka/ssl/
-cp keycloak.crt keycloak.key /home/pinaka/Pinaka-ZTi-v2.0/flask-back/
+cp keycloak.crt keycloak.key /home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/flask-back/
 chmod 644 /home/pinaka/ssl/keycloak.* /home/pinaka/ssl/keystore.p12
 
 echo "✅ SSL certificates ready"
