@@ -1267,6 +1267,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     const payloadBase = buildNetworkConfigPayload({ ...form, hostname: assigned });
     const payload = {
       ...payloadBase,
+      hostname: assigned,
       license_code: form.licenseCode || null,
       license_type: form.licenseType || null,
       license_period: form.licensePeriod || null,
@@ -1842,9 +1843,10 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     }
 
     // Prepare POST data for /api/child-deployment-activity-log
-    // Each node must have serverip, type, Mgmt, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
+    // Each node must have serverip, hostname, type, Mgmt, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
     const nodes = Object.values(configs).map(form => ({
       serverip: form.ip,
+      hostname: hostnameMap[form.ip] || form?.hostname || '',
       type: form.configType,
       // Send all selected roles as a comma-separated string to store multiple roles in DB
       role: Array.isArray(form.selectedRoles) && form.selectedRoles.length > 0 ? form.selectedRoles.join(',') : 'child',

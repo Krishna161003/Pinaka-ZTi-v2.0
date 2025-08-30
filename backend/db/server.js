@@ -320,7 +320,7 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
 
     const insertedNodes = [];
     for (const node of nodes) {
-      const { serverip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period, role } = node;
+      const { serverip, hostname, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period, role } = node;
       if (!serverip) {
         return res.status(400).json({ error: 'Each node must have serverip' });
       }
@@ -333,8 +333,8 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
 
       const insSql = `
         INSERT INTO deployment_activity_log
-          (serverid, user_id, username, cloudname, serverip, status, type, role, server_vip, Management, Storage, External_Traffic, VXLAN)
-        VALUES (?, ?, ?, ?, ?, 'progress', 'secondary', ?, ?, ?, ?, ?, ?)
+          (serverid, user_id, username, cloudname, serverip, hostname, status, type, role, server_vip, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, ?, 'progress', 'secondary', ?, ?, ?, ?, ?, ?)
       `;
       await new Promise((resolve, reject) => {
         db.query(
@@ -345,6 +345,7 @@ app.post('/api/child-deployment-activity-log', async (req, res) => {
             username,
             chosenCloudname,
             serverip,
+            hostname || null,
             role || null,
             firstVipAndCloud.server_vip || null,
             Management || null,
@@ -457,7 +458,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
           if (chkRows && chkRows.length > 0) {
             const updSQL = `
               UPDATE deployed_server
-              SET user_id=?, username=?, cloudname=?, serverip=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
+              SET user_id=?, username=?, cloudname=?, serverip=?, hostname=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
               WHERE serverid=?
             `;
             const updValues = [
@@ -465,6 +466,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
               dep.username || null,
               dep.cloudname || null,
               dep.serverip,
+              dep.hostname || null,
               dep.server_vip || null,
               resolvedRole,
               licenseCodeToUse || null,
@@ -483,8 +485,8 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
             });
           } else {
             const insSQL = `
-              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, hostname, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             const insValues = [
               serverid,
@@ -492,6 +494,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
               dep.username || null,
               dep.cloudname || null,
               dep.serverip,
+              dep.hostname || null,
               dep.server_vip || null,
               resolvedRole,
               licenseCodeToUse || null,
@@ -519,7 +522,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
 // Returns deployment status and configuration details for monitoring and management
 app.get('/api/pending-child-deployments', (req, res) => {
   const { status = 'progress', user_id, cloudname } = req.query || {};
-  let sql = `SELECT serverid, serverip, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
+  let sql = `SELECT serverid, serverip, hostname, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
              FROM deployment_activity_log WHERE status = ? AND type = 'secondary'`;
   const params = [status];
   if (user_id) {
@@ -756,6 +759,7 @@ db.connect((err) => {
       username VARCHAR(255),             -- username
       cloudname VARCHAR(255),            -- cloudname
       serverip VARCHAR(15),              -- serverip
+      hostname VARCHAR(255) NULL,        -- hostname
       status VARCHAR(255),               -- status
       type VARCHAR(255),                 -- type
       role VARCHAR(255) NULL,            -- role (host/child/other, comma-separated for multi)
@@ -777,6 +781,13 @@ db.connect((err) => {
     db.query("ALTER TABLE deployment_activity_log ADD COLUMN role VARCHAR(255) NULL", (altErr) => {
       if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
         console.warn("Could not ensure 'role' column on deployment_activity_log:", altErr.message);
+      }
+    });
+
+    // Ensure hostname column exists for older databases
+    db.query("ALTER TABLE deployment_activity_log ADD COLUMN hostname VARCHAR(255) NULL", (altErr) => {
+      if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
+        console.warn("Could not ensure 'hostname' column on deployment_activity_log:", altErr.message);
       }
     });
 
@@ -828,6 +839,7 @@ db.connect((err) => {
           username VARCHAR(255), -- Username
           cloudname VARCHAR(255), -- Cloud Name
           serverip VARCHAR(15), -- Server IP
+          hostname VARCHAR(255) NULL, -- hostname
           server_vip VARCHAR(255), -- Server VIP
           role VARCHAR(255), -- Role
           license_code VARCHAR(255), -- License_code (Foreign Key)
@@ -843,6 +855,13 @@ db.connect((err) => {
       db.query(deployedServerTableSQL, (err, result) => {
         if (err) throw err;
         console.log("Deployed Server table checked/created...");
+        
+        // Ensure hostname column exists for older deployed_server tables
+        db.query("ALTER TABLE deployed_server ADD COLUMN hostname VARCHAR(255) NULL", (altErr) => {
+          if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
+            console.warn("Could not ensure 'hostname' column on deployed_server:", altErr.message);
+          }
+        });
       });
     });
     console.log("Deployed Server table ensured...");
@@ -1024,7 +1043,7 @@ const { nanoid } = require('nanoid');
 // Creates new deployment activity log entry for host deployment tracking
 // Generates unique server IDs and handles license information for deployment management
 app.post('/api/deployment-activity-log', (req, res) => {
-  const { user_id, username, cloudname, serverip, vip, Management, External_Traffic, Storage, VXLAN } = req.body;
+  const { user_id, username, cloudname, serverip, hostname, vip, Management, External_Traffic, Storage, VXLAN } = req.body;
   if (!user_id || !username || !cloudname || !serverip) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -1067,11 +1086,11 @@ app.post('/api/deployment-activity-log', (req, res) => {
 
     const sql = `
       INSERT INTO deployment_activity_log
-        (serverid, user_id, username, cloudname, serverip, status, type, server_vip, Management, External_Traffic, Storage, VXLAN)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (serverid, user_id, username, cloudname, serverip, hostname, status, type, server_vip, Management, External_Traffic, Storage, VXLAN)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
-    db.query(sql, [serverid, user_id, username, cloudname, serverip, status, type, vip, Management || null, External_Traffic || null, Storage || null, VXLAN || null], (err, result) => {
+    db.query(sql, [serverid, user_id, username, cloudname, serverip, hostname || null, status, type, vip, Management || null, External_Traffic || null, Storage || null, VXLAN || null], (err, result) => {
       if (err) {
         console.error('Error inserting deployment activity log:', err);
         return res.status(500).json({ error: 'Failed to insert deployment activity log' });
@@ -1391,7 +1410,7 @@ app.get('/api/squadron-nodes', (req, res) => {
   if (!userId) return res.json([]);
 
   const nodeQuery = `
-    SELECT serverid, serverip, role, license_code, server_vip, datetime
+    SELECT serverid, serverip, hostname, role, license_code, server_vip, datetime, Management, Storage, External_Traffic, VXLAN
     FROM deployed_server
     WHERE user_id = ? AND (role IS NULL OR role NOT LIKE '%host%')
     ORDER BY datetime DESC
@@ -1408,11 +1427,16 @@ app.get('/api/squadron-nodes', (req, res) => {
         sno: idx + 1,
         serverid: row.serverid,
         serverip: row.serverip,
+        hostname: row.hostname,
         role: row.role,
         licensecode: row.license_code || null,
         credentialUrl: row.serverip ? `https://${row.serverip}/` : null,
         vip: row.server_vip || null,
-        createdAt: row.datetime
+        createdAt: row.datetime,
+        Management: row.Management || null,
+        Storage: row.Storage || null,
+        External_Traffic: row.External_Traffic || null,
+        VXLAN: row.VXLAN || null
       }));
 
       res.json(results);
@@ -1508,7 +1532,7 @@ app.post('/api/node-deployment-activity-log', async (req, res) => {
   try {
     const insertedNodes = [];
     for (const node of nodes) {
-      const { serverip, server_vip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period, role } = node;
+      const { serverip, hostname, server_vip, Management, Storage, External_Traffic, VXLAN, license_code, license_type, license_period, role } = node;
       if (!serverip) {
         return res.status(400).json({ error: 'Each node must have serverip' });
       }
@@ -1520,13 +1544,13 @@ app.post('/api/node-deployment-activity-log', async (req, res) => {
       // Insert deployment activity log (type = 'primary')
       const insSql = `
         INSERT INTO deployment_activity_log
-          (serverid, user_id, username, cloudname, serverip, status, type, role, server_vip, Management, Storage, External_Traffic, VXLAN)
-        VALUES (?, ?, ?, ?, ?, 'progress', 'primary', ?, ?, ?, ?, ?, ?)
+          (serverid, user_id, username, cloudname, serverip, hostname, status, type, role, server_vip, Management, Storage, External_Traffic, VXLAN)
+        VALUES (?, ?, ?, ?, ?, ?, 'progress', 'primary', ?, ?, ?, ?, ?, ?)
       `;
       await new Promise((resolve, reject) => {
         db.query(
           insSql,
-          [serverid, user_id, username, cloudname || null, serverip, role || null, server_vip || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null],
+          [serverid, user_id, username, cloudname || null, serverip, hostname || null, role || null, server_vip || null, Management || null, Storage || null, External_Traffic || null, VXLAN || null],
           (err) => (err ? reject(err) : resolve())
         );
       });
@@ -1643,7 +1667,7 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
           if (chkRows && chkRows.length > 0) {
             const updSQL = `
               UPDATE deployed_server
-              SET user_id=?, username=?, cloudname=?, serverip=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
+              SET user_id=?, username=?, cloudname=?, serverip=?, hostname=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
               WHERE serverid=?
             `;
             const updValues = [
@@ -1651,6 +1675,7 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
               dep.username || null,
               dep.cloudname || null,
               dep.serverip,
+              dep.hostname || null,
               dep.server_vip || null,
               resolvedRole,
               licenseCodeToUse || null,
@@ -1669,8 +1694,8 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
             });
           } else {
             const insSQL = `
-              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, hostname, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             const insValues = [
               serverid,
@@ -1678,6 +1703,7 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
               dep.username || null,
               dep.cloudname || null,
               dep.serverip,
+              dep.hostname || null,
               dep.server_vip || null,
               resolvedRole,
               licenseCodeToUse || null,
@@ -1705,7 +1731,7 @@ app.post('/api/finalize-node-deployment/:serverid', (req, res) => {
 // Returns deployment status and configuration details for squadron monitoring
 app.get('/api/pending-node-deployments', (req, res) => {
   const { status = 'progress', type = 'primary', user_id, cloudname } = req.query || {};
-  let sql = `SELECT serverid, serverip, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
+  let sql = `SELECT serverid, serverip, hostname, cloudname, user_id, username, server_vip, Management, Storage, External_Traffic, VXLAN
              FROM deployment_activity_log WHERE status = ? AND type = ?`;
   const params = [status, type];
   if (user_id) {
@@ -1897,7 +1923,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
             // Update existing
             const updSQL = `
               UPDATE deployed_server
-              SET user_id=?, username=?, cloudname=?, serverip=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
+              SET user_id=?, username=?, cloudname=?, serverip=?, hostname=?, server_vip=?, role=?, license_code=?, Management=?, Storage=?, External_Traffic=?, VXLAN=?
               WHERE serverid=?
             `;
             const updValues = [
@@ -1905,6 +1931,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
               dep.username || null,
               null,
               dep.serverip,
+              dep.hostname || null,
               null,
               resolvedRole,
               licenseCodeToUse || null,
@@ -1924,8 +1951,8 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
           } else {
             // Insert new
             const insSQL = `
-              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              INSERT INTO deployed_server (serverid, user_id, username, cloudname, serverip, hostname, server_vip, role, license_code, Management, Storage, External_Traffic, VXLAN)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             const insValues = [
               serverid,
@@ -1933,6 +1960,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
               dep.username || null,
               null,
               dep.serverip,
+              dep.hostname || null,
               null,
               resolvedRole,
               licenseCodeToUse || null,
