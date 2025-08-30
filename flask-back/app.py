@@ -2851,7 +2851,7 @@ def upload_status(job_id):
 
 # Path to your files containing the client secret (primary and fallback)
 CLIENT_SECRET_FILES = [
-    "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env",  # Primary path
+    "/home/pinaka/Pinaka-ZTi-v2.0/.env",  # Primary path
     "/home/pinakasupport/.pinaka_wd/Pinaka-ZTi-v2.0/.env"  # Fallback path
 ]
 

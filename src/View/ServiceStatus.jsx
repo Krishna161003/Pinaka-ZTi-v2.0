@@ -3,8 +3,8 @@ import Layout1 from '../Components/layout';
 import { theme, Layout, Tabs, Table, Badge, Button, Input, Modal, Select } from 'antd';
 import { SyncOutlined } from '@ant-design/icons';
 import axios from 'axios';
-import serviceStatus from '../Images/Service_status.png';
-import serviceOperations from '../Images/Service_operation_icon.png';
+import serviceStatus from '../Images/14_ServiceStatus.png';
+import serviceOperations from '../Images/15_ServiceOps.png';
 
 const { Content } = Layout;
 const hostIP = window.location.hostname;
@@ -745,7 +745,7 @@ const ServiceStatus = () => {
   return (
     <Layout1>
       <Layout>
-        <Content style={{ margin: "16px 16px" }}>
+        <Content style={{ margin: "16px 16px",}}>
           <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'nowrap' }}>
             <div
               role="button"
@@ -761,7 +761,7 @@ const ServiceStatus = () => {
                 flex: 1,
                 cursor: 'pointer',
                 border: '1px solid rgba(0,0,0,0.04)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >
@@ -784,7 +784,7 @@ const ServiceStatus = () => {
                 flex: 1,
                 cursor: 'pointer',
                 border: '1px solid rgba(0,0,0,0.04)',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                 transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
               }}
             >

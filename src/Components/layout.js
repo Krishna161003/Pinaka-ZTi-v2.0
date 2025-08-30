@@ -403,7 +403,7 @@ const AppLayout = ({ children }) => {
             style={{ width: "90px", marginBottom: "5px" }}
           />
           <div style={{ marginTop: "3px", fontSize: "9px", color: "#4A90E2" }}>
-            &copy;2023 Pinakastra, Inc. All rights reserved. Pinakastra is a
+            &copy;2025 Pinakastra, Inc. All rights reserved. Pinakastra and Pinaka ZTi is a
             trademark of Pinakastra Computing Pvt Ltd.
           </div>
         </Footer>

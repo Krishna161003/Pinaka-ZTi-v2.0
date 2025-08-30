@@ -16,9 +16,15 @@ import {
   Table,
   Dropdown,
   Menu,
+  Row,
+  Col,
+  Card,
+  Badge
 } from "antd";
 import { MoreOutlined } from "@ant-design/icons";
 import axios from "axios";
+import administration from '../Images/18_Administration.png';
+import settings from '../Images/19_Settings.png';
 
 const layout = {
   labelCol: {
@@ -166,6 +172,7 @@ const Administration = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(true); // Loading state
   const [form] = Form.useForm();
+  const [activeSection, setActiveSection] = useState('user'); // 'user' | 'profile'
 
   const showModal = (user = null) => {
     setEditingUser(user);
@@ -409,66 +416,124 @@ const Administration = () => {
     <Layout1>
       <Layout>
         <Content style={{ margin: "16px 16px" }}>
-          {/* <div
-            style={{
-              padding: 30,
-              minHeight: "auto",
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-            }}
-          >
-            <h2>Administration</h2>
-          </div> */}
-
+          <div style={{ display: 'flex', gap: 16, marginBottom: 10, flexWrap: 'nowrap' }}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-pressed={activeSection === 'user'}
+              onClick={() => setActiveSection('user')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveSection('user'); }}
+              style={{
+                padding: 30,
+                minHeight: 'auto',
+                background: colorBgContainer,
+                // borderRadius: borderRadiusLG,
+                flex: 1,
+                cursor: 'pointer',
+                border: '1px solid rgba(0,0,0,0.04)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <img src={administration} style={{ width: "74px", height: "74px" }} />
+                <h2 style={{ margin: 0 }}>User </h2>
+              </div>
+            </div>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-pressed={activeSection === 'profile'}
+              onClick={() => setActiveSection('profile')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveSection('profile'); }}
+              style={{
+                padding: 30,
+                minHeight: 'auto',
+                background: colorBgContainer,
+                // borderRadius: borderRadiusLG,
+                flex: 1,
+                cursor: 'pointer',
+                border: '1px solid rgba(0,0,0,0.04)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                transition: 'box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <img src={settings} style={{ width: "74px", height: "74px" }} />
+                <h2 style={{ margin: 0 }}>Profile </h2>
+              </div>
+            </div>
+          </div>
+          
           <div
             style={{
+              marginTop: 10,
               padding: 30,
-              margin: "10px 0",
               minHeight: "auto",
               background: colorBgContainer,
               // borderRadius: borderRadiusLG,
             }}
           >
-            <h2>User Management</h2>
-            <Divider />
-            <Button
-              style={{ width: "100px" }}
-              type="primary"
-              onClick={() => showModal()}
-              disabled
-            >
-              Create User
-            </Button>
+            {activeSection === 'user' ? (
+              <>
+                {/* <h3 style={{ marginTop: 0 }}>User Management</h3> */}
+                {/* <Divider style={{ marginTop: 24 }} /> */}
+                  <Button
+                    style={{ width: "100px" }}
+                    type="primary"
+                    onClick={() => showModal()}
+                    disabled
+                  >
+                    Create User
+                  </Button>
 
-            <Button
-              style={{
-                width: "30px",
-                height: "30px",
-                marginLeft: "10px",
-                border: "none", // Remove border
-                padding: 0, // Optional: Remove any padding
-                background: "transparent", // Optional: Makes the background transparent
-                outline: "none", // Removes focus outline
-                top: "5px",
-              }}
-              onClick={async () => {
-                setLoading(true); // Start loading
-                const users = await fetchUsersFromKeycloak();
-                setUserData(users);
-                setLoading(false); // End loading after fetching
-              }}
-            >
-              <img
-                src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8CAYAAAA6/NlyAAAACXBIWXMAAAsTAAALEwEAmpwYAAADOElEQVR4nO2ayWsUQRSHP0iip2ASsrihlyiC+h/oSWO8uAUS8RaXaBAVFKOIV41iXA/+BRIxOYmIy0mEaAQP5qAoIkL0kmRwi0aIZhwpeANNUdPOdNd017T9wYNmoJY39evqeq8epKSkpKT8vywBdgHXgIfAO+Az8Bv4Jc9vgQfAVWAnsJAKox44CjwD/gC5Ek21eQIcBupwmEXAdWAmgJOFbBq4DLTgEDXAaeCHRUd1+wb0AdVxO7sKeOEz0SwwApwBtgOrRfLVYvXy2w6gX6Sc9elPvSYr4nJ2q0jONLH3siJK5qWyWNqO+6z2ZiJmOfDTMJkJ4IAl6dVIX5OGcdQuv4cI2WCYxA2goQxjKdkPFnhduomIecCYDDwjK1FueoBZzek5YBMRMR9YF/Eno83wKn0BWkkwbXJK8zqtdvcqEkyP4Z1Wp7tEc9Mg7UYSTD0wpTk9ELbTTjFX6dUc/grUBu2sSf7BKXl2EXU4+aA5rf6EQAx7OlHPrnJSc/hRkE46Dbugq9JeqgUcc6UqssmwGeQcl/aoNlcVmRWNV8q6uSrtc9o8L4SRcq4CpN2hzfFOMY0aC4RiumVcS7kAa7Q5vgwr5Zxmt8vvg5V55jQbynfSFaBxXNJulERDqfPNAM2lSNklaW8Ls0DDISRSKdIeKqbDV1ojlV10iWKlnclL+V/cDfMxjwirn9GLWsOzuIm1g1KHIY3iItaOws3aoTwrSXIXsRbsPNY6UTcCrmIlnD2oOTwuQbeLWElY1EraxOv0ftzFSkpqQHN4wvWLahvZwU+Ge6REc8ywC+4lwVQBTzWH1cXWRhJMq2T3vU7PROy0qvBZLxd5kdAuWUF9pfdFMHavp2BmTK5sI6G7QB3GoGxw5YiKbhnGU5fykbFbyg70SUzKStg4nKgVPFTgnKxWehkR0244lORNXX+ckEq8IIn1U8BHn6KWLcS4kY36hGdZ2d37pTRprci+RqxBflOR2fkiqveeAyuJmWrguM9q27BpUUzshWl6OHnJp3YriH0HrhSboomLOtlsRgIWl2Yl2XAEWECF0SLRiyoQvQe8lpLhWU/58BvgvqxkVyWWD6ekpKSkYIm/zZlJEelDnnUAAAAASUVORK5CYII="
-                alt="refresh--v1"
-                style={{
-                  width: "20px",
-                  height: "auto",
-                  position: "relative", // Enable relative positioning
-                  // Moves the icon slightly down
-                }}
-              />
-            </Button>
+                  <Button
+                    style={{
+                      width: "30px",
+                      height: "30px",
+                      marginLeft: "10px",
+                      border: "none", // Remove border
+                      padding: 0, // Optional: Remove any padding
+                      background: "transparent", // Optional: Makes the background transparent
+                      outline: "none", // Removes focus outline
+                      top: "5px",
+                    }}
+                    onClick={async () => {
+                      setLoading(true); // Start loading
+                      const users = await fetchUsersFromKeycloak();
+                      setUserData(users);
+                      setLoading(false); // End loading after fetching
+                    }}
+                  >
+                    <img
+                      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8CAYAAAA6/NlyAAAACXBIWXMAAAsTAAALEwEAmpwYAAADOElEQVR4nO2ayWsUQRSHP0iip2ASsrihlyiC+h/oSWO8uAUS8RaXaBAVFKOIV41iXA/+BRIxOYmIy0mEaAQP5qAoIkL0kmRwi0aIZhwpeANNUdPOdNd017T9wYNmoJY39evqeq8epKSkpKT8vywBdgHXgIfAO+Az8Bv4Jc9vgQfAVWAnsJAKox44CjwD/gC5Ek21eQIcBepwmEXAdWAmgJOFbBq4DLTgEDXAaeCHRUd1+wb0AdVxO7sKeOEz0SwwApwBtgOrRfLVYvXy2w6gX6Sc9elPvSYr4nJ2q0jONLH3siJK5qWyWNqO+6z2ZiJmOfDTMJkJ4IAl6dVIX5OGcdQuv4cI2WCYxA2goQxjKdkPFnhduomIecCYDDwjK1FueoBZzek5YBMRMR9YF/Ono83wKn0BWkkwbXJK8zqtdvcqEkyP4Z1Wp7tEc9Mg7UYSTD0wpTk9ELbTTjFX6dUc/grUBu2sSf7BKXl2EXU4+aA5rf6EQAx7OlHPrnJSc/hRkE46Dbugq9JeqgUcc6UqssmwGeQcl/aoNlcVmRWNV8q6uSrtc9o8L4SRcq4CpN2hzfFOMY0aC4RiumVcS7kAa7Q5vgwr5Zxmt8vvg5V55jQbynfSFaBxXNJulERDqfPNAM2lSNklaW8Ls0DDISRSKdIeKqbDV1ojlV10iWKlnclL+V/cDfMxjwirn9GLWsOzuIm1g1KHIY3iItaOws3aoTwrSXIXsRbsPNY6UTcCrmIlnD2oOTwuQbeLWElY1EraxOv0ftzFSkpqQHN4wvWLahvZwU+Ge6REc8ywC+4lwVQBTzWH1cXWRhJMq2T3vU7PROy0qvBZLxd5kdAuWUF9pfdFMHavp2BmTK5sI6G7QB3GoGxw5YiKbhnGU5fykbFbyg70SUzKStg4nKgVPFTgnKxWehkR0244lORNXX+ckEq8IIn1U8BHn6KWLcS4kY36hGdZ2d37pTRprci+RqxBflOR2fkiqveeAyuJmWrguM9q27BpUUzshWl6OHnJp3YriH0HrhSboomLOtlsRgIWl2Yl2XAEWECF0SLRiyoQvQe8lpLhWU/58BvgvqxkVyWWD6ekpKSkYIm/zZlJEelDnnUAAAAASUVORK5CYII="
+                      alt="refresh--v1"
+                      style={{
+                        width: "20px",
+                        height: "auto",
+                        position: "relative", // Enable relative positioning
+                        // Moves the icon slightly down
+                      }}
+                    />
+                  </Button>
+
+                  <Table
+                    columns={columns}
+                    dataSource={userData}
+                    rowKey="email"
+                    style={{ marginTop: "20px" }}
+                    pagination={{ pageSize: 5 }}
+                    loading={loading} // Add the loading state here
+                  />
+              </>
+            ) : (
+              <>
+                {/* <h3 style={{ marginTop: 0 }}>Profile Operations</h3> */}
+                <div style={{ padding: '24px 0', textAlign: 'center', color: '#666' }}>
+                  <p>Profile management functionality will be available soon.</p>
+                </div>
+              </>
+            )}
 
             <Modal
               title={<div style={{ marginBottom: "20px" }}>User Details</div>}
@@ -644,14 +709,6 @@ const Administration = () => {
                 </Form.Item>
               </Form>
             </Modal>
-            <Table
-              columns={columns}
-              dataSource={userData}
-              rowKey="email"
-              style={{ marginTop: "20px" }}
-              pagination={{ pageSize: 5 }}
-              loading={loading} // Add the loading state here
-            />
           </div>
         </Content>
       </Layout>
@@ -659,5 +716,4 @@ const Administration = () => {
   );
 };
 
-export default Administration;
-
+export default Administration;

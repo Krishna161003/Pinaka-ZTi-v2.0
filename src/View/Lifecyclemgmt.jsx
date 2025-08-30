@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Layout1 from '../Components/layout';
 import { theme, Layout, message, Upload, Button, Alert, Tabs, Table } from 'antd';
+import lifecycleMgmt from '../Images/17_LifecycleMgmt.png';
 import { InboxOutlined, SyncOutlined, DownloadOutlined, PlayCircleOutlined } from '@ant-design/icons';
 
 const { Content } = Layout;
@@ -321,9 +322,13 @@ const Lifecyclemgmt = () => {
               minHeight: "auto",
               background: colorBgContainer,
               // borderRadius: borderRadiusLG,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
             }}
           >
-            <h2 style={{ marginTop: '0px' }}>Lifecycle Management</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img src={lifecycleMgmt} style={{ width: "74px", height: "74px" }} />
+            <h2 style={{ margin: 0 }}>Lifecycle Management</h2>
+          </div>
           </div>
           <div
             style={{

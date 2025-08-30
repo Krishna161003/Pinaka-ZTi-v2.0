@@ -3,12 +3,19 @@ import Layout1 from "../Components/layout";
 import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
-import node from "../Images/FlightDeck.png";
-import squad from "../Images/Squadron2.png";
-import osd from "../Images/OSD.png";
+import node from "../Images/1_FD.png";
+import squad from "../Images/2_SQDN.png";
+// import osd from "../Images/3_Distributed_Storage.png";
+import osd from "../Images/OSD2.png";
 import downImage from '../Images/down_arrow.png';
 import totalImage from '../Images/Total_icon2.png';
 import upImage from '../Images/up_15362984.png';
+import serverStatus from '../Images/4_ServersStatus.png';
+import healthCheck from '../Images/5_HealthCheck.png';
+import networkTraffic from '../Images/6_NetworkTraffic.png';
+import cpuUsage from '../Images/7_CPUUsage.png';
+import memoryUsage from '../Images/8_MemoryUsage.png';
+import diskUsage from '../Images/9_DiskUsage.png';
 import { Area, Line } from '@ant-design/plots';
 import axios from "axios";
 
@@ -18,6 +25,7 @@ const style = {
   background: '#fff',
   padding: '16px 20px', // Reduced vertical padding for shorter Col height
   marginTop: '19px',
+  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
   marginRight: '25px',
   // borderRadius: '10px',
   cursor: 'pointer',
@@ -51,7 +59,11 @@ const dockerwidgetStyle = {
 const hoverStyle = {
   ...style,
   transform: 'translateY(-3px)',
-  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+};
+
+const shadowStyle = {
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
 };
 
 
@@ -68,10 +80,10 @@ const Dashboard = () => {
 
   // Loading spinner component for cards
   const CardSpinner = ({ size = 'default' }) => (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
       height: size === 'small' ? '60px' : '120px',
       width: '100%'
     }}>
@@ -581,10 +593,10 @@ const Dashboard = () => {
   // OSD counts from backend
   const [osdCounts, setOsdCounts] = useState({ total_osds: 0, up_osds: 0, in_osds: 0 });
   // Storage data from Ceph OSD endpoint
-  const [storageData, setStorageData] = useState({ 
-    total_tb: 0, 
-    used_tb: 0, 
-    available_tb: 0 
+  const [storageData, setStorageData] = useState({
+    total_tb: 0,
+    used_tb: 0,
+    available_tb: 0
   });
 
   // Docker containers state (live from backend)
@@ -691,17 +703,17 @@ const Dashboard = () => {
 
   // Columns and data for Resources table (vCPU, Memory, vStorage)
   const resourceColumns = [
-    { 
-      title: 'vCPU (Core)', 
-      dataIndex: 'vcpu', 
-      key: 'vcpu', 
-      width: '33%', 
+    {
+      title: 'vCPU (Core)',
+      dataIndex: 'vcpu',
+      key: 'vcpu',
+      width: '33%',
       render: (vcpu) => {
         const vcpuAvailable = (vcpu?.total || 0) - (vcpu?.used || 0);
         const tooltip = (
           <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
             <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 14 }}>vCPU Capacity & Usage</div>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', }}>
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 8px' }}>Metric</th>
@@ -732,21 +744,21 @@ const Dashboard = () => {
           </div>
         );
         return (
-          <UsageBar 
-            used={vcpu?.used || 0} 
-            total={vcpu?.total || 0} 
-            color="#4c8dff" 
+          <UsageBar
+            used={vcpu?.used || 0}
+            total={vcpu?.total || 0}
+            color="#4c8dff"
             tooltip={tooltip}
             tooltipWidth={280}
           />
         );
       }
     },
-    { 
-      title: 'Memory (GiB)', 
-      dataIndex: 'memory', 
-      key: 'memory', 
-      width: '33%', 
+    {
+      title: 'Memory (GiB)',
+      dataIndex: 'memory',
+      key: 'memory',
+      width: '33%',
       render: (mem) => {
         const memAvailable = (mem?.total || 0) - (mem?.used || 0);
         const tooltip = (
@@ -783,19 +795,19 @@ const Dashboard = () => {
           </div>
         );
         return (
-          <UsageBar 
-            used={mem?.used || 0} 
-            total={mem?.total || 0} 
-            color="#4c8dff" 
+          <UsageBar
+            used={mem?.used || 0}
+            total={mem?.total || 0}
+            color="#4c8dff"
             tooltip={tooltip}
             tooltipWidth={280}
           />
         );
       }
     },
-    { 
-      title: 'vStorage (TB)', 
-      dataIndex: 'storage', 
+    {
+      title: 'vStorage (TB)',
+      dataIndex: 'storage',
       key: 'storage',
       width: '34%',
       render: (storage) => {
@@ -833,10 +845,10 @@ const Dashboard = () => {
           </div>
         );
         return (
-          <UsageBar 
-            used={storage?.used || 0} 
-            total={storage?.total || 0} 
-            color="#4c8dff" 
+          <UsageBar
+            used={storage?.used || 0}
+            total={storage?.total || 0}
+            color="#4c8dff"
             tooltip={tooltip}
             tooltipWidth={280}
           />
@@ -847,19 +859,19 @@ const Dashboard = () => {
 
   // Columns and data for VMs/Volumes table
   const vmVolumesColumns = [
-    { 
-      title: 'VMs', 
-      dataIndex: 'instances', 
-      key: 'instances', 
-      width: '50%', 
-      render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> 
+    {
+      title: 'VMs',
+      dataIndex: 'instances',
+      key: 'instances',
+      width: '50%',
+      render: (v) => <span style={{ fontWeight: 600 }}>{v}</span>
     },
-    { 
-      title: 'Volumes', 
-      dataIndex: 'volumes', 
-      key: 'volumes', 
-      width: '50%', 
-      render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> 
+    {
+      title: 'Volumes',
+      dataIndex: 'volumes',
+      key: 'volumes',
+      width: '50%',
+      render: (v) => <span style={{ fontWeight: 600 }}>{v}</span>
     },
   ];
 
@@ -1144,12 +1156,12 @@ const Dashboard = () => {
               up_osds: Number(data.up_osds) || 0,
               in_osds: Number(data.in_osds) || 0,
             });
-            
+
             // Calculate storage data in TB
             const totalBytes = Number(data.storage_total_bytes) || 0;
             const usedBytes = Number(data.storage_used_bytes) || 0;
             const availableBytes = Number(data.storage_available_bytes) || 0;
-            
+
             setStorageData({
               total_tb: Number((totalBytes / (1024 ** 4)).toFixed(2)), // Convert bytes to TB
               used_tb: Number((usedBytes / (1024 ** 4)).toFixed(2)),
@@ -1231,7 +1243,7 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "80px", justifyContent: "center", marginLeft: "20px" }}>
-                    <img src={squad} alt="squadron" style={{ width: "85px", height: "74px", userSelect: "none", zoom: "1.1", transform: 'rotate(90deg)', transformOrigin: 'center' }} />
+                    <img src={squad} alt="squadron" style={{ width: "85px", height: "74px", userSelect: "none", zoom: "1.1", }} />
                     <span style={{ fontSize: "15px", fontWeight: "500", marginTop: "4px", userSelect: "none", textAlign: "center" }}>Squadron</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginRight: "20px", marginTop: "15px" }}>
@@ -1309,11 +1321,11 @@ const Dashboard = () => {
                 onMouseLeave={() => setHoveredCard(null)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "60px", justifyContent: "center", marginLeft: "20px" }}>
-                    <span style={{ fontSize: "20px", fontWeight: "700", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
+                    <span style={{ fontSize: "24px", fontWeight: "500", userSelect: "none", textAlign: "center" }}>Cloud Name</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginRight: "30px" }}>
                     <span style={{
-                      fontSize: "20px",
+                      fontSize: "24px",
                       fontWeight: "600",
                       color: "#1890ff",
                       userSelect: "none",
@@ -1404,202 +1416,224 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
-            {/* Performance Section Header */}
+            {/* Performance Section Headers*/}
             <div
               style={{
                 marginTop: 10,
-                padding: 30,
+                padding: '20px 30px',
                 minHeight: "auto",
                 background: colorBgContainer,
-                // borderRadius: borderRadiusLG,
-                marginLeft: "20px",
-                marginRight: "17px",
+                margin: '10px 20px 0 20px',
               }}
             >
-              <h4 style={{ userSelect: "none", marginTop: "-16px" }} >Performance</h4>
-              <Divider style={{ margin: "-16px 0 0 0" }} />
-              <Row gutter={[24]} style={{ margin: 0, display: 'flex', marginLeft: '2px' }}>
-                <Col
-                  span={8}
-                  className="gutter-row"
-                  style={{ ...performancewidgetStyle, marginRight: '16px',  }}
-                >
-                  <div>
-                    <span
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "500",
-                        marginLeft: "1px",
-                        userSelect: "none",
-                        display: "block",
-                        marginBottom: "8px",
-
-                      }}
-                    >
-                      Status
-                    </span>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: '80px',
-                      fontSize: '24px',
-                      fontWeight: 'bold',
-                      color: nodeStatus === 'UP' ? '#52c41a' : '#cf1322',
-                      // backgroundColor: nodeStatus === 'UP' ? '#f6ffed' : '#fff1f0',
-                      // border: nodeStatus === 'UP' ? '1px solid #b7eb8f' : '1px solid #ffa39e',
-                      borderRadius: '6px',
-                      textAlign: 'center'
+              <h4 style={{ userSelect: "none", marginTop: 0, marginBottom: 16 }}>Performance</h4>
+              <Divider style={{ margin: '0 0 16px 0' }} />
+              <Row gutter={[16, 16]} style={{ margin: 0, display: 'flex', flexWrap: 'nowrap', marginLeft: '-8px' }}>
+                <Col xs={24} sm={24} md={8} lg={8} xl={8} style={{ padding: '0 8px', flex: 1 }}>
+                  <div style={{
+                    ...performancewidgetStyle,
+                    height: '100%',
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',
                     }}>
-                      {nodeStatus}
-                    </div>
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={7} style={performancewidgetStyle}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div>
+
                       <span
                         style={{
                           fontSize: "18px",
                           fontWeight: "500",
                           marginLeft: "1px",
                           userSelect: "none",
+                          display: "block",
+                          marginBottom: "8px",
                         }}
                       >
-                        Health Check
+                        <img src={serverStatus} style={{ width: "34px", height: "34px" }} /> &nbsp; Status
                       </span>
-                      <Tooltip
-                        placement="right"
-                        overlayInnerStyle={{ width: 440, maxWidth: 440 }}
-                        title={(() => {
-                          const reasons = Array.isArray(healthDetails.reasons) ? healthDetails.reasons : [];
-                          const m = healthDetails.metrics || {};
-                          const t = healthDetails.thresholds || {};
-
-                          const makeRow = (label, actual, thr) => {
-                            if (typeof actual !== 'number' || isNaN(actual)) return null;
-                            const warn = typeof thr?.warning === 'number' ? thr.warning : null;
-                            const crit = typeof thr?.critical === 'number' ? thr.critical : null;
-                            let level = 'N/A';
-                            if (crit !== null && actual >= crit) level = 'CRITICAL';
-                            else if (warn !== null && actual >= warn) level = 'WARNING';
-                            else if (warn !== null || crit !== null) level = 'GOOD';
-                            return { label, actual, warn, crit, level };
-                          };
-
-                          const metricRows = [
-                            makeRow('CPU', m.cpu_usage_percent, t.cpu),
-                            makeRow('Memory', m.memory_usage_percent, t.memory),
-                            makeRow('Disk', m.disk_usage_percent, t.disk),
-                          ].filter(Boolean);
-
-                          return (
-                            <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
-                              <div style={{ fontWeight: 600, marginBottom: 6 }}>Status: {healthStatus}</div>
-
-                              {metricRows.length > 0 && (
-                                <div style={{ marginBottom: 8 }}>
-                                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                                    <thead>
-                                      <tr>
-                                        <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
-                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Actual (%)</th>
-                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Warning (%)</th>
-                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Critical (%)</th>
-                                        <th style={{ textAlign: 'center', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Level</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {metricRows.map((r, idx) => (
-                                        <tr key={idx}>
-                                          <td style={{ padding: '4px 6px' }}>{r.label}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(r.actual).toFixed(1)}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.warn ?? '—'}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.crit ?? '—'}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: r.level === 'CRITICAL' ? '#f5222d' : (r.level === 'WARNING' ? '#faad14' : '#52c41a') }}>{r.level}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-
-                              {reasons.length > 0 && (
-                                <div>
-                                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Reasons</div>
-                                  <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                                    <thead>
-                                      <tr>
-                                        <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
-                                        <th style={{ textAlign: 'center', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Level</th>
-                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Actual (%)</th>
-                                        <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Threshold (%)</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {reasons.map((r, i) => (
-                                        <tr key={i}>
-                                          <td style={{ padding: '4px 6px' }}>{r.metric}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: r.level === 'CRITICAL' ? '#f5222d' : (r.level === 'WARNING' ? '#faad14' : '#52c41a') }}>{r.level}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{typeof r.actual === 'number' ? r.actual.toFixed(1) : r.actual}</td>
-                                          <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.threshold ?? '—'}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      >
-                        <InfoCircleOutlined style={{ color: '#1890ff' }} />
-                      </Tooltip>
-                    </div>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div
-                      style={{
+                      <Divider style={{ margin: "0 0 16px 0" }} />
+                      <div style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         height: '80px',
                         fontSize: '24px',
                         fontWeight: 'bold',
-                        color: statusStyle.color,
-                        // backgroundColor: statusStyle.background,
-                        // border: `1px solid ${statusStyle.border}`,
+                        color: nodeStatus === 'UP' ? '#52c41a' : '#cf1322',
                         borderRadius: '6px',
                         textAlign: 'center'
-                      }}
-                    >
-                      {healthStatus}
+                      }}>
+
+                        <br />
+                        {nodeStatus}
+                      </div>
                     </div>
                   </div>
                 </Col>
-                <Col className="gutter-row" span={8} style={{...performancewidgetStyle, marginRight: '10px'}}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>Network Traffic</span>
-                      <Select
-                        style={{ width: 100 }}
-                        value={selectedInterface}
-                        options={interfaces}
-                        onChange={setSelectedInterface}
-                        size="small"
-                      />
-                    </div>
-                    <Divider style={{ margin: "0 0 16px 0" }} />
-                    <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
-                      Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
+                <Col xs={24} sm={24} md={8} lg={8} xl={8} style={{ padding: '0 8px', flex: 1 }}>
+                  <div style={{
+                    ...performancewidgetStyle,
+                    height: '100%',
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.15)',  
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span
+                          style={{
+                            fontSize: "18px",
+                            fontWeight: "500",
+                            marginLeft: "1px",
+                            userSelect: "none",
+                          }}
+                        >
+                          <img src={healthCheck} style={{ width: "34px", height: "34px" }} /> &nbsp; Health Check
+                        </span>
+                        <Tooltip
+                          placement="right"
+                          overlayInnerStyle={{ width: 440, maxWidth: 440 }}
+                          title={(() => {
+                            const reasons = Array.isArray(healthDetails.reasons) ? healthDetails.reasons : [];
+                            const m = healthDetails.metrics || {};
+                            const t = healthDetails.thresholds || {};
+
+                            const makeRow = (label, actual, thr) => {
+                              if (typeof actual !== 'number' || isNaN(actual)) return null;
+                              const warn = typeof thr?.warning === 'number' ? thr.warning : null;
+                              const crit = typeof thr?.critical === 'number' ? thr.critical : null;
+                              let level = 'N/A';
+                              if (crit !== null && actual >= crit) level = 'CRITICAL';
+                              else if (warn !== null && actual >= warn) level = 'WARNING';
+                              else if (warn !== null || crit !== null) level = 'GOOD';
+                              return { label, actual, warn, crit, level };
+                            };
+
+                            const metricRows = [
+                              makeRow('CPU', m.cpu_usage_percent, t.cpu),
+                              makeRow('Memory', m.memory_usage_percent, t.memory),
+                              makeRow('Disk', m.disk_usage_percent, t.disk),
+                            ].filter(Boolean);
+
+                            return (
+                              <div style={{ fontSize: 12, lineHeight: 1.5, maxWidth: '100%' }}>
+                                <div style={{ fontWeight: 600, marginBottom: 6 }}>Status: {healthStatus}</div>
+
+                                {metricRows.length > 0 && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
+                                          <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Actual (%)</th>
+                                          <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Warning (%)</th>
+                                          <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Critical (%)</th>
+                                          <th style={{ textAlign: 'center', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Level</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {metricRows.map((r, idx) => (
+                                          <tr key={idx}>
+                                            <td style={{ padding: '4px 6px' }}>{r.label}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{Number(r.actual).toFixed(1)}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.warn ?? '—'}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.crit ?? '—'}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: r.level === 'CRITICAL' ? '#f5222d' : (r.level === 'WARNING' ? '#faad14' : '#52c41a') }}>{r.level}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+
+                                {reasons.length > 0 && (
+                                  <div>
+                                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Reasons</div>
+                                    <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ textAlign: 'left', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Metric</th>
+                                          <th style={{ textAlign: 'center', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Level</th>
+                                          <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Actual (%)</th>
+                                          <th style={{ textAlign: 'right', borderBottom: '1px solid #eee', padding: '4px 6px' }}>Threshold (%)</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {reasons.map((r, i) => (
+                                          <tr key={i}>
+                                            <td style={{ padding: '4px 6px' }}>{r.metric}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: r.level === 'CRITICAL' ? '#f5222d' : (r.level === 'WARNING' ? '#faad14' : '#52c41a') }}>{r.level}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{typeof r.actual === 'number' ? r.actual.toFixed(1) : r.actual}</td>
+                                            <td style={{ padding: '4px 6px', textAlign: 'right' }}>{r.threshold ?? '—'}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        >
+                          <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                        </Tooltip>
+                      </div>
+                      <Divider style={{ margin: "0 0 16px 0" }} />
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '80px',
+                          fontSize: '24px',
+                          fontWeight: 'bold',
+                          color: statusStyle.color,
+                          // backgroundColor: statusStyle.background,
+                          // border: `1px solid ${statusStyle.border}`,
+                          borderRadius: '6px',
+                          textAlign: 'center'
+                        }}
+                      >
+                        {healthStatus}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ height: 70, margin: '0 -10px 10px -10px' }}>
-                    <BandwidthLine bandwidthHistory={getSmoothedBandwidthHistory(bandwidthHistory, 5)} />
+                </Col>
+                <Col xs={24} sm={24} md={8} lg={8} xl={8} style={{ padding: '0 15px', flex: 1 }}>
+                  <div style={{
+                    ...performancewidgetStyle,
+                    height: '100%',
+                    margin: 0,
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', }}>
+                        <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>
+                          <img src={networkTraffic} style={{ width: "34px", height: "34px" }} /> &nbsp; Network Traffic</span>
+                        <Select
+                          style={{ width: 100 }}
+                          value={selectedInterface}
+                          options={interfaces}
+                          onChange={setSelectedInterface}
+                          size="small"
+                        />
+                      </div>
+                      <Divider style={{ margin: "0 0 16px 0" }} />
+                      <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
+                        Current: <span style={{ fontWeight: 'bold', color: '#1677ff' }}>In</span> {typeof currentBandwidth.rx === 'number' ? currentBandwidth.rx.toFixed(1) : '0.0'} kbps, <span style={{ fontWeight: 'bold', color: '#52c41a' }}>Out</span> {typeof currentBandwidth.tx === 'number' ? currentBandwidth.tx.toFixed(1) : '0.0'} kbps
+                      </div>
+                    </div>
+                    <div style={{ height: 70, margin: '0 -10px 10px -10px', }}>
+                      <BandwidthLine bandwidthHistory={getSmoothedBandwidthHistory(bandwidthHistory, 5)} />
+                    </div>
                   </div>
                 </Col>
               </Row>
-              <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px', marginRight: '2px' }}>
+
+              <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px', marginRight: '-1px' }}>
                 <Col
                   className="gutter-row"
                   style={{ ...performancewidgetStyle, flex: '1', minWidth: '450px', marginRight: '16px' }}
@@ -1615,7 +1649,7 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      CPU Usage Trend
+                      <img src={cpuUsage} style={{ width: "34px", height: "34px" }} /> &nbsp; CPU Usage Trend
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
@@ -1641,7 +1675,7 @@ const Dashboard = () => {
                         marginBottom: "8px"
                       }}
                     >
-                      Memory Usage Trend
+                      <img src={memoryUsage} style={{ width: "34px", height: "34px" }} /> &nbsp; Memory Usage Trend
                     </span>
                     <Divider style={{ margin: "0 0 16px 0" }} />
                     <div style={{ fontSize: 14, color: '#333', marginBottom: 6, marginTop: -16 }}>
@@ -1656,9 +1690,9 @@ const Dashboard = () => {
               </Row>
 
 
-               {/* Disk Usage section */}
+              {/* Disk Usage section */}
               <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px' }}>
-              <Col className="gutter-row" style={{ ...performancewidgetStyle, width: '100%', marginLeft: '2px' }}>
+                <Col className="gutter-row" style={{ ...performancewidgetStyle, width: '100%', marginLeft: '2px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span
@@ -1669,7 +1703,7 @@ const Dashboard = () => {
                           userSelect: "none",
                         }}
                       >
-                        Disk Usage {diskInfo.root_disk ? `(Root: ${diskInfo.root_disk})` : ''}
+                        <img src={diskUsage} style={{ width: "34px", height: "34px" }} /> &nbsp; Disk Usage {diskInfo.root_disk ? `(Root: ${diskInfo.root_disk})` : ''}
                       </span>
                     </div>
                     <Divider style={{ margin: "0 0 12px 0" }} />
