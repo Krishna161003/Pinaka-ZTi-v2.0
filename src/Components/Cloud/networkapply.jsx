@@ -104,7 +104,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       const last = window.__cloudRestartInfoTs[ip] || 0;
       if (now - last > RESTART_MSG_THROTTLE_MS) {
         window.__cloudRestartInfoTs[ip] = now;
-        message.info('Node restarting...');
+        // message.info('Node restarting...');
       }
     } catch (_) {}
   }
@@ -233,6 +233,33 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
   };
 
   const [licenseNodes, setLicenseNodes] = useState(getLicenseNodes());
+
+  // Synchronize licenseNodes with sessionStorage changes (for when new nodes are added from other components)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const currentNodes = getLicenseNodes();
+      setLicenseNodes(prev => {
+        // Only update if nodes actually changed to avoid unnecessary re-renders
+        const prevIps = prev.map(n => n.ip).sort();
+        const currentIps = currentNodes.map(n => n.ip).sort();
+        if (JSON.stringify(prevIps) !== JSON.stringify(currentIps)) {
+          return currentNodes;
+        }
+        return prev;
+      });
+    };
+    
+    // Listen for storage events (cross-tab changes)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically for same-tab changes (like from LicenseActivation)
+    const interval = setInterval(handleStorageChange, 500);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Track mounted state globally to allow background polling to update storage without setState leaks
   useEffect(() => {
@@ -1972,16 +1999,100 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                   >
                     Refetch Data
                   </Button>
-                  <Button
-                    danger
-                    size="small"
-                    onClick={() => handleRemoveNode(idx)}
-                    style={{ width: 120 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                  >
-                    Remove Node
-                  </Button>
                 </div>
+              </div>
+              <Table
+                columns={getColumns(form, idx)}
+                dataSource={form.tableData}
+                pagination={false}
+                bordered
+                size="small"
+                scroll={{ x: true }}
+                rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
+              />
+
+              {/* Default Gateway Field */}
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
+                <Form.Item
+                  label="Default Gateway"
+                  validateStatus={form.defaultGatewayError ? 'error' : ''}
+                  help={form.defaultGatewayError}
+                  required
+                  style={{ minWidth: 220 }}
+                >
+                  <Input
+                    value={form.defaultGateway}
+                    placeholder="Enter Default Gateway"
+                    onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
+                  />
+                </Form.Item>
+                <Form.Item
+                  label="Select Disk"
+                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
+                  validateStatus={form.diskError ? 'error' : ''}
+                  help={form.diskError}
+                  style={{ minWidth: 220 }}
+                >
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select disk(s)"
+                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
+                      if (typeof d === 'string') return d;
+                      if (d && typeof d === 'object') {
+                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
+                      }
+                      return String(d ?? '');
+                    }) : []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
+                    onChange={value => handleDiskChange(idx, value)}
+                    optionLabelProp="label"
+                  >
+                    {(nodeDisks[form.ip] || []).map(disk => (
+                      <Option
+                        key={disk.id || disk.wwn || `${disk.name}|${disk.size}`}
+                        value={disk.value || disk.id || disk.wwn || `${disk.name}|${disk.size}`}
+                        label={String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
+                      >
+                        {String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <Form.Item
+                  label="Select Role"
+                  required
+                  validateStatus={form.roleError ? 'error' : ''}
+                  help={form.roleError}
+                  style={{ minWidth: 220 }}
+                >
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select role(s)"
+                    value={form.selectedRoles || []}
+                    style={{ width: 200 }}
+                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
+                    onChange={value => handleRoleChange(idx, value)}
+                  >
+                    <Option value="Control">Control</Option>
+                    <Option value="Compute">Compute</Option>
+                    <Option value="Storage">Storage</Option>
+                    <Option value="Monitoring">Monitoring</Option>
+                  </Select>
+                </Form.Item>
+              </div>
+              {/* License Details Display - all in one line */}
+              <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
+                <span>{form.licenseType || '-'}</span>
+                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
+                <span>{form.licensePeriod || '-'}</span>
+                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
+                <span>{form.licenseCode || '-'}</span>
               </div>
               <Table
                 columns={getColumns(form, idx)}
@@ -2078,12 +2189,17 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               </div>
               <Divider />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px', marginRight: '5%' }}>
-                <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
-                  Reset Value
-                </Button>
-                <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '120px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
-                  Apply Change
-                </Button>
+                  {!cardStatus[idx]?.applied && (
+                    <Button danger onClick={() => handleRemoveNode(idx)} style={{ width: '130px', display: 'flex' }} disabled={cardStatus[idx]?.loading || !!btnLoading[idx]}>
+                      Remove Node
+                    </Button>
+                  )}
+                  <Button danger onClick={() => handleReset(idx)} style={{ width: '110px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied || !!btnLoading[idx]}>
+                    Reset Value
+                  </Button>
+                  <Button type="primary" loading={!!btnLoading[idx]} onClick={() => handleSubmit(idx)} style={{ width: '120px', display: 'flex' }} disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}>
+                    Apply Change
+                  </Button>
               </div>
             </Card>
           </Spin>
