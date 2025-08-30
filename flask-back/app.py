@@ -3074,6 +3074,49 @@ def script_status():
         return jsonify({"error": f"Failed to get status: {str(e)}"}), 500
 
 
+CREDENTIALS_FILE = os.path.expanduser("/home/pinakasupport/.pinaka_wd/.markers/ceph_dashboard_credentials.txt")
+
+
+@app.route("/storage-url", methods=["GET"])
+def get_storage_url():
+    # 1. Read Ceph Dashboard URL from file
+    url = None
+    with open(CREDENTIALS_FILE, "r") as f:
+        for line in f:
+            if line.startswith("Ceph Dashboard URL:"):
+                url = line.split(":", 1)[1].strip()
+                break
+
+    if not url:
+        return jsonify({"error": "Ceph Dashboard URL not found"}), 404
+
+    # 2. Extract hostname (e.g., FD-001)
+    match = re.search(r"https?://([^:/]+)", url)
+    if not match:
+        return jsonify({"error": "Invalid Ceph Dashboard URL"}), 400
+
+    hostname = match.group(1)
+
+    # 3. Find hostname → IP in /etc/hosts
+    ip = None
+    with open("/etc/hosts", "r") as f:
+        for line in f:
+            if not line.startswith("#"):
+                parts = line.split()
+                if len(parts) >= 2 and hostname in parts[1:]:
+                    ip = parts[0]
+                    break
+
+    if not ip:
+        return jsonify({"error": f"No IP found for hostname {hostname}"}), 404
+
+    # 4. Replace hostname with IP
+    storage_url = url.replace(hostname, ip)
+
+    return jsonify({"storage_url": storage_url})
+
+
+
 
 if __name__ == "__main__":
     app.run(

@@ -431,6 +431,23 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 const { Content } = Layout;
 const hostIP = window.location.hostname;
 
+// Function to fetch storage URL from backend
+const fetchStorageUrl = async () => {
+  try {
+    const response = await fetch(`https://${hostIP}:2020/storage-url`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.storage_url;
+    } else {
+      console.error('Failed to fetch storage URL:', response.statusText);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching storage URL:', error);
+    return null;
+  }
+};
+
 // Copy helper
 async function copyToClipboard(text) {
   try {
@@ -495,12 +512,22 @@ const SquadronNodesTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalRecord, setModalRecord] = useState(null);
+  const [storageUrl, setStorageUrl] = useState(null);
   // Controlled pagination state for Squadron table
   const [squadronPageSize, setSquadronPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('squadron_page_size'));
     return Number.isFinite(saved) && saved > 0 ? saved : 10;
   });
   const [squadronCurrentPage, setSquadronCurrentPage] = useState(1);
+
+  // Fetch storage URL on component mount
+  useEffect(() => {
+    const loadStorageUrl = async () => {
+      const url = await fetchStorageUrl();
+      setStorageUrl(url);
+    };
+    loadStorageUrl();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -804,7 +831,7 @@ const SquadronNodesTable = () => {
               rows.push({
                 key: 'storage',
                 service: 'Storage',
-                url: modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null,
+                url: storageUrl || (modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null),
                 username: 'admin',
                 password: '-'
               });
@@ -892,6 +919,7 @@ const CloudDeploymentsTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalCredentials, setModalCredentials] = useState({});
+  const [storageUrl, setStorageUrl] = useState(null);
   // Controlled pagination state for Cloud table
   const [cloudPageSize, setCloudPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('cloud_page_size'));
@@ -899,6 +927,15 @@ const CloudDeploymentsTable = () => {
 
   });
   const [cloudCurrentPage, setCloudCurrentPage] = useState(1);
+
+  // Fetch storage URL on component mount
+  useEffect(() => {
+    const loadStorageUrl = async () => {
+      const url = await fetchStorageUrl();
+      setStorageUrl(url);
+    };
+    loadStorageUrl();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -1020,7 +1057,7 @@ const CloudDeploymentsTable = () => {
               {
                 key: 'storage',
                 service: 'Storage',
-                url: vip ? `https://${vip}:8443/` : null,
+                url: storageUrl || (vip ? `https://${vip}:8443/` : null),
                 username: 'admin',
                 password: '-'
               },

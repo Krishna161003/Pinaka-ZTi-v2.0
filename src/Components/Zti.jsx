@@ -107,7 +107,7 @@ export default function Zti({ children }) {
             opacity: hostExists ? 1 : 0.6,
           }}
         >
-          <Tooltip title="Flight Deck Not deployed" placement="top" open={hostExists ? false : undefined} disabled={hostExists}>
+          <Tooltip title="ZTi cloud not deployed" placement="top" open={hostExists ? false : undefined} disabled={hostExists}>
             <div style={{ display: "flex", alignItems: "center" }}>
               <img src={addnode} alt="cloud--v1" style={{ width: "60px", height: "60px", marginLeft: "30px", userSelect: "none" }}></img>
               <span
