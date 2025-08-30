@@ -431,6 +431,23 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 const { Content } = Layout;
 const hostIP = window.location.hostname;
 
+// Function to fetch storage URL from backend
+const fetchStorageUrl = async () => {
+  try {
+    const response = await fetch(`https://${hostIP}:2020/storage-url`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.storage_url;
+    } else {
+      console.error('Failed to fetch storage URL:', response.statusText);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching storage URL:', error);
+    return null;
+  }
+};
+
 // Copy helper
 async function copyToClipboard(text) {
   try {
@@ -495,12 +512,22 @@ const SquadronNodesTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalRecord, setModalRecord] = useState(null);
+  const [storageUrl, setStorageUrl] = useState(null);
   // Controlled pagination state for Squadron table
   const [squadronPageSize, setSquadronPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('squadron_page_size'));
     return Number.isFinite(saved) && saved > 0 ? saved : 10;
   });
   const [squadronCurrentPage, setSquadronCurrentPage] = useState(1);
+
+  // Fetch storage URL on component mount
+  useEffect(() => {
+    const loadStorageUrl = async () => {
+      const url = await fetchStorageUrl();
+      setStorageUrl(url);
+    };
+    loadStorageUrl();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -597,72 +624,6 @@ const SquadronNodesTable = () => {
       render: (hostname) => hostname || <span style={{ color: '#999' }}>-</span>
     },
     {
-      title: 'Network Info',
-      key: 'networkInfo',
-      width: 120,
-      align: 'center',
-      render: (_, record) => {
-        const networkConfigs = [];
-        
-        // Only add network configs that have actual values (not null, undefined, or empty string)
-        if (record.Management && record.Management.trim()) {
-          networkConfigs.push({ label: 'Management', value: record.Management });
-        }
-        if (record.Storage && record.Storage.trim()) {
-          networkConfigs.push({ label: 'Storage', value: record.Storage });
-        }
-        if (record.External_Traffic && record.External_Traffic.trim()) {
-          networkConfigs.push({ label: 'External Traffic', value: record.External_Traffic });
-        }
-        if (record.VXLAN && record.VXLAN.trim()) {
-          networkConfigs.push({ label: 'VXLAN', value: record.VXLAN });
-        }
-
-        // If no network configurations exist, don't show anything (not even a dash)
-        if (networkConfigs.length === 0) {
-          return null;
-        }
-
-        const items = networkConfigs.map((config, index) => ({
-          key: index.toString(),
-          label: (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: '200px' }}>
-              <strong>{config.label}:</strong>
-              <span style={{ marginLeft: '8px', userSelect: 'text' }}>{config.value}</span>
-              <CopyTwoTone 
-                twoToneColor="#1890ff" 
-                style={{ cursor: 'pointer', marginLeft: '8px' }} 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  copyToClipboard(config.value);
-                }}
-              />
-            </div>
-          )
-        }));
-
-        // Only show the three-dotted icon if there are actual network configurations
-        return (
-          <Dropdown
-            menu={{ items }}
-            trigger={['click']}
-            placement="bottomLeft"
-          >
-            <Button 
-              type="text" 
-              icon={<MoreOutlined />} 
-              style={{ 
-                border: 'none', 
-                background: 'transparent',
-                color: '#1890ff',
-                cursor: 'pointer'
-              }}
-            />
-          </Dropdown>
-        );
-      }
-    },
-    {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
@@ -730,6 +691,72 @@ const SquadronNodesTable = () => {
       width: 120,
       align: 'center',
 
+    },
+    {
+      title: '',
+      key: 'networkInfo',
+      width: 50,
+      align: 'center',
+      render: (_, record) => {
+        const networkConfigs = [];
+        
+        // Only add network configs that have actual values (not null, undefined, or empty string)
+        if (record.Management && record.Management.trim()) {
+          networkConfigs.push({ label: 'Management', value: record.Management });
+        }
+        if (record.Storage && record.Storage.trim()) {
+          networkConfigs.push({ label: 'Storage', value: record.Storage });
+        }
+        if (record.External_Traffic && record.External_Traffic.trim()) {
+          networkConfigs.push({ label: 'External Traffic', value: record.External_Traffic });
+        }
+        if (record.VXLAN && record.VXLAN.trim()) {
+          networkConfigs.push({ label: 'VXLAN', value: record.VXLAN });
+        }
+
+        // If no network configurations exist, don't show anything (not even a dash)
+        if (networkConfigs.length === 0) {
+          return null;
+        }
+
+        const items = networkConfigs.map((config, index) => ({
+          key: index.toString(),
+          label: (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: '200px' }}>
+              <strong>{config.label}:</strong>
+              <span style={{ marginLeft: '8px', userSelect: 'text' }}>{config.value}</span>
+              <CopyTwoTone 
+                twoToneColor="#1890ff" 
+                style={{ cursor: 'pointer', marginLeft: '8px' }} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(config.value);
+                }}
+              />
+            </div>
+          )
+        }));
+
+        // Only show the three-dotted icon if there are actual network configurations
+        return (
+          <Dropdown
+            menu={{ items }}
+            trigger={['click']}
+            placement="bottomLeft"
+          >
+            <Button 
+              type="text" 
+              icon={<MoreOutlined />} 
+              style={{ 
+                border: 'none', 
+                background: 'transparent',
+                color: '#1890ff',
+                cursor: 'pointer'
+              }}
+            />
+          </Dropdown>
+        );
+      }
     }
   ];
 
@@ -804,7 +831,7 @@ const SquadronNodesTable = () => {
               rows.push({
                 key: 'storage',
                 service: 'Storage',
-                url: modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null,
+                url: storageUrl || (modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null),
                 username: 'admin',
                 password: '-'
               });
@@ -892,6 +919,7 @@ const CloudDeploymentsTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalCredentials, setModalCredentials] = useState({});
+  const [storageUrl, setStorageUrl] = useState(null);
   // Controlled pagination state for Cloud table
   const [cloudPageSize, setCloudPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('cloud_page_size'));
@@ -899,6 +927,15 @@ const CloudDeploymentsTable = () => {
 
   });
   const [cloudCurrentPage, setCloudCurrentPage] = useState(1);
+
+  // Fetch storage URL on component mount
+  useEffect(() => {
+    const loadStorageUrl = async () => {
+      const url = await fetchStorageUrl();
+      setStorageUrl(url);
+    };
+    loadStorageUrl();
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -1020,7 +1057,7 @@ const CloudDeploymentsTable = () => {
               {
                 key: 'storage',
                 service: 'Storage',
-                url: vip ? `https://${vip}:8443/` : null,
+                url: storageUrl || (vip ? `https://${vip}:8443/` : null),
                 username: 'admin',
                 password: '-'
               },

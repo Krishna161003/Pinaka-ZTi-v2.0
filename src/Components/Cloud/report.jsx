@@ -27,11 +27,39 @@ const Report = ({ onDeploymentComplete }) => {
   const logStartedRef = useRef(false);
   const intervalRef = useRef(null);
   const finalizedRef = useRef(false);
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [fadeClass, setFadeClass] = useState('fade-in');
   // Using static asset for GIF; no blob preloading
+
+  // Deployment progress messages
+  const deploymentMessages = [
+    'Deployment in progress...',
+    'Sit back and relax...',
+    'Adding Squadrons...',
+    'Powering up your infrastructure with extra squadrons...',
+  ];
 
   // Backend deployment progress polling
   const [deploymentInProgress, setDeploymentInProgress] = useState(true);
   const prevDeploymentStatus = useRef(true); // Track previous deployment status
+
+  // Message rotation effect for deployment progress
+  useEffect(() => {
+    if (!deploymentInProgress) return;
+
+    const messageInterval = setInterval(() => {
+      setFadeClass('fade-out');
+      
+      setTimeout(() => {
+        setCurrentMessageIndex(prev => 
+          prev === deploymentMessages.length - 1 ? 0 : prev + 1
+        );
+        setFadeClass('fade-in');
+      }, 600); // Increased to 600ms for smoother transition
+    }, 4000); // Increased to 4 seconds between messages
+
+    return () => clearInterval(messageInterval);
+  }, [deploymentInProgress, deploymentMessages.length]);
 
   useEffect(() => {
     let interval = setInterval(() => {
@@ -68,7 +96,7 @@ const Report = ({ onDeploymentComplete }) => {
                   btn,
                   key,
                   duration: 12,
-                  placement: 'bottomRight'
+                  placement: 'topRight'
                 });
               }
               return newStatus;
@@ -311,33 +339,46 @@ const Report = ({ onDeploymentComplete }) => {
       <Card title={`Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
         <Row gutter={24}>
           <Col span={24}>
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '880px', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '100%', marginBottom: '30px' }}>
               {deploymentInProgress ? (
                 <>
-                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginTop: '-56px' }}>
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                     <img
                       src={planeGif}
                       alt="Deployment Progress"
                       loading="eager"
                       decoding="async"
                       draggable={false}
-                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
+                      style={{ width: '750px', height: '350px', objectFit: 'contain', display: 'block', transform: 'translateZ(0)', willChange: 'transform' }}
                     />
                   </div>
-                  <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment in progress</div>
+                  <div 
+                    className={fadeClass}
+                    style={{ 
+                      marginTop: 16, 
+                      fontWeight: 600,
+                      fontSize: '18px',
+                      transition: 'opacity 1.2s ease-in-out',
+                      opacity: fadeClass === 'fade-in' ? 1 : 0,
+                      minHeight: '28px',
+                      textAlign: 'center'
+                    }}
+                  >
+                    {deploymentMessages[currentMessageIndex]}
+                  </div>
                 </>
               ) : (
                 <>
-                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginTop: '-56px' }}>
+                  <div style={{ width: 580, height: 180, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
                     <img
                       src={completedImage}
                       alt="Deployment Completed"
                       loading="eager"
                       decoding="sync"
-                      style={{ width: 580, height: 280, objectFit: 'contain', display: 'block' }}
+                      style={{ width: '750px', height: '350px', objectFit: 'contain', display: 'block' }}
                     />
                   </div>
-                  <div style={{ marginTop: 16, fontWeight: 500 }}>Deployment completed</div>
+                  <div style={{ marginTop: 16, fontWeight: 600, fontSize: '18px', textAlign: 'center' }}>Deployment completed</div>
                 </>
               )}
             </div>

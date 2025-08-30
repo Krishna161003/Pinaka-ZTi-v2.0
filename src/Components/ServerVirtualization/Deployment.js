@@ -197,6 +197,33 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   const [licenseNodes, setLicenseNodes] = useState(getLicenseNodes());
 
+  // Synchronize licenseNodes with sessionStorage changes (for when new nodes are added from other components)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const currentNodes = getLicenseNodes();
+      setLicenseNodes(prev => {
+        // Only update if nodes actually changed to avoid unnecessary re-renders
+        const prevIps = prev.map(n => n.ip).sort();
+        const currentIps = currentNodes.map(n => n.ip).sort();
+        if (JSON.stringify(prevIps) !== JSON.stringify(currentIps)) {
+          return currentNodes;
+        }
+        return prev;
+      });
+    };
+    
+    // Listen for storage events (cross-tab changes)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically for same-tab changes (like from ActivateKey)
+    const interval = setInterval(handleStorageChange, 500);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
   // Track mounted state globally to allow background polling to update storage without setState leaks
   useEffect(() => {
     window.__svMountedDeployment = true;
@@ -372,12 +399,12 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       
       // Create card status for all licenseNodes, preserving existing ones
       const updatedStatus = licenseNodes.map((node, index) => {
-        // Find existing status for this node
+        // Find existing form and its corresponding status
         const existingFormIndex = parsedForms.findIndex(f => f.ip === node.ip);
         if (existingFormIndex !== -1 && parsedStatus[existingFormIndex]) {
           return parsedStatus[existingFormIndex];
         } else {
-          // Default status for new node
+          // Default status for new node - always start as not applied
           return { loading: false, applied: false };
         }
       });
@@ -408,6 +435,13 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
       setBtnLoading(licenseNodes.map(() => false));
     }
+
+    // Force re-fetch node data for any new nodes
+    licenseNodes.forEach(node => {
+      if (node.ip && !nodeDisks[node.ip]) {
+        fetchNodeData(node.ip);
+      }
+    });
   }, [licenseNodes]);
 
   // Recovery: if any node card is loading but no active timers exist, resume polling timers
