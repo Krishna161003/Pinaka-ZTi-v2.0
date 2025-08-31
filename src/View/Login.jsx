@@ -35,57 +35,90 @@ const Login = ({ checkLogin = () => {} }) => {
     const { companyName, password } = ssoFormData;
 
     try {
-      let secretResponse;
+      let clientSecrets = [];
+      
+      // First, try to get client secret from Python backend
       try {
-        secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`, {
+        const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`, {
           timeout: 10000
         });
-      } catch (err) {
-        if (err.code === 'ECONNABORTED' || err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-          throw new Error('Unable to connect to the server. Please check your network connection.');
+        
+        const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse?.data || {};
+        
+        if (encodedSecret && randomCharPos !== undefined) {
+          const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+          clientSecrets.push({ secret: clientSecret, source: 'Python backend' });
+          console.log('Added client secret from Python backend');
         }
-        throw new Error('Failed to connect to authentication service. Please try again later.');
+      } catch (err) {
+        console.warn('Failed to get client secret from Python backend:', err.message);
       }
-
-      const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse?.data || {};
-
-      if (!encodedSecret || randomCharPos === undefined) {
-        throw new Error('Authentication service configuration error. Please contact support.');
-      }
-
-      const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
-
-      let tokenResponse;
+      
+      // Get all client secrets from database as fallback
       try {
-        tokenResponse = await axios.post(
-          `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
-          new URLSearchParams({
-            grant_type: 'client_credentials',
-            client_id: 'zti-client',
-            client_secret: clientSecret,
-          }),
-          {
-            timeout: 15000,
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            }
-          }
-        );
-      } catch (err) {
-        if (err.response) {
-          if (err.response.status === 401) {
-            throw new Error('Authentication service is currently unavailable. Please try again later.');
-          }
-          throw new Error('Authentication service error. Please try again.');
-        } else if (err.request) {
-          throw new Error('Unable to reach authentication service. Please check your connection.');
+        const dbSecretResponse = await axios.get(`https://${hostIP}:5000/api/get-keycloak-secrets`, {
+          timeout: 10000
+        });
+        
+        if (dbSecretResponse?.data?.client_secrets && Array.isArray(dbSecretResponse.data.client_secrets)) {
+          dbSecretResponse.data.client_secrets.forEach(secret => {
+            clientSecrets.push({ secret: secret, source: 'database' });
+          });
+          console.log(`Added ${dbSecretResponse.data.client_secrets.length} client secrets from database`);
         }
-        throw err;
+      } catch (dbErr) {
+        console.warn('Failed to get client secrets from database:', dbErr.message);
+      }
+      
+      // If no client secrets available from either source, throw error
+      if (clientSecrets.length === 0) {
+        throw new Error('Authentication service configuration error. Unable to retrieve client credentials. Please contact support.');
       }
 
-      const accessToken = tokenResponse.data.access_token;
-      if (!accessToken) {
-        throw new Error('Failed to obtain access token. Please try again.');
+      // Try each client secret until one works
+      let accessToken = null;
+      let successfulSecret = null;
+      let lastError = null;
+      
+      for (let i = 0; i < clientSecrets.length; i++) {
+        const { secret: clientSecret, source } = clientSecrets[i];
+        console.log(`Trying client secret ${i + 1}/${clientSecrets.length} from ${source}`);
+        
+        try {
+          const tokenResponse = await axios.post(
+            `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
+            new URLSearchParams({
+              grant_type: 'client_credentials',
+              client_id: 'zti-client',
+              client_secret: clientSecret,
+            }),
+            {
+              timeout: 15000,
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              }
+            }
+          );
+          
+          if (tokenResponse.data.access_token) {
+            accessToken = tokenResponse.data.access_token;
+            successfulSecret = clientSecret;
+            console.log(`Authentication successful with client secret from ${source}`);
+            break;
+          }
+        } catch (err) {
+          console.warn(`Client secret ${i + 1} failed:`, err.response?.status || err.message);
+          lastError = err;
+          // Continue to next secret
+        }
+      }
+      
+      // If none of the client secrets worked, throw error
+      if (!accessToken || !successfulSecret) {
+        if (lastError?.response?.status === 401) {
+          throw new Error('All client credentials are invalid. Authentication service may be misconfigured.');
+        }
+        throw new Error('Unable to authenticate with any available client credentials. Please try again later.');
       }
 
       let userResponse;
@@ -97,7 +130,7 @@ const Login = ({ checkLogin = () => {} }) => {
             username: companyName,
             password: password,
             client_id: 'zti-client',
-            client_secret: clientSecret,
+            client_secret: successfulSecret,
             scope: 'openid',
           }),
           {

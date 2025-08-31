@@ -25,7 +25,7 @@ services:
     environment:
       - DB_HOST=mysql-db
       - DB_USER=root
-      - DB_PASSWORD=Likith@172323
+      - DB_PASSWORD=1@P1n@k@1603
       - DB_NAME=standalone
       - EMAIL_USER=pinakastra.join@gmail.com
       - EMAIL_PASS=sqei dbiv vxou ddsy
@@ -44,7 +44,7 @@ services:
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: Likith@172323
+      MYSQL_ROOT_PASSWORD: 1@P1n@k@1603
       MYSQL_DATABASE: standalone
     volumes:
       - mysql-data:/var/lib/mysql

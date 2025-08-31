@@ -17,7 +17,7 @@ const getCloudName = () => {
 // SSH Polling constants and helpers
 const POLL_DELAY_MS = 90000; // 90 seconds before first check
 const POLL_INTERVAL_MS = 5000; // 5 seconds interval
-const POLL_MAX_POLLS = 60; // 5 minutes total
+const POLL_MAX_POLLS = 120; // 10 minutes total
 const SSH_DELAY_START_KEY = 'sv_networkApplyPollingDelayStart';
 const RESTART_MSG_THROTTLE_MS = 15000; // throttle 'Node restarting...' message per IP
 
@@ -1147,7 +1147,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         }
         // Validation for VLAN ID
         if (field === 'vlanId') {
-          if (value && (!/^[0-9]*$/.test(value) || value.length > 4 || Number(value) < 1 || Number(value) > 4094)) {
+          if (value && !/^(409[0-4]|40[0-8][0-9]|[1-3][0-9]{3}|[1-9][0-9]{1,2}|[1-9])$/.test(value)) {
             row.errors[field] = 'VLAN ID must be 1-4094';
           } else {
             delete row.errors[field];
