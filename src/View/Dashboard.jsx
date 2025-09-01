@@ -1474,7 +1474,6 @@ const Dashboard = () => {
                         textAlign: 'center'
                       }}>
 
-                        <br />
                         {nodeStatus}
                       </div>
                     </div>

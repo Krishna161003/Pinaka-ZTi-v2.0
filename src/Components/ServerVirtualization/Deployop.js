@@ -159,25 +159,23 @@ const DeploymentOptions = ({ onStart }) => {
               >
                 <div
                   className="option-text"
-                  style={{ fontSize: '1em', color: '#333', lineHeight: '1.6' }}
-                >
-                  {/* <strong>All-in-One Setup:</strong> A streamlined, self-contained cloud environment
-                  where all OpenStack services are deployed on a single server, perfect for
-                  development and testing.<b>(need to change def)</b> */}
-                </div>
-                <Button
+                  style={{ fontSize: '1em', color: '#333', lineHeight: '1.4', marginBottom: '10px' }}
+                  >
+                  <strong>Welcome to Pinaka ZTi — Zero-Touch Deployment Wizard</strong> <br>
+                  </br>Set up a robust multi-node private cloud with ease. This wizard guides you from scratch to a fully deployed OpenStack + Ceph environment (HCI or disaggregated) with smart defaults and built-in guardrails. When ready, just hit <strong>Start</strong>.</div>
+                  <Button
                   className="custom-button"
                   type="primary"
                   disabled={isDeployed || isChecking}
                   onClick={() => {
                     if (!isDeployed && !isChecking) setIsModalVisible(true);
                   }}
-                >
+                  >
                   {isChecking ? 'Checking...' : (isDeployed ? 'Deployed' : 'Start')}
-                </Button>
-              </div>
-            </div>
-          </div>
+                  </Button>
+                  </div>
+                  </div>
+                  </div>
           {/* <div
             className={`option-box ${selectedOption === 'Server Virtualization with HA' ? 'selected' : ''
               }`}
