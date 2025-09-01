@@ -84,10 +84,10 @@ fi
 echo "Replacing 'localhost' with host IP: $HOST_IP"
 
 # Replace in docker-compose.yml
-sed -i.bak "s/localhost/$HOST_IP/g" docker-compose.yml
+#sed -i.bak "s/localhost/$HOST_IP/g" docker-compose.yml
 
 # Replace in docker-compose-keycloak.yml
-sed -i.bak "s/localhost/$HOST_IP/g" docker-compose-keycloak.yml
+#sed -i.bak "s/localhost/$HOST_IP/g" docker-compose-keycloak.yml
 
 echo "✅ Replacement done. Backup files saved as *.bak"
 
