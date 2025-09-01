@@ -32,6 +32,104 @@ import threading
 import uuid
 import zipfile
 
+# SSH Configuration Constants
+SSH_CONFIG = {
+    'username': 'pinakasupport',
+    'key_path': '/home/pinakasupport/.pinaka_wd/key/ps_key.pem',
+    'timeout': 10,
+    'banner_timeout': 30,
+    'auth_timeout': 15,
+    'look_for_keys': False,
+    'allow_agent': False
+}
+
+def get_ssh_client(ip, custom_timeout=None):
+    """
+    Create a standardized SSH client connection with proper error handling.
+    
+    Args:
+        ip (str): Target IP address
+        custom_timeout (int): Override default timeout if needed
+    
+    Returns:
+        tuple: (ssh_client, success, error_message)
+    """
+    ssh = None
+    try:
+        # Validate SSH key file exists
+        if not os.path.exists(SSH_CONFIG['key_path']):
+            return None, False, f"SSH key not found at {SSH_CONFIG['key_path']}"
+        
+        # Load SSH key
+        try:
+            key = paramiko.RSAKey.from_private_key_file(SSH_CONFIG['key_path'])
+        except Exception as e:
+            return None, False, f"Failed to load SSH key: {str(e)}"
+        
+        # Create SSH client
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        # Use custom timeout or default
+        timeout = custom_timeout if custom_timeout else SSH_CONFIG['timeout']
+        
+        # Connect with standardized parameters
+        ssh.connect(
+            hostname=ip,
+            username=SSH_CONFIG['username'],
+            pkey=key,
+            timeout=timeout,
+            banner_timeout=SSH_CONFIG['banner_timeout'],
+            auth_timeout=SSH_CONFIG['auth_timeout'],
+            look_for_keys=SSH_CONFIG['look_for_keys'],
+            allow_agent=SSH_CONFIG['allow_agent']
+        )
+        
+        return ssh, True, None
+        
+    except Exception as e:
+        if ssh:
+            try:
+                ssh.close()
+            except:
+                pass
+        return None, False, f"SSH connection failed: {str(e)}"
+
+def execute_ssh_command(ip, command, timeout=30, custom_ssh_timeout=None):
+    """
+    Execute a command via SSH with proper error handling and cleanup.
+    
+    Args:
+        ip (str): Target IP address
+        command (str): Command to execute
+        timeout (int): Command execution timeout
+        custom_ssh_timeout (int): SSH connection timeout override
+    
+    Returns:
+        tuple: (success, stdout, stderr, exit_code)
+    """
+    ssh, success, error = get_ssh_client(ip, custom_ssh_timeout)
+    
+    if not success:
+        return False, "", error, -1
+    
+    try:
+        stdin, stdout, stderr = ssh.exec_command(command, timeout=timeout)
+        exit_code = stdout.channel.recv_exit_status()
+        stdout_data = stdout.read().decode('utf-8', errors='ignore').strip()
+        stderr_data = stderr.read().decode('utf-8', errors='ignore').strip()
+        
+        return True, stdout_data, stderr_data, exit_code
+        
+    except Exception as e:
+        return False, "", f"Command execution failed: {str(e)}", -1
+        
+    finally:
+        try:
+            ssh.close()
+        except:
+            pass
+
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
@@ -1289,7 +1387,7 @@ def get_docker_info():
     try:
         # Get all containers (id, name, status)
         cmd = [
-            'docker', 'ps', '-a', '--format', '{{.ID}}||{{.Names}}||{{.Status}}'
+            'sudo','docker', 'ps', '-a', '--format', '{{.ID}}||{{.Names}}||{{.Status}}'
         ]
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
         for line in output.strip().split('\n'):
@@ -1354,70 +1452,38 @@ def get_node_status(ip):
     except Exception as e:
         print(f"Error checking local IPs: {str(e)}")
     
-    # Use the specified PEM key path
-    pem_key = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
-    print(f"Using PEM key: {pem_key}")
+    print(f"Using SSH key: {SSH_CONFIG['key_path']}")
+    print(f"Attempting SSH connection to {SSH_CONFIG['username']}@{ip}")
     
-    if not os.path.exists(pem_key):
-        error_msg = f'PEM key not found at {pem_key}'
-        print(error_msg)
-        return {'status': 'DOWN', 'error': error_msg}
+    # Use standardized SSH client
+    ssh, success, error = get_ssh_client(ip)
     
-    username = 'pinakasupport'  # specified username
-    print(f"Attempting SSH connection to {username}@{ip}")
+    if not success:
+        print(f"SSH connection failed: {error}")
+        return {'status': 'DOWN', 'error': error}
     
     try:
-        # Test if we can read the key file
-        try:
-            k = paramiko.RSAKey.from_private_key_file(pem_key)
-            print("Successfully loaded private key")
-        except Exception as e:
-            error_msg = f'Failed to load private key: {str(e)}'
-            print(error_msg)
-            return {'status': 'DOWN', 'error': error_msg}
+        # Test if we can execute a simple command
+        success, stdout, stderr, exit_code = execute_ssh_command(ip, 'echo "Connection test successful"', timeout=5)
         
-        # Attempt SSH connection
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
-        try:
-            print(f"Attempting to connect to {ip}...")
-            ssh.connect(ip, username=username, pkey=k, timeout=5, banner_timeout=10, auth_timeout=10)
-            print("SSH connection successful")
-            
-            # Test if we can execute a simple command
-            try:
-                stdin, stdout, stderr = ssh.exec_command('echo "Connection test successful"', timeout=5)
-                exit_status = stdout.channel.recv_exit_status()
-                if exit_status == 0:
-                    print("Command execution test passed")
-                else:
-                    error_msg = f'Command failed with exit status {exit_status}'
-                    print(error_msg)
-                    return {'status': 'DOWN', 'error': error_msg}
-            except Exception as e:
-                error_msg = f'Command execution test failed: {str(e)}'
-                print(error_msg)
-                return {'status': 'DOWN', 'error': error_msg}
-            
+        if success and exit_code == 0:
+            print("Command execution test passed")
             return {'status': 'UP'}
-            
-        except Exception as e:
-            error_msg = f'SSH connection failed: {str(e)}'
+        else:
+            error_msg = f'Command failed with exit status {exit_code}: {stderr}'
             print(error_msg)
             return {'status': 'DOWN', 'error': error_msg}
             
-        finally:
-            try:
-                ssh.close()
-                print("SSH connection closed")
-            except:
-                pass
-                
     except Exception as e:
-        error_msg = f'Unexpected error: {str(e)}'
+        error_msg = f'Unexpected error during SSH test: {str(e)}'
         print(error_msg)
         return {'status': 'DOWN', 'error': error_msg}
+        
+    finally:
+        try:
+            ssh.close()
+        except:
+            pass
 
 # ------------------- System Utilization Endpoint ends -------------------
 
@@ -1519,39 +1585,38 @@ def server_control():
         return jsonify({'error': 'Invalid action. Must be one of: status, shutdown, reboot'}), 400
     
     try:
-        # Setup SSH client
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # Use standardized SSH client
+        ssh, success, error = get_ssh_client(server_ip)
         
-        # Load the private key
-        key_path = '/home/pinakasupport/.pinaka_wd/key/ps_key.pem'
-        if not os.path.exists(key_path):
-            return jsonify({'error': f'Key file {key_path} not found'}), 500
-            
-        key = paramiko.RSAKey.from_private_key_file(key_path)
+        if not success:
+            if action == 'status':
+                return jsonify({'status': 'offline', 'error': error})
+            else:
+                return jsonify({'success': False, 'error': error})
         
-        # Try to connect with timeout
         try:
-            ssh.connect(hostname=server_ip, username='pinakasupport', pkey=key, timeout=5)
-            
             # Handle different actions
             if action == 'status':
                 ssh.close()
                 return jsonify({'status': 'online'})
             elif action == 'shutdown':
-                stdin, stdout, stderr = ssh.exec_command('sudo shutdown -h now')
-                ssh.close()
-                return jsonify({'success': True, 'message': 'Shutdown command sent successfully'})
+                success, stdout, stderr, exit_code = execute_ssh_command(server_ip, 'sudo shutdown -h now', timeout=10)
+                if success:
+                    return jsonify({'success': True, 'message': 'Shutdown command sent successfully'})
+                else:
+                    return jsonify({'success': False, 'error': f'Shutdown failed: {stderr}'})
             elif action == 'reboot':
-                stdin, stdout, stderr = ssh.exec_command('sudo reboot')
+                success, stdout, stderr, exit_code = execute_ssh_command(server_ip, 'sudo reboot', timeout=10)
+                if success:
+                    return jsonify({'success': True, 'message': 'Reboot command sent successfully'})
+                else:
+                    return jsonify({'success': False, 'error': f'Reboot failed: {stderr}'})
+                    
+        finally:
+            try:
                 ssh.close()
-                return jsonify({'success': True, 'message': 'Reboot command sent successfully'})
-        except Exception as e:
-            # If connection fails, handle based on action
-            if action == 'status':
-                return jsonify({'status': 'offline', 'error': str(e)})
-            else:
-                return jsonify({'success': False, 'error': str(e)})
+            except:
+                pass
     
     except Exception as e:
         error_message = f'Error executing {action}: {str(e)}'
@@ -1641,9 +1706,42 @@ def store_deployment_configs():
     except Exception as e:
         results.append({'marker_file': str(marker_file), 'status': 'error', 'error': str(e)})
 
+    # ✅ Start deployment script after storing all configs
+    script_path = "/home/pinakasupport/.pinaka_wd/.scripts/deployment_service.sh"
+    try:
+        # Check if script exists before attempting to execute
+        if not os.path.exists(script_path):
+            error_msg = f'Deployment script not found at {script_path}'
+            print(f"ERROR: {error_msg}")
+            script_status = f'error: {error_msg}'
+        else:
+            # Ensure script is executable
+            try:
+                os.chmod(script_path, 0o755)  # Make script executable
+                print(f"INFO: Set executable permissions for {script_path}")
+            except Exception as perm_error:
+                print(f"WARNING: Could not set executable permissions: {perm_error}")
+            
+            # Log script execution attempt
+            print(f"INFO: Starting deployment script: {script_path}")
+            # Execute the deployment script in the background
+            import subprocess
+            process = subprocess.Popen(['/bin/bash', script_path], 
+                            stdout=subprocess.DEVNULL, 
+                            stderr=subprocess.DEVNULL, 
+                            start_new_session=True)
+            # Log process ID for debugging
+            print(f"INFO: Deployment script started with PID: {process.pid}")
+            script_status = 'started'
+    except Exception as e:
+        error_msg = f'Failed to start deployment script: {str(e)}'
+        print(f"ERROR: {error_msg}")
+        script_status = f'error: {error_msg}'
+
     return jsonify({
         'results': results,
         'marker': str(marker_file),
+        'deployment_script': script_status,
         'success': all(r['status'] == 'success' for r in results)
     })
 
@@ -1672,13 +1770,8 @@ def poll_ssh_status():
         print(f"DEBUG: Invalid IPs data: {ips}")
         return Response('Missing or invalid "ips" in request body', status=400)
     
-    # Force PEM-only auth with fixed user, ignore client-provided credentials
-    ssh_user = 'pinakasupport'
-    ssh_pass = None
-    ssh_key = None
-    print(f"DEBUG: Enforcing PEM-only auth. Using user '{ssh_user}', no password, no inline key (disk PEM only)")
-    
-    pem_path = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
+    # Force PEM-only auth with fixed user
+    print(f"DEBUG: Using standardized SSH config with user '{SSH_CONFIG['username']}' and key '{SSH_CONFIG['key_path']}'")
 
     import threading, queue, time, json
     status_queue = queue.Queue()
@@ -1687,9 +1780,8 @@ def poll_ssh_status():
 
     def try_ssh(ip):
         print(f"DEBUG: Attempting SSH connection to {ip}")
-        print(f"DEBUG: SSH User: {ssh_user}")
-        print(f"DEBUG: SSH Password provided: {'Yes' if ssh_pass else 'No'} (ignored)")
-        print(f"DEBUG: SSH Key provided: {'Yes' if ssh_key else 'No'}")
+        print(f"DEBUG: SSH User: {SSH_CONFIG['username']}")
+        print(f"DEBUG: SSH Key Path: {SSH_CONFIG['key_path']}")
         
         try:
             # Quick TCP reachability check on port 22
@@ -1701,47 +1793,17 @@ def poll_ssh_status():
                 print(f"DEBUG: TCP port 22 NOT reachable on {ip}: {sock_err}")
                 return False, f"TCP 22 unreachable: {sock_err}"
 
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            pkey = None
+            # Use standardized SSH connection
+            ssh, success, error = get_ssh_client(ip, custom_timeout=15)  # Longer timeout for polling
             
-            # Try to use provided SSH key material first
-            if ssh_key:
-                try:
-                    import io
-                    pkey = paramiko.RSAKey.from_private_key(io.StringIO(ssh_key))
-                    print(f"DEBUG: Using provided SSH key material for {ip}")
-                except Exception as e:
-                    print(f"DEBUG: Failed to load provided SSH key: {e}")
-                    pkey = None
-            
-            # If no inline key, use the fixed PEM file path provided
-            if not pkey:
-                try:
-                    selected_path = "/home/pinakasupport/.pinaka_wd/key/ps_key.pem"
-                    if not os.path.exists(selected_path):
-                        raise FileNotFoundError(f"PEM key file not found at: {selected_path}")
-                    pkey = paramiko.RSAKey.from_private_key_file(selected_path)
-                    print(f"DEBUG: Using SSH key file: {selected_path} for {ip}")
-                except Exception as e:
-                    print(f"DEBUG: Failed to load SSH key file: {e}")
-                    return False, f"SSH key error: {e}"
-            
-            # Connect strictly with key (no password)
-            print(f"DEBUG: Connecting with SSH key to {ip}")
-            ssh.connect(
-                ip,
-                username=ssh_user,
-                pkey=pkey,
-                timeout=10,
-                banner_timeout=60,
-                auth_timeout=30,
-                look_for_keys=False,
-                allow_agent=False,
-            )
-            ssh.close()
-            print(f"DEBUG: SSH connection successful to {ip}")
-            return True, None
+            if success:
+                ssh.close()
+                print(f"DEBUG: SSH connection successful to {ip}")
+                return True, None
+            else:
+                print(f"DEBUG: SSH connection failed to {ip}: {error}")
+                return False, error
+                
         except Exception as e:
             error_msg = str(e)
             print(f"DEBUG: SSH connection failed to {ip}: {error_msg}")
@@ -1749,21 +1811,37 @@ def poll_ssh_status():
 
     def poll_ip(ip):
         print(f"DEBUG: Starting SSH polling for IP: {ip}")
-        while not stop_flags[ip].is_set():
+        poll_count = 0
+        max_polls = 120  # Maximum 10 minutes of polling (5s intervals)
+        
+        while not stop_flags[ip].is_set() and poll_count < max_polls:
+            poll_count += 1
             ok, err = try_ssh(ip)
-            print(f"DEBUG: SSH attempt for {ip}: {'SUCCESS' if ok else f'FAILED - {err}'}")
+            print(f"DEBUG: SSH attempt {poll_count} for {ip}: {'SUCCESS' if ok else f'FAILED - {err}'}")
+            
             if ok:
-                # Store success result in global variable
+                # Store success result in global variable with timestamp
+                import time
                 ssh_polling_results[ip] = {"status": "success", "ip": ip, "message": f"SSH successful to {ip}"}
+                ssh_polling_timestamps[ip] = time.time()
                 results[ip] = True
                 stop_flags[ip].set()
-                print(f"DEBUG: SSH SUCCESS for {ip}, stored result")
+                print(f"DEBUG: SSH SUCCESS for {ip}, stored result with timestamp")
                 break
             else:
                 # Store fail result temporarily (will be overwritten by next attempt)
                 ssh_polling_results[ip] = {"status": "fail", "ip": ip, "message": f"SSH failed to {ip}: {err}"}
+                ssh_polling_timestamps[ip] = time.time()
                 print(f"DEBUG: SSH FAIL for {ip}, stored fail result")
-            time.sleep(5)
+            
+            if poll_count < max_polls:
+                time.sleep(5)
+        
+        # If we've exceeded max polls, store timeout result
+        if poll_count >= max_polls and not results[ip]:
+            ssh_polling_results[ip] = {"status": "timeout", "ip": ip, "message": f"SSH polling timeout for {ip} after {max_polls} attempts"}
+            ssh_polling_timestamps[ip] = time.time()
+            print(f"DEBUG: SSH TIMEOUT for {ip} after {max_polls} attempts")
 
     # Start polling threads after 90 seconds
     def start_polling():
@@ -1786,8 +1864,9 @@ def poll_ssh_status():
     
     return jsonify({"success": True, "message": f"SSH polling started for {len(ips)} IP(s). Will begin after 90 seconds."})
 
-# Global storage for SSH polling results
+# Global storage for SSH polling results with timestamp tracking
 ssh_polling_results = {}
+ssh_polling_timestamps = {}  # Track when results were stored
 
 # Retrieves SSH polling results for specific IP addresses from background polling
 # Returns one-time SSH status results and removes them from the polling queue
@@ -1808,17 +1887,104 @@ def check_ssh_status():
     # Check if we have a result for this IP
     if ip in ssh_polling_results:
         result = ssh_polling_results[ip]
-        # Remove the result after returning it (one-time use)
-        del ssh_polling_results[ip]
-        print(f"DEBUG: Returning result for {ip}: {result}")
-        return jsonify(result)
+        
+        # Add metadata for response tracking
+        result['response_timestamp'] = time.time()
+        result['response_validated'] = True
+        
+        # For success or timeout status, keep the result for 60 seconds to allow multiple fetches
+        # This prevents loss of success status due to network issues or timing problems
+        if result.get('status') in ['success', 'timeout']:
+            current_time = time.time()
+            result_time = ssh_polling_timestamps.get(ip, 0)
+            
+            # Keep success/timeout results for 60 seconds
+            if current_time - result_time > 60:
+                # Clean up old results
+                del ssh_polling_results[ip]
+                if ip in ssh_polling_timestamps:
+                    del ssh_polling_timestamps[ip]
+                print(f"DEBUG: Cleaned up old result for {ip} (age: {current_time - result_time:.1f}s)")
+                return jsonify({
+                    'status': 'fail',
+                    'ip': ip,
+                    'message': 'SSH polling result expired',
+                    'response_timestamp': current_time,
+                    'response_validated': True
+                })
+            else:
+                print(f"DEBUG: Returning persistent result for {ip}: {result} (age: {current_time - result_time:.1f}s)")
+                # DO NOT delete the result - keep it for multiple fetches
+                return jsonify(result)
+        else:
+            # For 'fail' status, return and remove it so it can be updated by next polling attempt
+            print(f"DEBUG: Returning transient fail result for {ip}: {result}")
+            # Remove fail results immediately so they can be updated by ongoing polling
+            del ssh_polling_results[ip]
+            if ip in ssh_polling_timestamps:
+                del ssh_polling_timestamps[ip]
+            return jsonify(result)
     
     # If no result yet, return fail status
     print(f"DEBUG: No result found for {ip}, returning fail status")
     return jsonify({
         'status': 'fail',
         'ip': ip,
-        'message': 'SSH polling in progress'
+        'message': 'SSH polling in progress',
+        'response_timestamp': time.time(),
+        'response_validated': True
+    })
+
+# Clean up old SSH polling results (optional endpoint for maintenance)
+@app.route('/cleanup-ssh-results', methods=['POST'])
+def cleanup_ssh_results():
+    """
+    POST /cleanup-ssh-results
+    Manually clean up old SSH polling results
+    """
+    import time
+    current_time = time.time()
+    cleaned_ips = []
+    
+    # Clean up results older than 5 minutes
+    for ip in list(ssh_polling_results.keys()):
+        result_time = ssh_polling_timestamps.get(ip, 0)
+        if current_time - result_time > 300:  # 5 minutes
+            del ssh_polling_results[ip]
+            if ip in ssh_polling_timestamps:
+                del ssh_polling_timestamps[ip]
+            cleaned_ips.append(ip)
+    
+    print(f"DEBUG: Cleaned up SSH results for IPs: {cleaned_ips}")
+    return jsonify({
+        'success': True,
+        'cleaned_ips': cleaned_ips,
+        'message': f'Cleaned up {len(cleaned_ips)} old SSH results'
+    })
+
+# Get all active SSH polling results (debug endpoint)
+@app.route('/ssh-polling-status', methods=['GET'])
+def ssh_polling_status():
+    """
+    GET /ssh-polling-status
+    Returns all active SSH polling results for debugging
+    """
+    import time
+    current_time = time.time()
+    
+    status_info = {}
+    for ip, result in ssh_polling_results.items():
+        result_time = ssh_polling_timestamps.get(ip, 0)
+        age_seconds = current_time - result_time
+        status_info[ip] = {
+            'result': result,
+            'timestamp': result_time,
+            'age_seconds': age_seconds
+        }
+    
+    return jsonify({
+        'active_results': status_info,
+        'total_count': len(status_info)
     })
 
 
@@ -2953,7 +3119,7 @@ def get_client_secret():
 
 
 # Configuration - modify these paths as needed
-SCRIPT_PATH = "/home/pinakasupport/.pinaka_wd/diagnostic.sh"  # Path to your script that creates tar
+SCRIPT_PATH = "/home/pinakasupport/.pinaka_wd/.scripts/diagnostic.sh"  # Path to your script that creates tar
 TAR_STORAGE_PATH = "/home/pinakasupport/.pinaka_wd/diagnostic_log/"  # Where script stores tar files
 CHUNK_SIZE = 8192
 
@@ -3118,16 +3284,21 @@ CREDENTIALS_FILE = os.path.expanduser("/home/pinakasupport/.pinaka_wd/.markers/c
 
 @app.route("/storage-url", methods=["GET"])
 def get_storage_url():
-    # 1. Read Ceph Dashboard URL from file
+    # 1. Read Ceph Dashboard URL and Password from file
     url = None
+    password = None
     with open(CREDENTIALS_FILE, "r") as f:
         for line in f:
             if line.startswith("Ceph Dashboard URL:"):
                 url = line.split(":", 1)[1].strip()
-                break
+            elif line.startswith("Ceph Dashboard Password:"):
+                password = line.split(":", 1)[1].strip()
 
     if not url:
         return jsonify({"error": "Ceph Dashboard URL not found"}), 404
+    
+    if not password:
+        return jsonify({"error": "Ceph Dashboard Password not found"}), 404
 
     # 2. Extract hostname (e.g., FD-001)
     match = re.search(r"https?://([^:/]+)", url)
@@ -3152,7 +3323,7 @@ def get_storage_url():
     # 4. Replace hostname with IP
     storage_url = url.replace(hostname, ip)
 
-    return jsonify({"storage_url": storage_url})
+    return jsonify({"storage_url": storage_url, "password": password})
 
 
 

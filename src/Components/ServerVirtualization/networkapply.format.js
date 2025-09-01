@@ -34,7 +34,8 @@ export function buildNetworkConfigPayload(form) {
           const properties = {
             IP_ADDRESS: row.ip || '',
             Netmask: row.subnet || '',
-            DNS: row.dns || ''
+            DNS: row.dns || '',
+            mtu: row.mtu || 'NULL'
           };
           
           // Only add gateway to the first interface that gets Properties
@@ -89,7 +90,8 @@ export function buildNetworkConfigPayload(form) {
       const properties = {
         IP_ADDRESS: row.ip || '',
         Netmask: row.subnet || '',
-        DNS: row.dns || ''
+        DNS: row.dns || '',
+        mtu: row.mtu || 'NULL'
       };
       
       // Only add gateway to the first interface

@@ -49,7 +49,7 @@ const getAccessToken = async () => {
       
       if (encodedSecret && randomCharPos !== undefined) {
         clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
-        console.log('Using client secret from Python backend for Administration');
+        // console.log('Using client secret from Python backend for Administration');
       }
     } catch (err) {
       console.warn('Failed to get client secret from Python backend in Administration:', err.message);
@@ -62,7 +62,7 @@ const getAccessToken = async () => {
         
         if (dbSecretResponse?.data?.client_secret) {
           clientSecret = dbSecretResponse.data.client_secret;
-          console.log('Using client secret from database fallback for Administration');
+          // console.log('Using client secret from database fallback for Administration');
         }
       } catch (dbErr) {
         console.warn('Failed to get client secret from database in Administration:', dbErr.message);

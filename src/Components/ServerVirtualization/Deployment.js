@@ -14,12 +14,14 @@ const getCloudName = () => {
   return meta ? meta.content : '';
 };
 
-// SSH Polling constants and helpers
-const POLL_DELAY_MS = 90000; // 90 seconds before first check
-const POLL_INTERVAL_MS = 5000; // 5 seconds interval
-const POLL_MAX_POLLS = 120; // 10 minutes total
-const SSH_DELAY_START_KEY = 'sv_networkApplyPollingDelayStart';
-const RESTART_MSG_THROTTLE_MS = 15000; // throttle 'Node restarting...' message per IP
+// SSH Polling constants and helpers - using standardized config
+import { SSH_CONFIG, getStorageKey, parseSSHError, createSSHTimeoutNotification, validateSSHConfig, fetchWithRetry, validateSSHResponse } from '../../utils/sshConfig';
+
+const POLL_DELAY_MS = SSH_CONFIG.POLL_DELAY_MS;
+const POLL_INTERVAL_MS = SSH_CONFIG.POLL_INTERVAL_MS;
+const POLL_MAX_POLLS = SSH_CONFIG.POLL_MAX_POLLS;
+const SSH_DELAY_START_KEY = getStorageKey('sv', 'DELAY_START_KEY_PREFIX');
+const RESTART_MSG_THROTTLE_MS = SSH_CONFIG.RESTART_MSG_THROTTLE_MS;
 
 // Store active polling timeouts and intervals
 window.__cloudPolling = window.__cloudPolling || {};
@@ -118,10 +120,10 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   const RESTART_DURATION = 3000; // ms
   const BOOT_DURATION = 5000; // ms after restart
-  const RESTART_ENDTIME_KEY = 'sv_networkApplyRestartEndTimes';
-  const BOOT_ENDTIME_KEY = 'sv_networkApplyBootEndTimes';
+  const RESTART_ENDTIME_KEY = getStorageKey('sv', 'RESTART_ENDTIME_KEY_PREFIX');
+  const BOOT_ENDTIME_KEY = getStorageKey('sv', 'BOOT_ENDTIME_KEY_PREFIX');
   // Persisted hostname map: ip -> hostname (SQDN-XX)
-  const HOSTNAME_MAP_KEY = 'sv_hostnameMap';
+  const HOSTNAME_MAP_KEY = getStorageKey('sv', 'HOSTNAME_MAP_KEY_PREFIX');
 
   const getHostnameMap = () => {
     try {
@@ -257,11 +259,27 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [nodeInterfaces, setNodeInterfaces] = useState({});
 
   // Fetch disks and interfaces for a node
-  const fetchNodeData = async (ip) => {
+  const fetchNodeData = async (ip, useManagementIP = false, formData = null) => {
+    // If network changes are applied and useManagementIP is true, determine the correct IP to use
+    let targetIP = ip;
+    if (useManagementIP && formData) {
+      if (formData.configType === 'default') {
+        // For default configuration, use the primary type interface IP
+        const primaryRow = formData.tableData?.find(row => row.type === 'primary');
+        targetIP = primaryRow?.ip || ip; // fallback to original IP if primary not found
+      } else if (formData.configType === 'segregated') {
+        // For segregated configuration, use the management type interface IP
+        const mgmtRow = formData.tableData?.find(row => 
+          Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
+        );
+        targetIP = mgmtRow?.ip || ip; // fallback to original IP if Mgmt not found
+      }
+    }
+
     try {
       const [diskRes, ifaceRes] = await Promise.all([
-        fetch(`https://${ip}:2020/get-disks`).then(r => r.json()),
-        fetch(`https://${ip}:2020/get-interfaces`).then(r => r.json()),
+        fetch(`https://${targetIP}:2020/get-disks`).then(r => r.json()),
+        fetch(`https://${targetIP}:2020/get-interfaces`).then(r => r.json()),
       ]);
 
       // Map disks to include all necessary properties
@@ -285,16 +303,33 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         })
         .filter(x => x.iface);
       setNodeInterfaces(prev => ({ ...prev, [ip]: normalizedIfaces }));
+      
+      if (useManagementIP && targetIP !== ip) {
+        message.success(`Successfully fetched data from ${targetIP} (management interface)`);
+      }
     } catch (e) {
-      console.error(`Failed to fetch data from node ${ip}:`, e);
-      message.error(`Failed to fetch data from node ${ip}: ${e.message}`);
+      console.error(`Failed to fetch data from node ${targetIP}:`, e);
+      if (useManagementIP && targetIP !== ip) {
+        message.error(`Failed to fetch data from ${targetIP} (management interface): ${e.message}`);
+      } else {
+        message.error(`Failed to fetch data from node ${targetIP}: ${e.message}`);
+      }
     }
   };
 
-  // On mount, fetch for all nodes
+  // On mount, fetch for all nodes that haven't been applied yet
   useEffect(() => {
-    licenseNodes.forEach(node => {
-      if (node.ip) fetchNodeData(node.ip);
+    const savedStatus = sessionStorage.getItem('sv_networkApplyCardStatus');
+    const statusArray = savedStatus ? JSON.parse(savedStatus) : [];
+    
+    licenseNodes.forEach((node, index) => {
+      if (node.ip) {
+        // Only fetch if the node hasn't been applied (network changes not yet applied)
+        const nodeStatus = statusArray[index] || { loading: false, applied: false };
+        if (!nodeStatus.applied) {
+          fetchNodeData(node.ip);
+        }
+      }
     });
   }, [licenseNodes]);
   // Per-card loading and applied state, restore from sessionStorage if available
@@ -308,6 +343,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [btnLoading, setBtnLoading] = useState(() => (Array.isArray(licenseNodes) ? licenseNodes.map(() => false) : []));
   // For loader recovery timers
   const timerRefs = React.useRef([]);
+  // Store last removed node data for Undo
+  const lastRemovedRef = React.useRef(null);
   // Restore forms from sessionStorage if available and merge with license details
   const getInitialForms = () => {
     // Get saved license details
@@ -436,10 +473,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       setBtnLoading(licenseNodes.map(() => false));
     }
 
-    // Force re-fetch node data for any new nodes
-    licenseNodes.forEach(node => {
+    // Force re-fetch node data for any new nodes that haven't been applied yet
+    licenseNodes.forEach((node, index) => {
       if (node.ip && !nodeDisks[node.ip]) {
-        fetchNodeData(node.ip);
+        // Only fetch if the node hasn't been applied (network changes not yet applied)
+        const nodeStatus = updatedStatus?.[index] || { loading: false, applied: false };
+        if (!nodeStatus.applied) {
+          fetchNodeData(node.ip);
+        }
       }
     });
   }, [licenseNodes]);
@@ -519,11 +560,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               `Failed to connect to ${ssh_target_ip} after multiple attempts. The node may be taking longer than expected to come up.`,
               () => {
                 // Re-trigger backend scheduling and restart frontend polling
-                const ssh_user = 'pinakasupport';
+                const ssh_user = SSH_CONFIG.username;
                 const ssh_pass = '';
                 const ssh_key = '';
                 
-                message.info(`Retrying SSH polling for ${retryTargetIp}. Will begin after 90 seconds.`);
+                message.info(`Retrying SSH polling for ${retryTargetIp}. Will begin after  2 minutes.`);
                 
                 fetch(`https://${hostIP}:2020/poll-ssh-status`, {
                   method: 'POST',
@@ -558,6 +599,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   window.__cloudPollingStart[retryTargetIp] = to;
                 }).catch(err => {
                   message.error(`Failed to restart SSH polling for ${retryTargetIp}: ${err.message}`);
+                  // Ensure loader stays off if retry setup fails
+                  setCardStatusForIpInSession(retryOriginalIp, { loading: false, applied: false });
+                  if (window.__svMountedDeployment) {
+                    setCardStatus(prev => {
+                      const idxNow = forms.findIndex(ff => ff?.ip === retryOriginalIp);
+                      return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+                    });
+                  }
                 });
               }
             );
@@ -586,10 +635,13 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             return;
           }
 
-          fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ssh_target_ip)}`)
+          fetchWithRetry(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ssh_target_ip)}`)
             .then(res => res.json())
             .then(data => {
-              if (data.status === 'success' && data.ip === ssh_target_ip) {
+              // Validate response to ensure data integrity
+              const validatedData = validateSSHResponse(data, ssh_target_ip);
+              
+              if (validatedData.status === 'success' && validatedData.ip === ssh_target_ip) {
                 setCardStatusForIpInSession(ip, { loading: false, applied: true });
                 if (window.__svMountedDeployment) {
                   setCardStatus(prev => {
@@ -626,13 +678,32 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 const idxNow = forms.findIndex(ff => ff?.ip === ip);
                 const formNow = forms[idxNow];
                 if (formNow) storeFormData(ip, formNow);
+                                      
+                // Note: After network changes are applied, the node IPs may have changed.
+                // Automatic data fetching is disabled. Use "Refetch Data" button if needed.
               } else if (data.status === 'fail' && data.ip === ssh_target_ip) {
                 if (cardStatus[idx]?.loading || !window.__svMountedDeployment) {
                   infoRestartThrottled(ssh_target_ip);
                 }
               }
             })
-            .catch(err => console.error('SSH status check failed:', err));
+            .catch(err => {
+              console.error('SSH status check failed:', err);
+              message.error(`SSH polling failed: ${err.message}. ${SSH_CONFIG.MESSAGES.RESPONSE_LOST}`);
+              // On persistent network errors in recovery mode, stop polling to prevent stuck loader
+              if (pollCount > POLL_MAX_POLLS / 2) {
+                clearInterval(interval);
+                setCardStatusForIpInSession(forms[idx]?.ip || ssh_target_ip, { loading: false, applied: false });
+                if (window.__svMountedDeployment) {
+                  setCardStatus(prev => {
+                    const idxNow = forms.findIndex(ff => ff?.ip === (forms[idx]?.ip || ssh_target_ip));
+                    return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+                  });
+                }
+                if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
+                message.error(`SSH polling failed due to network errors for ${ssh_target_ip}. Please check connectivity.`);
+              }
+            });
         }, POLL_INTERVAL_MS); // Check every 5 seconds
 
         window.__cloudPolling[ssh_target_ip] = interval;
@@ -694,6 +765,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       interface: useBond ? [] : '',
       bondName: '',
       vlanId: '',
+      mtu: '',
       type: configType === 'default' ? '' : [],
       errors: {},
     }));
@@ -713,6 +785,135 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       tableData: generateRows(f.configType, checked)
     } : f));
   };
+  // Remove Node handlers with confirmation and Undo
+  const handleUndoRemoveNode = () => {
+    const snapshot = lastRemovedRef.current;
+    if (!snapshot) return;
+
+    // Restore arrays and maps from snapshot
+    try {
+      // licenseNodes
+      const nodesRaw = sessionStorage.getItem('sv_licenseNodes');
+      const nodesArr = nodesRaw ? JSON.parse(nodesRaw) : [];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), nodesArr.length);
+      if (snapshot.licenseNodesEntry) {
+        nodesArr.splice(insIdx, 0, snapshot.licenseNodesEntry);
+        sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
+      }
+    } catch (_) { }
+    try {
+      // restore delay-start timestamp for polling recovery
+      if (snapshot.delayStartTs && snapshot.ip) {
+        const raw = sessionStorage.getItem('sv_networkApplyPollingDelayStart');
+        const map = raw ? JSON.parse(raw) : {};
+        map[snapshot.ip] = snapshot.delayStartTs;
+        sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
+      }
+    } catch (_) { }
+    try {
+      // networkApply forms/status
+      const formsRaw = sessionStorage.getItem('sv_networkApplyForms');
+      const statusRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
+      const formsArr = formsRaw ? JSON.parse(formsRaw) : [];
+      const statusArr = statusRaw ? JSON.parse(statusRaw) : [];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), Math.max(formsArr.length, statusArr.length));
+      if (snapshot.formsEntry) {
+        formsArr.splice(insIdx, 0, snapshot.formsEntry);
+        sessionStorage.setItem('sv_networkApplyForms', JSON.stringify(formsArr));
+      }
+      if (snapshot.cardStatusEntry) {
+        statusArr.splice(insIdx, 0, snapshot.cardStatusEntry);
+        sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(statusArr));
+      }
+    } catch (_) { }
+    try {
+      // timers arrays
+      const restartRaw = sessionStorage.getItem('sv_networkApplyRestartEndTimes');
+      const bootRaw = sessionStorage.getItem('sv_networkApplyBootEndTimes');
+      const restartArr = restartRaw ? JSON.parse(restartRaw) : [];
+      const bootArr = bootRaw ? JSON.parse(bootRaw) : [];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), Math.max(restartArr.length, bootArr.length));
+      if (snapshot.restartEndTime != null) {
+        restartArr.splice(insIdx, 0, snapshot.restartEndTime);
+        sessionStorage.setItem('sv_networkApplyRestartEndTimes', JSON.stringify(restartArr));
+      }
+      if (snapshot.bootEndTime != null) {
+        bootArr.splice(insIdx, 0, snapshot.bootEndTime);
+        sessionStorage.setItem('sv_networkApplyBootEndTimes', JSON.stringify(bootArr));
+      }
+    } catch (_) { }
+    try {
+      // networkApplyResult per-IP
+      if (snapshot.ip && snapshot.networkApplyResultEntry) {
+        const resultRaw = sessionStorage.getItem('sv_networkApplyResult');
+        const resultObj = resultRaw ? JSON.parse(resultRaw) : {};
+        resultObj[snapshot.ip] = snapshot.networkApplyResultEntry;
+        sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
+      }
+    } catch (_) { }
+    try {
+      // licenseActivationResults array and licenseStatus map
+      const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
+      const arr = arrRaw ? JSON.parse(arrRaw) : [];
+      const insIdx = Math.min(Math.max(snapshot.licenseActivationIndex, 0), arr.length);
+      if (snapshot.licenseActivationEntry && snapshot.licenseActivationIndex > -1) {
+        arr.splice(insIdx, 0, snapshot.licenseActivationEntry);
+        sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
+      }
+      const statusRaw = sessionStorage.getItem('sv_licenseStatus');
+      const statusMap = statusRaw ? JSON.parse(statusRaw) : {};
+      if (snapshot.licenseStatusEntry && snapshot.ip) {
+        statusMap[snapshot.ip] = snapshot.licenseStatusEntry;
+        sessionStorage.setItem('sv_licenseStatus', JSON.stringify(statusMap));
+      }
+    } catch (_) { }
+    try {
+      // hostname map
+      if (snapshot.hostnameEntry && snapshot.ip) {
+        const raw = sessionStorage.getItem('sv_hostnameMap');
+        const map = raw ? JSON.parse(raw) : {};
+        map[snapshot.ip] = snapshot.hostnameEntry;
+        sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
+      }
+    } catch (_) { }
+
+    // Restore local states at original index
+    setLicenseNodes(prev => {
+      const next = [...prev];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+      if (snapshot.licenseNodesEntry) next.splice(insIdx, 0, snapshot.licenseNodesEntry);
+      return next;
+    });
+    setForms(prev => {
+      const next = [...prev];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+      if (snapshot.formsEntry) next.splice(insIdx, 0, snapshot.formsEntry);
+      return next;
+    });
+    setCardStatus(prev => {
+      const next = [...prev];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+      if (snapshot.cardStatusEntry) next.splice(insIdx, 0, snapshot.cardStatusEntry);
+      return next;
+    });
+    setBtnLoading(prev => {
+      const next = [...prev];
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
+      next.splice(insIdx, 0, snapshot.btnLoadingEntry || false);
+      return next;
+    });
+    setForceEnableRoles(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
+    setForceEnableDisks(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
+
+    // Inform parent to restore into earlier tabs
+    try {
+      if (onUndoRemoveNode) onUndoRemoveNode(snapshot.ip, { ip: snapshot.ip }, snapshot.idx);
+    } catch (_) { }
+
+    message.success(`Restored node ${snapshot.ip}`);
+    lastRemovedRef.current = null;
+  };
+
   // Remove a node card with confirmation and Undo
   const handleRemoveNode = (idx) => {
     const ip = forms[idx]?.ip || (licenseNodes[idx] && licenseNodes[idx].ip) || '';
@@ -899,6 +1100,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           if (onRemoveNode) onRemoveNode(ip, { ip }, idx);
         } catch (_) { }
 
+        // Store snapshot in ref for undo functionality
+        lastRemovedRef.current = snapshot;
+
         const key = `sv-deploy-remove-${ip}`;
         notification.open({
           key,
@@ -908,125 +1112,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           btn: (
             <Button type="link" onClick={() => {
               notification.close(key);
-              // Restore arrays and maps from snapshot
-              try {
-                // licenseNodes
-                const nodesRaw = sessionStorage.getItem('sv_licenseNodes');
-                const nodesArr = nodesRaw ? JSON.parse(nodesRaw) : [];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), nodesArr.length);
-                if (snapshot.licenseNodesEntry) {
-                  nodesArr.splice(insIdx, 0, snapshot.licenseNodesEntry);
-                  sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
-                }
-              } catch (_) { }
-              try {
-                // restore delay-start timestamp for polling recovery
-                if (snapshot.delayStartTs && snapshot.ip) {
-                  const raw = sessionStorage.getItem('sv_networkApplyPollingDelayStart');
-                  const map = raw ? JSON.parse(raw) : {};
-                  map[snapshot.ip] = snapshot.delayStartTs;
-                  sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
-                }
-              } catch (_) { }
-              try {
-                // networkApply forms/status
-                const formsRaw = sessionStorage.getItem('sv_networkApplyForms');
-                const statusRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
-                const formsArr = formsRaw ? JSON.parse(formsRaw) : [];
-                const statusArr = statusRaw ? JSON.parse(statusRaw) : [];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), Math.max(formsArr.length, statusArr.length));
-                if (snapshot.formsEntry) {
-                  formsArr.splice(insIdx, 0, snapshot.formsEntry);
-                  sessionStorage.setItem('sv_networkApplyForms', JSON.stringify(formsArr));
-                }
-                if (snapshot.cardStatusEntry) {
-                  statusArr.splice(insIdx, 0, snapshot.cardStatusEntry);
-                  sessionStorage.setItem('sv_networkApplyCardStatus', JSON.stringify(statusArr));
-                }
-              } catch (_) { }
-              try {
-                // timers arrays
-                const restartRaw = sessionStorage.getItem('sv_networkApplyRestartEndTimes');
-                const bootRaw = sessionStorage.getItem('sv_networkApplyBootEndTimes');
-                const restartArr = restartRaw ? JSON.parse(restartRaw) : [];
-                const bootArr = bootRaw ? JSON.parse(bootRaw) : [];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), Math.max(restartArr.length, bootArr.length));
-                if (snapshot.restartEndTime != null) {
-                  restartArr.splice(insIdx, 0, snapshot.restartEndTime);
-                  sessionStorage.setItem('sv_networkApplyRestartEndTimes', JSON.stringify(restartArr));
-                }
-                if (snapshot.bootEndTime != null) {
-                  bootArr.splice(insIdx, 0, snapshot.bootEndTime);
-                  sessionStorage.setItem('sv_networkApplyBootEndTimes', JSON.stringify(bootArr));
-                }
-              } catch (_) { }
-              try {
-                // networkApplyResult per-IP
-                if (snapshot.ip && snapshot.networkApplyResultEntry) {
-                  const resultRaw = sessionStorage.getItem('sv_networkApplyResult');
-                  const resultObj = resultRaw ? JSON.parse(resultRaw) : {};
-                  resultObj[snapshot.ip] = snapshot.networkApplyResultEntry;
-                  sessionStorage.setItem('sv_networkApplyResult', JSON.stringify(resultObj));
-                }
-              } catch (_) { }
-              try {
-                // licenseActivationResults array and licenseStatus map
-                const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
-                const arr = arrRaw ? JSON.parse(arrRaw) : [];
-                const insIdx = Math.min(Math.max(snapshot.licenseActivationIndex, 0), arr.length);
-                if (snapshot.licenseActivationEntry && snapshot.licenseActivationIndex > -1) {
-                  arr.splice(insIdx, 0, snapshot.licenseActivationEntry);
-                  sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
-                }
-                const statusRaw = sessionStorage.getItem('sv_licenseStatus');
-                const statusMap = statusRaw ? JSON.parse(statusRaw) : {};
-                if (snapshot.licenseStatusEntry && snapshot.ip) {
-                  statusMap[snapshot.ip] = snapshot.licenseStatusEntry;
-                  sessionStorage.setItem('sv_licenseStatus', JSON.stringify(statusMap));
-                }
-              } catch (_) { }
-              try {
-                // hostname map
-                if (snapshot.hostnameEntry && snapshot.ip) {
-                  const raw = sessionStorage.getItem('sv_hostnameMap');
-                  const map = raw ? JSON.parse(raw) : {};
-                  map[snapshot.ip] = snapshot.hostnameEntry;
-                  sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
-                }
-              } catch (_) { }
-
-              // Restore local states at original index
-              setLicenseNodes(prev => {
-                const next = [...prev];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
-                if (snapshot.licenseNodesEntry) next.splice(insIdx, 0, snapshot.licenseNodesEntry);
-                return next;
-              });
-              setForms(prev => {
-                const next = [...prev];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
-                if (snapshot.formsEntry) next.splice(insIdx, 0, snapshot.formsEntry);
-                return next;
-              });
-              setCardStatus(prev => {
-                const next = [...prev];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
-                if (snapshot.cardStatusEntry) next.splice(insIdx, 0, snapshot.cardStatusEntry);
-                return next;
-              });
-              setBtnLoading(prev => {
-                const next = [...prev];
-                const insIdx = Math.min(Math.max(snapshot.idx, 0), next.length);
-                next.splice(insIdx, 0, snapshot.btnLoadingEntry || false);
-                return next;
-              });
-              setForceEnableRoles(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
-              setForceEnableDisks(prev => ({ ...prev, [snapshot.ip]: prev[snapshot.ip] || false }));
-
-              // Inform parent to restore into earlier tabs
-              try {
-                if (onUndoRemoveNode) onUndoRemoveNode(snapshot.ip, { ip: snapshot.ip }, snapshot.idx);
-              } catch (_) { }
+              handleUndoRemoveNode();
             }}>
               Undo
             </Button>
@@ -1066,19 +1152,37 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         }
         updated[otherIndex] = otherRow;
       } else if (field === 'type' && f.configType === 'segregated') {
-        // Ensure only one row can have External_Traffic and make it exclusive within the row
+        // In segregated mode, only one type can be selected per interface row
         let nextTypes = Array.isArray(value) ? value : [];
+        
+        // Limit to one type selection per row
+        if (nextTypes.length > 1) {
+          nextTypes = [nextTypes[nextTypes.length - 1]]; // Keep only the last selected
+        }
+        
+        // Ensure only one row can have External_Traffic
         const someOtherHasExternal = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External_Traffic'));
         if (nextTypes.includes('External_Traffic')) {
           if (someOtherHasExternal) {
             // Remove External_Traffic and notify
             nextTypes = nextTypes.filter(t => t !== 'External_Traffic');
             try { message.warning('Only one interface can be set to External_Traffic per node.'); } catch (_) {}
-          } else {
-            // Make External_Traffic exclusive for this row
-            nextTypes = ['External_Traffic'];
           }
         }
+        
+        // Handle Mgmt exclusivity - can only be on one interface
+        if (nextTypes.includes('Mgmt')) {
+          const someOtherHasMgmt = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt'));
+          if (someOtherHasMgmt) {
+            // Remove Mgmt from other rows
+            updated.forEach((r, idx) => {
+              if (idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt')) {
+                r.type = r.type.filter(t => t !== 'Mgmt');
+              }
+            });
+          }
+        }
+        
         row.type = nextTypes;
         // When External_Traffic selected for this row, clear IP/Subnet and related errors
         if (Array.isArray(row.type) && row.type.includes('External_Traffic')) {
@@ -1153,6 +1257,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             delete row.errors[field];
           }
         }
+        // MTU field doesn't need validation as it's a dropdown
       }
       updated[rowIdx] = row;
       return { ...f, tableData: updated };
@@ -1203,6 +1308,30 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'vlanId', e.target.value)}
               disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
             />
+          </Form.Item>
+        </Tooltip>
+      ),
+    };
+
+    const mtuColumn = {
+      title: 'MTU',
+      dataIndex: 'mtu',
+      render: (_, record, rowIdx) => (
+        <Tooltip placement='right' title="MTU (optional)">
+          <Form.Item
+            style={{ marginBottom: 0 }}
+          >
+            <Select
+              value={record.mtu || undefined}
+              placeholder="Select MTU (optional)"
+              onChange={value => handleCellChange(nodeIdx, rowIdx, 'mtu', value)}
+              disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
+              allowClear
+              style={{ width: '100%' }}
+            >
+              <Option value="1500">1500</Option>
+              <Option value="9000">9000</Option>
+            </Select>
           </Form.Item>
         </Tooltip>
       ),
@@ -1267,13 +1396,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
-              mode={form.configType === 'segregated' ? 'multiple' : undefined}
+              mode="multiple"
               allowClear
               style={{ width: '100%' }}
               value={record.type || undefined}
               placeholder="Select type"
               onChange={value => handleCellChange(nodeIdx, rowIdx, 'type', value)}
               disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
+              maxTagCount={1}
             >
               {form.configType === 'segregated' ? (
                 <>
@@ -1394,6 +1524,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       ...(form.useBond ? [bondColumn] : []),
       ...mainColumns,
       ...[vlanColumn],
+      ...[mtuColumn],
     ];
   };
 
@@ -1719,6 +1850,28 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   })
                   .catch(err => {
                     console.error('SSH status check failed:', err);
+                    // On persistent network errors, ensure we don't get stuck in loading state
+                    if (pollCount > maxPolls / 2) { // After half the attempts failed
+                      clearInterval(pollInterval);
+                      setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
+                      if (window.__svMountedDeployment) {
+                        setCardStatus(prev => {
+                          const idxNow = forms.findIndex(f => f?.ip === form.ip);
+                          return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+                        });
+                      }
+                      if (window.__cloudPolling) delete window.__cloudPolling[node_ip];
+                      // Clear delay-start entry for this IP
+                      try {
+                        const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                        const map = raw ? JSON.parse(raw) : {};
+                        if (map[node_ip]) {
+                          delete map[node_ip];
+                          sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                        }
+                      } catch (_) { }
+                      message.error(`SSH polling failed due to network errors for ${node_ip}. Please check connectivity.`);
+                    }
                   });
               }, POLL_INTERVAL_MS); // Check every 5 seconds
 
@@ -1733,6 +1886,17 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
             // Initial schedule
             scheduleFrontendPolling();
+          }).catch(err => {
+            console.error('SSH polling setup failed:', err);
+            // If polling setup fails, ensure loader is turned off
+            setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
+            if (window.__svMountedDeployment) {
+              setCardStatus(prev => {
+                const idxNow = forms.findIndex(f => f?.ip === form.ip);
+                return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+              });
+            }
+            message.error(`Failed to start SSH polling for ${node_ip}: ${err.message}. Please check network connectivity.`);
           });
           // --- End SSH Polling Section ---
 
@@ -2189,7 +2353,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   </Checkbox>
                 </div>
                 <Button
-                  onClick={() => fetchNodeData(form.ip)}
+                  onClick={() => {
+                    // After network changes are applied, use the management IP for data fetching
+                    const useManagementIP = cardStatus[idx]?.applied;
+                    fetchNodeData(form.ip, useManagementIP, form);
+                  }}
                   size="small"
                   type="default"
                   style={{ width: 120 }}

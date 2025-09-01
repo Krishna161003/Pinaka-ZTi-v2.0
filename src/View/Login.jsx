@@ -48,7 +48,7 @@ const Login = ({ checkLogin = () => {} }) => {
         if (encodedSecret && randomCharPos !== undefined) {
           const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
           clientSecrets.push({ secret: clientSecret, source: 'Python backend' });
-          console.log('Added client secret from Python backend');
+          // console.log('Added client secret from Python backend');
         }
       } catch (err) {
         console.warn('Failed to get client secret from Python backend:', err.message);
@@ -64,7 +64,7 @@ const Login = ({ checkLogin = () => {} }) => {
           dbSecretResponse.data.client_secrets.forEach(secret => {
             clientSecrets.push({ secret: secret, source: 'database' });
           });
-          console.log(`Added ${dbSecretResponse.data.client_secrets.length} client secrets from database`);
+          // console.log(`Added ${dbSecretResponse.data.client_secrets.length} client secrets from database`);
         }
       } catch (dbErr) {
         console.warn('Failed to get client secrets from database:', dbErr.message);
@@ -82,7 +82,7 @@ const Login = ({ checkLogin = () => {} }) => {
       
       for (let i = 0; i < clientSecrets.length; i++) {
         const { secret: clientSecret, source } = clientSecrets[i];
-        console.log(`Trying client secret ${i + 1}/${clientSecrets.length} from ${source}`);
+        // console.log(`Trying client secret ${i + 1}/${clientSecrets.length} from ${source}`);
         
         try {
           const tokenResponse = await axios.post(
@@ -103,7 +103,8 @@ const Login = ({ checkLogin = () => {} }) => {
           if (tokenResponse.data.access_token) {
             accessToken = tokenResponse.data.access_token;
             successfulSecret = clientSecret;
-            console.log(`Authentication successful with client secret from ${source}`);
+            console.log('Authentication successful');
+            // console.log(`Authentication successful with client secret from ${source}`);
             break;
           }
         } catch (err) {

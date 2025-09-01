@@ -1,35 +1,14 @@
 {
-  "examples": {
+  "network_configuration_examples": {
     "default_configuration": {
-      "description": "Default configuration with primary and secondary interfaces",
-      "input": {
-        "configType": "default",
-        "useBond": false,
-        "defaultGateway": "192.168.1.1",
-        "hostname": "SQDN-001",
-        "tableData": [
-          {
-            "interface": "eth0",
-            "type": "primary",
-            "ip": "192.168.1.100",
-            "subnet": "255.255.255.0",
-            "dns": "8.8.8.8",
-            "vlanId": ""
-          },
-          {
-            "interface": "eth1",
-            "type": "secondary",
-            "ip": "",
-            "subnet": "",
-            "dns": "",
-            "vlanId": ""
-          }
-        ]
-      },
+      "description": "Default configuration with single primary interface",
+      "configType": "default",
+      "useBond": false,
+      "defaultGateway": "192.168.1.1",
       "output": {
         "using_interfaces": {
           "interface_01": {
-            "interface_name": "eth0",
+            "interface_name": "eno1",
             "type": ["primary"],
             "vlan_id": "NULL",
             "Bond_Slave": "NO",
@@ -37,247 +16,326 @@
               "IP_ADDRESS": "192.168.1.100",
               "Netmask": "255.255.255.0",
               "DNS": "8.8.8.8",
-              "gateway": "192.168.1.1"
+              "gateway": "192.168.1.1",
+              "mtu": "1500"
             }
-          },
-          "interface_02": {
-            "interface_name": "eth1",
-            "type": ["secondary"],
-            "vlan_id": "NULL",
-            "Bond_Slave": "NO"
           }
         },
-        "default_gateway": "192.168.1.1",
-        "hostname": "SQDN-001"
+        "hostname": "SQDN-001",
+        "disk": ["0x5000c5008721ac3a"],
+        "roles": ["Control", "Storage"],
+        "server_vip": "192.168.1.10"
       }
     },
     
-    "segregated_configuration": {
-      "description": "Segregated configuration with Mgmt, VXLAN, Storage, and External_Traffic",
-      "input": {
-        "configType": "segregated",
-        "useBond": false,
-        "defaultGateway": "10.0.1.1",
-        "hostname": "SQDN-002",
-        "tableData": [
-          {
-            "interface": "eth0",
-            "type": ["Mgmt"],
-            "ip": "10.0.1.100",
-            "subnet": "255.255.255.0",
-            "dns": "8.8.8.8",
-            "vlanId": "100"
-          },
-          {
-            "interface": "eth1",
-            "type": ["VXLAN"],
-            "ip": "10.0.2.100",
-            "subnet": "255.255.255.0",
-            "dns": "8.8.4.4",
-            "vlanId": "200"
-          },
-          {
-            "interface": "eth2",
-            "type": ["Storage"],
-            "ip": "10.0.3.100",
-            "subnet": "255.255.255.0",
-            "dns": "1.1.1.1",
-            "vlanId": "300"
-          },
-          {
-            "interface": "eth3",
-            "type": ["External_Traffic"],
-            "ip": "",
-            "subnet": "",
-            "dns": "",
-            "vlanId": "400"
-          }
-        ]
-      },
+    "default_primary_secondary_configuration": {
+      "description": "Default configuration with primary and secondary interfaces",
+      "configType": "default",
+      "useBond": false,
+      "defaultGateway": "192.168.1.1",
       "output": {
         "using_interfaces": {
           "interface_01": {
-            "interface_name": "eth0",
-            "type": ["Mgmt"],
+            "interface_name": "eno1",
+            "type": ["primary"],
             "vlan_id": "100",
             "Bond_Slave": "NO",
             "Properties": {
-              "IP_ADDRESS": "10.0.1.100",
+              "IP_ADDRESS": "192.168.1.100",
               "Netmask": "255.255.255.0",
               "DNS": "8.8.8.8",
-              "gateway": "10.0.1.1"
+              "gateway": "192.168.1.1",
+              "mtu": "1500"
             }
           },
           "interface_02": {
-            "interface_name": "eth1",
-            "type": ["VXLAN"],
-            "vlan_id": "200",
-            "Bond_Slave": "NO",
-            "Properties": {
-              "IP_ADDRESS": "10.0.2.100",
-              "Netmask": "255.255.255.0",
-              "DNS": "8.8.4.4"
-            }
-          },
-          "interface_03": {
-            "interface_name": "eth2",
-            "type": ["Storage"],
-            "vlan_id": "300",
-            "Bond_Slave": "NO",
-            "Properties": {
-              "IP_ADDRESS": "10.0.3.100",
-              "Netmask": "255.255.255.0",
-              "DNS": "1.1.1.1"
-            }
-          },
-          "interface_04": {
-            "interface_name": "eth3",
-            "type": ["External_Traffic"],
-            "vlan_id": "400",
+            "interface_name": "eno2",
+            "type": ["secondary"],
+            "vlan_id": "101",
             "Bond_Slave": "NO"
           }
         },
-        "default_gateway": "10.0.1.1",
-        "hostname": "SQDN-002"
+        "hostname": "SQDN-001A",
+        "disk": ["0x5000c5008721ac3a"],
+        "roles": ["Control", "Storage"],
+        "server_vip": "192.168.1.10"
       }
     },
     
-    "segregated_with_bonds": {
-      "description": "Segregated configuration with bonding enabled",
-      "input": {
-        "configType": "segregated",
-        "useBond": true,
-        "defaultGateway": "172.16.1.1",
-        "hostname": "SQDN-003",
-        "tableData": [
-          {
-            "interface": ["eth0", "eth1"],
-            "bondName": "bond0",
-            "type": ["Mgmt"],
-            "ip": "172.16.1.100",
-            "subnet": "255.255.255.0",
-            "dns": "8.8.8.8",
-            "vlanId": "100"
-          },
-          {
-            "interface": ["eth2", "eth3"],
-            "bondName": "bond1",
-            "type": ["VXLAN", "Storage"],
-            "ip": "172.16.2.100",
-            "subnet": "255.255.255.0",
-            "dns": "8.8.4.4",
-            "vlanId": "200"
-          },
-          {
-            "interface": ["eth4"],
-            "bondName": "bond2",
-            "type": ["External_Traffic"],
-            "ip": "",
-            "subnet": "",
-            "dns": "",
-            "vlanId": "300"
-          }
-        ]
-      },
+    "default_bond_configuration": {
+      "description": "Default configuration with bonded primary interface",
+      "configType": "default",
+      "useBond": true,
+      "defaultGateway": "192.168.1.1",
       "output": {
         "using_interfaces": {
           "bond1": {
             "interface_name": "bond0",
-            "type": ["Mgmt"],
+            "type": ["primary"],
             "vlan_id": "100",
             "Properties": {
-              "IP_ADDRESS": "172.16.1.100",
+              "IP_ADDRESS": "192.168.1.100",
               "Netmask": "255.255.255.0",
               "DNS": "8.8.8.8",
-              "gateway": "172.16.1.1"
+              "gateway": "192.168.1.1",
+              "mtu": "9000"
             }
           },
           "interface_01": {
-            "interface_name": "eth0",
+            "interface_name": "eno1",
             "Bond_Slave": "YES",
             "Bond_Interface_Name": "bond0"
           },
           "interface_02": {
-            "interface_name": "eth1",
+            "interface_name": "eno2",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond0"
+          }
+        },
+        "hostname": "SQDN-002",
+        "disk": ["0x5000c5008721ac3a", "0x5000c500870d9e07"],
+        "roles": ["Control", "Storage", "Monitoring"],
+        "server_vip": "192.168.1.10"
+      }
+    },
+    
+    "default_bond_primary_secondary_configuration": {
+      "description": "Default configuration with bonded primary and secondary interfaces",
+      "configType": "default",
+      "useBond": true,
+      "defaultGateway": "192.168.1.1",
+      "output": {
+        "using_interfaces": {
+          "bond1": {
+            "interface_name": "bond0",
+            "type": ["primary"],
+            "vlan_id": "100",
+            "Properties": {
+              "IP_ADDRESS": "192.168.1.100",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "gateway": "192.168.1.1",
+              "mtu": "9000"
+            }
+          },
+          "interface_01": {
+            "interface_name": "eno1",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond0"
+          },
+          "interface_02": {
+            "interface_name": "eno2",
             "Bond_Slave": "YES",
             "Bond_Interface_Name": "bond0"
           },
           "bond2": {
             "interface_name": "bond1",
-            "type": ["VXLAN", "Storage"],
-            "vlan_id": "200",
-            "Properties": {
-              "IP_ADDRESS": "172.16.2.100",
-              "Netmask": "255.255.255.0",
-              "DNS": "8.8.4.4"
-            }
+            "type": ["secondary"],
+            "vlan_id": "101"
           },
           "interface_03": {
-            "interface_name": "eth2",
+            "interface_name": "enp2s0",
             "Bond_Slave": "YES",
             "Bond_Interface_Name": "bond1"
           },
           "interface_04": {
-            "interface_name": "eth3",
+            "interface_name": "enp6s0",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond1"
+          }
+        },
+        "hostname": "SQDN-002A",
+        "disk": ["0x5000c5008721ac3a", "0x5000c500870d9e07"],
+        "roles": ["Control", "Storage", "Monitoring"],
+        "server_vip": "192.168.1.10"
+      }
+    },
+    
+    "segregated_configuration": {
+      "description": "Segregated configuration with separate interfaces for different traffic types",
+      "configType": "segregated",
+      "useBond": false,
+      "defaultGateway": "192.168.20.1",
+      "output": {
+        "using_interfaces": {
+          "interface_01": {
+            "interface_name": "eno1",
+            "type": ["VXLAN"],
+            "vlan_id": "88",
+            "Bond_Slave": "NO",
+            "Properties": {
+              "IP_ADDRESS": "192.168.20.16",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "gateway": "192.168.20.1",
+              "mtu": "9000"
+            }
+          },
+          "interface_02": {
+            "interface_name": "eno2",
+            "type": ["Storage"],
+            "vlan_id": "89",
+            "Bond_Slave": "NO",
+            "Properties": {
+              "IP_ADDRESS": "192.168.30.16",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "mtu": "9000"
+            }
+          },
+          "interface_03": {
+            "interface_name": "enp2s0",
+            "type": ["Mgmt"],
+            "vlan_id": "90",
+            "Bond_Slave": "NO",
+            "Properties": {
+              "IP_ADDRESS": "192.168.40.16",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "mtu": "1500"
+            }
+          },
+          "interface_04": {
+            "interface_name": "enp6s0",
+            "type": ["External_Traffic"],
+            "vlan_id": "91",
+            "Bond_Slave": "NO"
+          }
+        },
+        "hostname": "SQDN-003",
+        "disk": ["0x5000c5008721ac3a"],
+        "roles": ["Control", "Storage"],
+        "server_vip": "192.168.20.2"
+      }
+    },
+    
+    "segregated_bond_configuration": {
+      "description": "Segregated configuration with bonded interfaces for high availability",
+      "configType": "segregated",
+      "useBond": true,
+      "defaultGateway": "192.168.20.1",
+      "output": {
+        "using_interfaces": {
+          "bond1": {
+            "interface_name": "bond0",
+            "type": ["VXLAN"],
+            "vlan_id": "88",
+            "Properties": {
+              "IP_ADDRESS": "192.168.20.16",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "gateway": "192.168.20.1",
+              "mtu": "9000"
+            }
+          },
+          "interface_01": {
+            "interface_name": "eno2",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond0"
+          },
+          "interface_02": {
+            "interface_name": "eno1",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond0"
+          },
+          "bond2": {
+            "interface_name": "bond1",
+            "type": ["Storage"],
+            "vlan_id": "89",
+            "Properties": {
+              "IP_ADDRESS": "192.168.30.17",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "mtu": "9000"
+            }
+          },
+          "interface_03": {
+            "interface_name": "enp2s0",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond1"
+          },
+          "interface_04": {
+            "interface_name": "enp6s0",
             "Bond_Slave": "YES",
             "Bond_Interface_Name": "bond1"
           },
           "bond3": {
             "interface_name": "bond2",
-            "type": ["External_Traffic"],
-            "vlan_id": "300"
+            "type": ["Mgmt"],
+            "vlan_id": "90",
+            "Properties": {
+              "IP_ADDRESS": "192.168.40.18",
+              "Netmask": "255.255.255.0",
+              "DNS": "8.8.8.8",
+              "mtu": "1500"
+            }
           },
           "interface_05": {
-            "interface_name": "eth4",
+            "interface_name": "enxec9a0c11deee",
             "Bond_Slave": "YES",
             "Bond_Interface_Name": "bond2"
+          },
+          "interface_06": {
+            "interface_name": "enxec9a0c1d5caf",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond2"
+          },
+          "bond4": {
+            "interface_name": "bond3",
+            "type": ["External_Traffic"],
+            "vlan_id": "91"
+          },
+          "interface_07": {
+            "interface_name": "enx00aa3458890a",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond3"
+          },
+          "interface_08": {
+            "interface_name": "enxec9a0c1073e8",
+            "Bond_Slave": "YES",
+            "Bond_Interface_Name": "bond3"
           }
         },
-        "default_gateway": "172.16.1.1",
-        "hostname": "SQDN-003"
+        "hostname": "SQDN-004",
+        "disk": ["0x5000c5008721ac3a", "0x5000c500870d9e07"],
+        "roles": ["Control", "Storage", "Monitoring"],
+        "server_vip": "192.168.20.2"
       }
     }
   },
   
-  "key_rules": {
+  "configuration_rules": {
     "gateway_assignment": {
-      "default_mode": "Gateway is only assigned to the primary interface",
-      "segregated_mode": "Gateway is only assigned to the first interface that gets Properties (excluding External_Traffic)",
-      "segregated_bond_mode": "Gateway is only assigned to the first bond that gets Properties"
+      "default_mode": "Gateway is assigned to the primary interface only",
+      "segregated_mode": "Gateway is assigned to the first interface that receives Properties (excluding External_Traffic interfaces)"
     },
     "properties_assignment": {
-      "gets_properties": [
-        "primary (in default mode)",
-        "Mgmt, VXLAN, Storage (in segregated mode)",
-        "Bonds with Mgmt, VXLAN, Storage types"
-      ],
-      "no_properties": [
-        "secondary (in default mode)",
-        "External_Traffic (in segregated mode)",
-        "Bond slaves (individual interfaces under bonds)"
-      ]
+      "default_mode": "Only primary type interfaces receive Properties",
+      "segregated_mode": "All interfaces except External_Traffic receive Properties"
     },
     "type_exclusivity": {
-      "Mgmt": "Only one interface per node can have Mgmt type",
-      "External_Traffic": "Only one interface per node can have External_Traffic type, and it's exclusive within that row",
-      "VXLAN_Storage": "Can coexist on same interface and appear on multiple interfaces"
+      "external_traffic": "External_Traffic type is exclusive within a row and does not receive Properties",
+      "mgmt_uniqueness": "Only one interface per node can have Mgmt type selected",
+      "segregated_single_type": "In segregated mode, only one type can be selected per interface row"
     },
-    "type_mapping": {
-      "description": "Case-insensitive type mapping for deployformat files",
-      "management_variations": {
-        "input_variations": ["Management", "MANAGEMENT", "management", "Mgmt", "MGMT", "mgmt"],
-        "output": "Mgmt"
-      },
-      "external_traffic_variations": {
-        "input_variations": ["External_Traffic", "EXTERNAL_TRAFFIC", "external_traffic", "External Traffic", "external traffic", "ExternalTraffic", "externaltraffic"],
-        "output": "External_Traffic"
-      },
-      "other_types": {
-        "VXLAN": ["VXLAN", "vxlan", "Vxlan"],
-        "Storage": ["Storage", "STORAGE", "storage"],
-        "Primary": ["Primary", "PRIMARY", "primary"],
-        "Secondary": ["Secondary", "SECONDARY", "secondary"]
-      }
+    "mtu_values": {
+      "standard_ethernet": "1500",
+      "jumbo_frames": "9000",
+      "default": "NULL or empty string if not specified"
+    },
+    "vlan_id": {
+      "format": "String value or 'NULL' if not specified",
+      "validation": "1-4094 range for format checking but should not block Apply Change operation"
+    },
+    "bond_slave_assignment": {
+      "description": "Physical interfaces are assigned as Bond_Slave with reference to Bond_Interface_Name",
+      "bond_slave_value": "YES for bonded interfaces, NO for standalone interfaces"
     }
+  },
+  
+  "ssh_polling_ip_selection": {
+    "default_configuration": "Uses primary interface IP for SSH polling",
+    "segregated_configuration": "Uses Mgmt interface IP for SSH polling",
+    "fallback": "Falls back to main node IP if specific interface IP is not found"
   }
 }

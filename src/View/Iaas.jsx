@@ -431,19 +431,22 @@ function LicenseDetailsModalContent({ serverid, server_ip, onLicenseUpdate }) {
 const { Content } = Layout;
 const hostIP = window.location.hostname;
 
-// Function to fetch storage URL from backend
-const fetchStorageUrl = async () => {
+// Function to fetch storage URL and password from backend
+const fetchStorageData = async () => {
   try {
     const response = await fetch(`https://${hostIP}:2020/storage-url`);
     if (response.ok) {
       const data = await response.json();
-      return data.storage_url;
+      return {
+        storage_url: data.storage_url,
+        password: data.password
+      };
     } else {
-      console.error('Failed to fetch storage URL:', response.statusText);
+      console.error('Failed to fetch storage data:', response.statusText);
       return null;
     }
   } catch (error) {
-    console.error('Error fetching storage URL:', error);
+    console.error('Error fetching storage data:', error);
     return null;
   }
 };
@@ -512,7 +515,7 @@ const SquadronNodesTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalRecord, setModalRecord] = useState(null);
-  const [storageUrl, setStorageUrl] = useState(null);
+  const [storageData, setStorageData] = useState(null);
   // Controlled pagination state for Squadron table
   const [squadronPageSize, setSquadronPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('squadron_page_size'));
@@ -520,13 +523,13 @@ const SquadronNodesTable = () => {
   });
   const [squadronCurrentPage, setSquadronCurrentPage] = useState(1);
 
-  // Fetch storage URL on component mount
+  // Fetch storage data on component mount
   useEffect(() => {
-    const loadStorageUrl = async () => {
-      const url = await fetchStorageUrl();
-      setStorageUrl(url);
+    const loadStorageData = async () => {
+      const data = await fetchStorageData();
+      setStorageData(data);
     };
-    loadStorageUrl();
+    loadStorageData();
   }, []);
 
   useEffect(() => {
@@ -831,9 +834,9 @@ const SquadronNodesTable = () => {
               rows.push({
                 key: 'storage',
                 service: 'Storage',
-                url: storageUrl || (modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null),
+                url: storageData?.storage_url || (modalRecord?.serverip ? `https://${modalRecord.serverip}:8443/` : null),
                 username: 'admin',
-                password: '-'
+                password: storageData?.password || '-'
               });
             }
 
@@ -919,7 +922,7 @@ const CloudDeploymentsTable = () => {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalCredentials, setModalCredentials] = useState({});
-  const [storageUrl, setStorageUrl] = useState(null);
+  const [storageData, setStorageData] = useState(null);
   // Controlled pagination state for Cloud table
   const [cloudPageSize, setCloudPageSize] = useState(() => {
     const saved = Number(sessionStorage.getItem('cloud_page_size'));
@@ -928,13 +931,13 @@ const CloudDeploymentsTable = () => {
   });
   const [cloudCurrentPage, setCloudCurrentPage] = useState(1);
 
-  // Fetch storage URL on component mount
+  // Fetch storage data on component mount
   useEffect(() => {
-    const loadStorageUrl = async () => {
-      const url = await fetchStorageUrl();
-      setStorageUrl(url);
+    const loadStorageData = async () => {
+      const data = await fetchStorageData();
+      setStorageData(data);
     };
-    loadStorageUrl();
+    loadStorageData();
   }, []);
 
   useEffect(() => {
@@ -1057,9 +1060,9 @@ const CloudDeploymentsTable = () => {
               {
                 key: 'storage',
                 service: 'Storage',
-                url: storageUrl || (vip ? `https://${vip}:8443/` : null),
+                url: storageData?.storage_url || (vip ? `https://${vip}:8443/` : null),
                 username: 'admin',
-                password: '-'
+                password: storageData?.password || '-'
               },
               {
                 key: 'monitoring',

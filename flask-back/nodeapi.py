@@ -1040,7 +1040,7 @@ def get_docker_info():
     try:
         # Get all containers (id, name, status)
         cmd = [
-            'docker', 'ps', '-a', '--format', '{{.ID}}||{{.Names}}||{{.Status}}'
+            'sudo','docker', 'ps', '-a', '--format', '{{.ID}}||{{.Names}}||{{.Status}}'
         ]
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf-8')
         for line in output.strip().split('\n'):
