@@ -890,6 +890,20 @@ db.connect((err) => {
     });
   });
   
+  // Create keycloak_client_secret table
+  const keycloakClientSecretTableSQL = `
+    CREATE TABLE IF NOT EXISTS keycloak_client_secret (
+      sno INT AUTO_INCREMENT PRIMARY KEY,
+      client_secret VARCHAR(512) NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB;
+  `;
+  
+  db.query(keycloakClientSecretTableSQL, (err, result) => {
+    if (err) throw err;
+    console.log("Keycloak client secret table checked/created...");
+  });
+
   // Set up periodic check for expired licenses (run every hour)
   setInterval(checkAndUpdateExpiredLicenses, 60 * 60 * 1000); // 60 minutes * 60 seconds * 1000 milliseconds
   
@@ -2015,6 +2029,86 @@ app.post('/store-user-id', (req, res) => {
   db.query(sql, [userId], (err) => {
     if (err) return res.status(500).json({ message: 'Error storing user ID' });
     res.status(200).json({ message: 'User ID stored successfully' });
+  });
+});
+
+// Get all Keycloak client secrets from database for authentication
+// Retrieves all client secrets ordered by timestamp (newest first)
+// Can be used for single secret (take first) or iterative authentication (try all)
+app.get('/api/get-keycloak-secrets', (req, res) => {
+  const sql = `SELECT client_secret FROM keycloak_client_secret ORDER BY timestamp DESC`;
+
+  db.query(sql, [], (err, results) => {
+    if (err) {
+      console.error('Error retrieving Keycloak client secrets:', err);
+      return res.status(500).json({ error: 'Failed to retrieve client secrets' });
+    }
+    
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'No client secrets found in database' });
+    }
+    
+    const clientSecrets = results.map(row => row.client_secret);
+    console.log(`Retrieved ${clientSecrets.length} client secret(s) from database`);
+    
+    return res.status(200).json({ 
+      client_secrets: clientSecrets,
+      client_secret: clientSecrets[0], // For backward compatibility - returns most recent
+      count: clientSecrets.length,
+      source: 'database'
+    });
+  });
+});
+
+// Store Keycloak client secret received from Flask backend
+// Receives client secret data from Flask and stores it in keycloak_client_secret table
+// Only inserts if the client secret is different from existing ones
+app.post('/api/store-keycloak-secret', (req, res) => {
+  const { client_secret, source_file } = req.body;
+  
+  if (!client_secret) {
+    return res.status(400).json({ error: 'client_secret is required' });
+  }
+
+  // First check if this client secret already exists
+  const checkSql = `SELECT sno FROM keycloak_client_secret WHERE client_secret = ? LIMIT 1`;
+  
+  db.query(checkSql, [client_secret], (checkErr, checkResults) => {
+    if (checkErr) {
+      console.error('Error checking existing Keycloak client secret:', checkErr);
+      return res.status(500).json({ error: 'Failed to check existing client secret' });
+    }
+    
+    // If client secret already exists, don't insert
+    if (checkResults && checkResults.length > 0) {
+      const existingId = checkResults[0].sno;
+      console.log(`Client secret already exists in database (ID: ${existingId}), skipping insertion`);
+      
+      return res.status(200).json({ 
+        message: 'Client secret already exists, no insertion needed',
+        record_id: existingId,
+        action: 'skipped'
+      });
+    }
+    
+    // Client secret is new, proceed with insertion
+    const insertSql = `INSERT INTO keycloak_client_secret (client_secret) VALUES (?)`;
+    
+    db.query(insertSql, [client_secret], (insertErr, insertResult) => {
+      if (insertErr) {
+        console.error('Error storing new Keycloak client secret:', insertErr);
+        return res.status(500).json({ error: 'Failed to store Keycloak client secret' });
+      }
+      
+      const recordId = insertResult.insertId;
+      console.log(`New Keycloak client secret stored successfully with ID: ${recordId}, source: ${source_file || 'unknown'}`);
+      
+      return res.status(200).json({ 
+        message: 'New Keycloak client secret stored successfully',
+        record_id: recordId,
+        action: 'inserted'
+      });
+    });
   });
 });
 

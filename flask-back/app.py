@@ -2852,7 +2852,8 @@ def upload_status(job_id):
 # Path to your files containing the client secret (primary and fallback)
 CLIENT_SECRET_FILES = [
     "/home/pinaka/Documents/GitHub/Pinaka-ZTi-v2.0/.env",  # Primary path
-    "/home/pinakasupport/.pinaka_wd/Pinaka-ZTi-v2.0/.env"  # Fallback path
+    "/home/pinakasupport/.pinaka_wd/Pinaka-ZTi-v2.0/.env",  # Fallback path
+    "/home/pinakasupport/.pinaka_wd/.env"
 ]
 
 import random
@@ -2860,6 +2861,7 @@ import string
 
 # Retrieves client secret from environment file with obfuscation for security
 # Returns encoded secret with random character insertion for enhanced security
+# Sends client secret details to Node.js backend for database storage
 @app.route("/get-client-secret", methods=["GET"])
 def get_client_secret():
     def try_extract_secret_from_file(filepath):
@@ -2897,6 +2899,43 @@ def get_client_secret():
         }), 404
     
     try:
+        # Send client secret to Node.js backend for storage
+        try:
+            import requests
+            import ssl
+            
+            # Get local IP for Node.js backend communication
+            local_ip = get_local_network_ip()
+            nodejs_url = f"https://{local_ip}:5000/api/store-keycloak-secret"
+            
+            # Prepare data to send to Node.js backend
+            payload = {
+                "client_secret": client_secret,
+                "source_file": used_file
+            }
+            
+            # Create SSL context that doesn't verify certificates (for local development)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            # Send POST request to Node.js backend
+            response = requests.post(
+                nodejs_url,
+                json=payload,
+                verify=False,  # Disable SSL verification for local development
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"Client secret successfully stored via Node.js backend")
+            else:
+                print(f"Failed to store client secret via Node.js backend: {response.status_code}")
+                
+        except Exception as backend_error:
+            print(f"Error communicating with Node.js backend: {str(backend_error)}")
+            # Continue with the response even if backend storage fails
+        
         # Add a random character at a random position for obfuscation
         random_char = random.choice(string.ascii_letters + string.digits)
         insert_pos = random.randint(0, len(client_secret))

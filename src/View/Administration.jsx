@@ -40,18 +40,41 @@ const hostIP = window.location.hostname;
 
 const getAccessToken = async () => {
   try {
-    // First get the encoded client secret from backend
-    const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
-    const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse.data;
+    let clientSecret = null;
     
-    if (!encodedSecret || randomCharPos === undefined) {
-      throw new Error('Failed to retrieve client secret from backend');
+    // First, try to get client secret from Python backend
+    try {
+      const secretResponse = await axios.get(`https://${hostIP}:2020/get-client-secret`);
+      const { client_secret: encodedSecret, random_char_pos: randomCharPos } = secretResponse?.data || {};
+      
+      if (encodedSecret && randomCharPos !== undefined) {
+        clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+        console.log('Using client secret from Python backend for Administration');
+      }
+    } catch (err) {
+      console.warn('Failed to get client secret from Python backend in Administration:', err.message);
     }
     
-    // Remove the extra random character from the specified position
-    const clientSecret = encodedSecret.slice(0, randomCharPos) + encodedSecret.slice(randomCharPos + 1);
+    // If Python backend failed, try database fallback
+    if (!clientSecret) {
+      try {
+        const dbSecretResponse = await axios.get(`https://${hostIP}:5000/api/get-keycloak-secrets`);
+        
+        if (dbSecretResponse?.data?.client_secret) {
+          clientSecret = dbSecretResponse.data.client_secret;
+          console.log('Using client secret from database fallback for Administration');
+        }
+      } catch (dbErr) {
+        console.warn('Failed to get client secret from database in Administration:', dbErr.message);
+      }
+    }
+    
+    // If no client secret available from either source, throw error
+    if (!clientSecret) {
+      throw new Error('Authentication service configuration error. Unable to retrieve client credentials for Administration.');
+    }
 
-    // Use the decoded client secret to get access token
+    // Use the client secret to get access token
     const response = await axios.post(
       `https://${hostIP}:9090/realms/zti-realm/protocol/openid-connect/token`,
       new URLSearchParams({
