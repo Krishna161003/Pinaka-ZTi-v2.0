@@ -980,28 +980,8 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           nextTypes = [nextTypes[nextTypes.length - 1]]; // Keep only the last selected
         }
         
-        // Ensure only one row can have External_Traffic
-        const someOtherHasExternal = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External_Traffic'));
-        if (nextTypes.includes('External_Traffic')) {
-          if (someOtherHasExternal) {
-            // Remove External_Traffic and notify
-            nextTypes = nextTypes.filter(t => t !== 'External_Traffic');
-            try { message.warning('Only one interface can be set to External_Traffic per node.'); } catch (_) {}
-          }
-        }
-        
-        // Handle Mgmt exclusivity - can only be on one interface
-        if (nextTypes.includes('Mgmt')) {
-          const someOtherHasMgmt = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt'));
-          if (someOtherHasMgmt) {
-            // Remove Mgmt from other rows
-            updated.forEach((r, idx) => {
-              if (idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt')) {
-                r.type = r.type.filter(t => t !== 'Mgmt');
-              }
-            });
-          }
-        }
+        // Removed validation that enforces only one External_Traffic and one Mgmt interface
+        // This allows multiple interfaces to have the same type
         
         row.type = nextTypes;
         // When External_Traffic selected for this row, clear IP/Subnet and related errors
@@ -1011,6 +991,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           if (row.errors) {
             delete row.errors.ip;
             delete row.errors.subnet;
+            delete row.errors.dns;
+          }
+        }
+        updated[rowIdx] = row;
+        return { ...f, tableData: updated };
+      } else if (field === 'defaultGateway') {
             delete row.errors.dns;
           }
         }
@@ -1205,14 +1191,8 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         title: 'Type',
         dataIndex: 'type',
         render: (_, record, rowIdx) => {
-          let MgmtTaken = false;
-          if (form.configType === 'segregated') {
-            MgmtTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Mgmt'));
-          }
-          let externalTaken = false;
-          if (form.configType === 'segregated') {
-            externalTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('External_Traffic'));
-          }
+          // Removed the exclusivity checks for Mgmt and External_Traffic
+          // This allows the same type to be selected on multiple interfaces
           const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
@@ -1236,13 +1216,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     </Option>
                   ) : (
                     <>
-                      {!MgmtTaken || (Array.isArray(record.type) && record.type.includes('Mgmt')) ? (
-                        <Option value="Mgmt">
-                          <Tooltip placement="right" title="Management" >
-                            Mgmt
-                          </Tooltip>
-                        </Option>
-                      ) : null}
+                      {/* Always show all options regardless of what's selected elsewhere */}
+                      <Option value="Mgmt">
+                        <Tooltip placement="right" title="Management" >
+                          Mgmt
+                        </Tooltip>
+                      </Option>
                       <Option value="VXLAN">
                         <Tooltip placement="right" title="VXLAN">
                           VXLAN
@@ -1256,13 +1235,11 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                           </Tooltip>
                         </Option>
                       )}
-                      {!externalTaken || (Array.isArray(record.type) && record.type.includes('External_Traffic')) ? (
-                        <Option value="External_Traffic">
-                          <Tooltip placement="right" title="External_Traffic">
-                            External_Traffic
-                          </Tooltip>
-                        </Option>
-                      ) : null}
+                      <Option value="External_Traffic">
+                        <Tooltip placement="right" title="External_Traffic">
+                          External_Traffic
+                        </Tooltip>
+                      </Option>
                     </>
                   )}
                 </>
@@ -1352,22 +1329,8 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
-    // Enforce only one External_Traffic in segregated mode
-    if (form.configType === 'segregated') {
-      const extCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('External_Traffic') ? 1 : 0), 0);
-      if (extCount > 1) {
-        message.error('Only one interface can be set to External_Traffic per node.');
-        return;
-      }
-    }
-    // Enforce only one Mgmt in segregated mode
-    if (form.configType === 'segregated') {
-      const mgmtCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('Mgmt') ? 1 : 0), 0);
-      if (mgmtCount > 1) {
-        message.error('Only one interface can be set to Mgmt per node.');
-        return;
-      }
-    }
+    // Removed validation that enforces only one External_Traffic and one Mgmt interface
+    // This allows multiple interfaces to have the same type
     for (let i = 0; i < form.tableData.length; i++) {
       const row = form.tableData[i];
       if (form.useBond && !row.bondName?.trim()) {
@@ -1384,6 +1347,10 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         for (const field of ['ip', 'subnet', 'dns']) {
           if (!row[field]) {
             message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
+            return;
+          }
+        }
+      }
             return;
           }
         }

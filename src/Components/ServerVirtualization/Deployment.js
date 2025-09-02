@@ -1512,14 +1512,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         title: 'Type',
         dataIndex: 'type',
         render: (_, record, rowIdx) => {
-          let MgmtTaken = false;
-          if (form.configType === 'segregated') {
-            MgmtTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('Mgmt'));
-          }
-          let externalTaken = false;
-          if (form.configType === 'segregated') {
-            externalTaken = form.tableData.some((row, i) => i !== rowIdx && Array.isArray(row.type) && row.type.includes('External_Traffic'));
-          }
+          // Removed the exclusivity checks for Mgmt and External_Traffic
+          // This allows the same type to be selected on multiple interfaces
           const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
@@ -1543,13 +1537,12 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     </Option>
                   ) : (
                     <>
-                      {!MgmtTaken || (Array.isArray(record.type) && record.type.includes('Mgmt')) ? (
-                        <Option value="Mgmt">
-                          <Tooltip placement="right" title="Management" >
-                            Mgmt
-                          </Tooltip>
-                        </Option>
-                      ) : null}
+                      {/* Always show all options regardless of what's selected elsewhere */}
+                      <Option value="Mgmt">
+                        <Tooltip placement="right" title="Management" >
+                          Mgmt
+                        </Tooltip>
+                      </Option>
                       <Option value="VXLAN">
                         <Tooltip placement="right" title="VXLAN">
                           VXLAN
@@ -1563,13 +1556,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                           </Tooltip>
                         </Option>
                       )}
-                      {!externalTaken || (Array.isArray(record.type) && record.type.includes('External_Traffic')) ? (
-                        <Option value="External_Traffic">
-                          <Tooltip placement="right" title="External_Traffic">
-                            External_Traffic
-                          </Tooltip>
-                        </Option>
-                      ) : null}
+                      <Option value="External_Traffic">
+                        <Tooltip placement="right" title="External_Traffic">
+                          External_Traffic
+                        </Tooltip>
+                      </Option>
                     </>
                   )}
                 </>
@@ -1659,14 +1650,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
-    // Enforce only one External_Traffic in segregated mode
-    if (form.configType === 'segregated') {
-      const extCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('External_Traffic') ? 1 : 0), 0);
-      if (extCount > 1) {
-        message.error('Only one interface can be set to External_Traffic per node.');
-        return;
-      }
-    }
+    // Removed validation that enforces only one External_Traffic interface
+    // This allows multiple interfaces to have the same type
     for (let i = 0; i < form.tableData.length; i++) {
       const row = form.tableData[i];
       if (form.useBond && !row.bondName?.trim()) {
@@ -1696,6 +1681,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       }
       if (Object.keys(filteredErrors).length > 0) {
         message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
+      }
         return;
       }
     }
