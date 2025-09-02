@@ -3,6 +3,7 @@ aodh
 ceilometer
 cinder
 corosync
+cron
 etcd
 fluentd
 glance

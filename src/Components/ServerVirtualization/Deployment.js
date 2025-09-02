@@ -317,21 +317,11 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     }
   };
 
-  // On mount, fetch for all nodes that haven't been applied yet
+  // On mount, do not fetch data automatically - only fetch when user clicks "Fetch Data" button
   useEffect(() => {
-    const savedStatus = sessionStorage.getItem('sv_networkApplyCardStatus');
-    const statusArray = savedStatus ? JSON.parse(savedStatus) : [];
-    
-    licenseNodes.forEach((node, index) => {
-      if (node.ip) {
-        // Only fetch if the node hasn't been applied (network changes not yet applied)
-        const nodeStatus = statusArray[index] || { loading: false, applied: false };
-        if (!nodeStatus.applied) {
-          fetchNodeData(node.ip);
-        }
-      }
-    });
-  }, [licenseNodes]);
+    // Automatic data fetching is disabled per user requirement
+    // Data is only fetched when the user explicitly clicks the "Fetch Data" button
+  }, []);
   // Per-card loading and applied state, restore from sessionStorage if available
   const getInitialCardStatus = () => {
     const saved = sessionStorage.getItem('sv_networkApplyCardStatus');
@@ -397,6 +387,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     const savedStatus = sessionStorage.getItem('sv_networkApplyCardStatus');
     const savedLicenseDetails = getLicenseDetailsMap();
 
+    let updatedStatus; // Declare updatedStatus here so it's accessible in the forEach loop
+
     if (savedForms && savedStatus) {
       // Merge saved forms with any updated license details and add forms for new nodes
       const parsedForms = JSON.parse(savedForms);
@@ -435,7 +427,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       });
       
       // Create card status for all licenseNodes, preserving existing ones
-      const updatedStatus = licenseNodes.map((node, index) => {
+      updatedStatus = licenseNodes.map((node, index) => {
         // Find existing form and its corresponding status
         const existingFormIndex = parsedForms.findIndex(f => f.ip === node.ip);
         if (existingFormIndex !== -1 && parsedStatus[existingFormIndex]) {
@@ -468,21 +460,24 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         roleError: '',
       }));
       
+      updatedStatus = licenseNodes.map(() => ({ loading: false, applied: false })); // Define updatedStatus here as well
+      
       setForms(newForms);
-      setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
+      setCardStatus(updatedStatus);
       setBtnLoading(licenseNodes.map(() => false));
     }
 
     // Force re-fetch node data for any new nodes that haven't been applied yet
-    licenseNodes.forEach((node, index) => {
-      if (node.ip && !nodeDisks[node.ip]) {
-        // Only fetch if the node hasn't been applied (network changes not yet applied)
-        const nodeStatus = updatedStatus?.[index] || { loading: false, applied: false };
-        if (!nodeStatus.applied) {
-          fetchNodeData(node.ip);
-        }
-      }
-    });
+    // Do not automatically fetch data - only fetch when user clicks "Fetch Data" button
+    // licenseNodes.forEach((node, index) => {
+    //   if (node.ip && !nodeDisks[node.ip]) {
+    //     // Only fetch if the node hasn"t been applied (network changes not yet applied)
+    //     const nodeStatus = updatedStatus?.[index] || { loading: false, applied: false };
+    //     if (!nodeStatus.applied) {
+    //       fetchNodeData(node.ip);
+    //     }
+    //   }
+    // });
   }, [licenseNodes]);
 
   // Recovery: if any node card is loading but no active timers exist, resume polling timers
@@ -500,6 +495,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     const statusArrRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
     const statusArr = statusArrRaw ? JSON.parse(statusArrRaw) : [];
 
+    // Clean up any orphaned polling intervals that don't correspond to active nodes
+    const activeIps = new Set();
+    
     (forms || []).forEach((f, idx) => {
       const ip = f?.ip;
       if (!ip) return;
@@ -520,6 +518,53 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         // Fallback to main node IP for any other config type
         ssh_target_ip = ip;
       }
+      
+      // Add to active IPs set
+      activeIps.add(ssh_target_ip);
+    });
+    
+    // Clean up orphaned intervals
+    Object.keys(window.__cloudPolling).forEach(pollingIp => {
+      if (!activeIps.has(pollingIp)) {
+        console.log(`[SSH Polling SV] Cleaning up orphaned polling interval for ${pollingIp}`);
+        clearInterval(window.__cloudPolling[pollingIp]);
+        delete window.__cloudPolling[pollingIp];
+      }
+    });
+    
+    // Clean up orphaned start timeouts
+    Object.keys(window.__cloudPollingStart).forEach(startIp => {
+      if (!activeIps.has(startIp)) {
+        console.log(`[SSH Polling SV] Cleaning up orphaned start timeout for ${startIp}`);
+        clearTimeout(window.__cloudPollingStart[startIp]);
+        delete window.__cloudPollingStart[startIp];
+      }
+    });
+
+    // Resume polling for active nodes that need it
+    (forms || []).forEach((f, idx) => {
+      const ip = f?.ip;
+      if (!ip) return;
+      
+      // Determine the correct SSH target IP based on config type
+      let ssh_target_ip;
+      if (f.configType === 'default') {
+        // For default config, use primary type interface IP
+        const primaryRow = f.tableData?.find(row => row.type === 'primary');
+        ssh_target_ip = primaryRow?.ip || ip; // fallback to main IP if primary not found
+      } else if (f.configType === 'segregated') {
+        // For segregated config, use Mgmt type interface IP
+        const MgmtRow = f.tableData?.find(row => 
+          Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
+        );
+        ssh_target_ip = MgmtRow?.ip || ip; // fallback to main IP if Mgmt not found
+      } else {
+        // Fallback to main node IP for any other config type
+        ssh_target_ip = ip;
+      }
+      
+      // Add to active IPs set
+      activeIps.add(ssh_target_ip);
       
       const st = statusArr[idx] || {};
       const needsResume = st.loading && !st.applied && !window.__cloudPolling[ssh_target_ip] && !window.__cloudPollingStart[ssh_target_ip];
@@ -638,17 +683,33 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           fetchWithRetry(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ssh_target_ip)}`)
             .then(res => res.json())
             .then(data => {
+              // Log response for debugging
+              console.log(`[SSH Polling SV] Response for ${ssh_target_ip}:`, data);
+              
               // Validate response to ensure data integrity
               const validatedData = validateSSHResponse(data, ssh_target_ip);
               
               if (validatedData.status === 'success' && validatedData.ip === ssh_target_ip) {
+                console.log(`[SSH Polling SV] Success for ${ssh_target_ip}, stopping polling`);
+                
+                // Ensure we clear any existing polling before updating state
+                if (window.__cloudPolling[ssh_target_ip]) {
+                  clearInterval(window.__cloudPolling[ssh_target_ip]);
+                  delete window.__cloudPolling[ssh_target_ip];
+                }
+                
+                // Update session storage first
                 setCardStatusForIpInSession(ip, { loading: false, applied: true });
+                
+                // Update local state with proper synchronization
                 if (window.__svMountedDeployment) {
                   setCardStatus(prev => {
-                    const idxNow = forms.findIndex(ff => ff?.ip === ip);
-                    return prev.map((s, i) => i === idxNow ? { loading: false, applied: true } : s);
+                    const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === ip);
+                    if (currentIdx === -1) return prev;
+                    return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
                   });
                 }
+                
                 message.success(`Node ${ssh_target_ip} is back online!`);
                 {
                   let suppress = false;
@@ -669,11 +730,13 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                     });
                   }
                 }
-                clearInterval(interval);
-                delete window.__cloudPolling[ssh_target_ip];
+                
+                // Ensure cleanup of all polling resources
                 if (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip]) {
+                  clearTimeout(window.__cloudPollingStart[ssh_target_ip]);
                   delete window.__cloudPollingStart[ssh_target_ip];
                 }
+                
                 // Store the form data for this node in sessionStorage
                 const idxNow = forms.findIndex(ff => ff?.ip === ip);
                 const formNow = forms[idxNow];
@@ -682,25 +745,36 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 // Note: After network changes are applied, the node IPs may have changed.
                 // Automatic data fetching is disabled. Use "Refetch Data" button if needed.
               } else if (data.status === 'fail' && data.ip === ssh_target_ip) {
+                console.log(`[SSH Polling SV] Fail for ${ssh_target_ip}, continuing polling`);
                 if (cardStatus[idx]?.loading || !window.__svMountedDeployment) {
                   infoRestartThrottled(ssh_target_ip);
                 }
+              } else {
+                console.log(`[SSH Polling SV] Unexpected response for ${ssh_target_ip}:`, data);
               }
             })
             .catch(err => {
-              console.error('SSH status check failed:', err);
+              console.error(`[SSH Polling SV] Error for ${ssh_target_ip}:`, err);
               message.error(`SSH polling failed: ${err.message}. ${SSH_CONFIG.MESSAGES.RESPONSE_LOST}`);
               // On persistent network errors in recovery mode, stop polling to prevent stuck loader
               if (pollCount > POLL_MAX_POLLS / 2) {
-                clearInterval(interval);
+                console.log(`[SSH Polling SV] Stopping polling for ${ssh_target_ip} due to max retries`);
+                
+                // Ensure cleanup before updating state
+                if (window.__cloudPolling[ssh_target_ip]) {
+                  clearInterval(window.__cloudPolling[ssh_target_ip]);
+                  delete window.__cloudPolling[ssh_target_ip];
+                }
+                
                 setCardStatusForIpInSession(forms[idx]?.ip || ssh_target_ip, { loading: false, applied: false });
                 if (window.__svMountedDeployment) {
                   setCardStatus(prev => {
                     const idxNow = forms.findIndex(ff => ff?.ip === (forms[idx]?.ip || ssh_target_ip));
+                    if (idxNow === -1) return prev;
                     return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
                   });
                 }
-                if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
+                
                 message.error(`SSH polling failed due to network errors for ${ssh_target_ip}. Please check connectivity.`);
               }
             });
@@ -790,6 +864,34 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     const snapshot = lastRemovedRef.current;
     if (!snapshot) return;
 
+    // Restore hostname map to its original state when undoing
+    try {
+      if (snapshot.hostnameEntry && snapshot.ip) {
+        const raw = sessionStorage.getItem('sv_hostnameMap');
+        const map = raw ? JSON.parse(raw) : {};
+        
+        // Restore the removed node's hostname
+        map[snapshot.ip] = snapshot.hostnameEntry;
+        
+        // Restore sequential hostname assignments
+        const currentHostnames = Object.values(map).filter(hn => hn !== snapshot.hostnameEntry);
+        const sortedHostnames = currentHostnames.sort();
+        
+        // Reassign hostnames to maintain sequential order
+        Object.keys(map).forEach(nodeIp => {
+          if (nodeIp !== snapshot.ip) {
+            const currentIndex = Object.keys(map).indexOf(nodeIp);
+            // Adjust index for the restored node
+            const adjustedIndex = currentIndex >= snapshot.idx ? currentIndex + 1 : currentIndex;
+            const newHostname = `SQDN-${String(adjustedIndex + 1).padStart(3, '0')}`;
+            map[nodeIp] = newHostname;
+          }
+        });
+        
+        sessionStorage.setItem('sv_hostnameMap', JSON.stringify(map));
+      }
+    } catch (_) { }
+
     // Restore arrays and maps from snapshot
     try {
       // licenseNodes
@@ -855,7 +957,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       // licenseActivationResults array and licenseStatus map
       const arrRaw = sessionStorage.getItem('sv_licenseActivationResults');
       const arr = arrRaw ? JSON.parse(arrRaw) : [];
-      const insIdx = Math.min(Math.max(snapshot.licenseActivationIndex, 0), arr.length);
+      const insIdx = Math.min(Math.max(snapshot.idx, 0), arr.length);
       if (snapshot.licenseActivationEntry && snapshot.licenseActivationIndex > -1) {
         arr.splice(insIdx, 0, snapshot.licenseActivationEntry);
         sessionStorage.setItem('sv_licenseActivationResults', JSON.stringify(arr));
@@ -925,6 +1027,32 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       cancelText: 'Cancel',
       cancelButtonProps: { size: 'small', style: { width: 90 } },
       onOk: () => {
+        // Reassign hostnames before removing the node
+        const hostnameMap = getHostnameMap();
+        const removedHostname = hostnameMap[ip];
+        
+        // If we're removing a node with a hostname, reassign hostnames
+        if (removedHostname) {
+          // Get all current hostnames and sort them
+          const currentHostnames = Object.values(hostnameMap).filter(hn => hn !== removedHostname);
+          const sortedHostnames = currentHostnames.sort();
+          
+          // Reassign hostnames sequentially
+          const newHostnameMap = {};
+          Object.keys(hostnameMap).forEach(nodeIp => {
+            if (nodeIp !== ip) {
+              const currentIndex = Object.keys(hostnameMap).indexOf(nodeIp);
+              // Adjust index if it's after the removed node
+              const adjustedIndex = currentIndex > idx ? currentIndex - 1 : currentIndex;
+              const newHostname = `SQDN-${String(adjustedIndex + 1).padStart(3, '0')}`;
+              newHostnameMap[nodeIp] = newHostname;
+            }
+          });
+          
+          // Save the updated hostname map
+          saveHostnameMap(newHostnameMap);
+        }
+        
         const snapshot = {
           idx,
           ip,
@@ -1738,25 +1866,25 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                 pollCount++;
 
                 // Stop polling if we've exceeded the maximum attempts
-                if (pollCount > maxPolls) {
-                  clearInterval(pollInterval);
-                  setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
-                  if (window.__svMountedDeployment) {
-                    setCardStatus(prev => {
-                      const idxNow = forms.findIndex(f => f?.ip === form.ip);
-                      return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-                    });
-                  }
-                  message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
-                  // Clear delay-start entry for this IP
-                  try {
-                    const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                    const map = raw ? JSON.parse(raw) : {};
-                    if (map[node_ip]) {
-                      delete map[node_ip];
-                      sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                  if (pollCount > maxPolls) {
+                    clearInterval(pollInterval);
+                    setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
+                    if (window.__svMountedDeployment) {
+                      setCardStatus(prev => {
+                        const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
+                        return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
+                      });
                     }
-                  } catch (_) { }
+                    message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
+                    // Clear delay-start entry for this IP
+                    try {
+                      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                      const map = raw ? JSON.parse(raw) : {};
+                      if (map[node_ip]) {
+                        delete map[node_ip];
+                        sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                      }
+                    } catch (_) { }
                     // Cross-menu notification on timeout with Retry
                     const key = `ssh-timeout-${node_ip}`;
                     const description = `Failed to connect to ${node_ip} after multiple attempts. The node may be taking longer than expected to come up.`;
@@ -1798,8 +1926,8 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                       setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
                       if (window.__svMountedDeployment) {
                         setCardStatus(prev => {
-                          const idxNow = forms.findIndex(f => f?.ip === form.ip);
-                          return prev.map((s, i) => i === idxNow ? { loading: false, applied: true } : s);
+                          const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
+                          return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
                         });
                       }
                       message.success(`Node ${data.ip} is back online!`);
@@ -2362,7 +2490,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   type="default"
                   style={{ width: 120 }}
                 >
-                  Refetch Data
+                  Fetch Data
                 </Button>
               </div>
               <Table

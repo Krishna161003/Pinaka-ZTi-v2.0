@@ -360,20 +360,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     }
   };
 
-  // On mount, fetch for all nodes that haven't been applied yet and fetch host server_id and first cloudname
+  // On mount, do not fetch data automatically - only fetch when user clicks "Fetch Data" button
+  // Still fetch host server_id and first cloudname as these are needed for other functionality
   useEffect(() => {
-    const savedStatus = sessionStorage.getItem('cloud_networkApplyCardStatus');
-    const statusArray = savedStatus ? JSON.parse(savedStatus) : [];
-    
-    licenseNodes.forEach((node, index) => {
-      if (node.ip) {
-        // Only fetch if the node hasn't been applied (network changes not yet applied)
-        const nodeStatus = statusArray[index] || { loading: false, applied: false };
-        if (!nodeStatus.applied) {
-          fetchNodeData(node.ip);
-        }
-      }
-    });
     // Fetch host server_id from backend
     async function fetchHostServerId() {
       try {
@@ -404,7 +393,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     }
     fetchHostServerId();
     fetchFirstCloudname();
-  }, [licenseNodes]);
+  }, []);
 
   // Per-card loading and applied state, restore from sessionStorage if available
   const getInitialCardStatus = () => {
@@ -486,6 +475,8 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     const savedStatus = sessionStorage.getItem('cloud_networkApplyCardStatus');
     const savedLicenseDetails = getLicenseDetailsMap();
 
+    let updatedStatus; // Declare updatedStatus here so it's accessible later
+
     if (savedForms && savedStatus) {
       // Merge saved forms with any updated license details and add forms for new nodes
       const parsedForms = JSON.parse(savedForms);
@@ -533,7 +524,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       });
       
       // Create card status for all licenseNodes, preserving existing ones
-      const updatedStatus = licenseNodes.map((node, index) => {
+      updatedStatus = licenseNodes.map((node, index) => {
         // Find existing status for this node
         const existingFormIndex = parsedForms.findIndex(f => f.ip === node.ip);
         if (existingFormIndex !== -1 && parsedStatus[existingFormIndex]) {
@@ -566,8 +557,10 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         roleError: '',
       }));
       
+      updatedStatus = licenseNodes.map(() => ({ loading: false, applied: false })); // Define updatedStatus here as well
+      
       setForms(newForms);
-      setCardStatus(licenseNodes.map(() => ({ loading: false, applied: false })));
+      setCardStatus(updatedStatus);
       setBtnLoading(licenseNodes.map(() => false));
     }
   }, [licenseNodes]);
@@ -622,6 +615,56 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     if (!Array.isArray(forms) || forms.length === 0) return;
     const delayMap = getDelayStartMap();
 
+    // Clean up any orphaned polling intervals that don't correspond to active nodes
+    const activeIps = new Set();
+    
+    forms.forEach((f, idx) => {
+      const ip = f?.ip;
+      if (!ip) return;
+      
+      // Determine the correct SSH target IP based on config type
+      let ssh_target_ip;
+      if (f.configType === 'default') {
+        // For default config, use primary type interface IP
+        const primaryRow = f.tableData?.find(row => row.type === 'primary');
+        ssh_target_ip = primaryRow?.ip || ip; // fallback to main IP if primary not found
+      } else if (f.configType === 'segregated') {
+        // For segregated config, use Mgmt type interface IP
+        const MgmtRow = f.tableData?.find(row => 
+          Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
+        );
+        ssh_target_ip = MgmtRow?.ip || ip; // fallback to main IP if Mgmt not found
+      } else {
+        // Fallback to main node IP for any other config type
+        ssh_target_ip = ip;
+      }
+      
+      // Add to active IPs set
+      activeIps.add(ssh_target_ip);
+    });
+    
+    // Clean up orphaned intervals
+    if (window.__cloudPolling) {
+      Object.keys(window.__cloudPolling).forEach(pollingIp => {
+        if (!activeIps.has(pollingIp)) {
+          console.log(`[SSH Polling Cloud] Cleaning up orphaned polling interval for ${pollingIp}`);
+          clearInterval(window.__cloudPolling[pollingIp]);
+          delete window.__cloudPolling[pollingIp];
+        }
+      });
+    }
+    
+    // Clean up orphaned start timeouts
+    if (window.__cloudPollingStart) {
+      Object.keys(window.__cloudPollingStart).forEach(startIp => {
+        if (!activeIps.has(startIp)) {
+          console.log(`[SSH Polling Cloud] Cleaning up orphaned start timeout for ${startIp}`);
+          clearTimeout(window.__cloudPollingStart[startIp]);
+          delete window.__cloudPollingStart[startIp];
+        }
+      });
+    }
+
     forms.forEach((f, idx) => {
       const ip = f?.ip;
       if (!ip) return;
@@ -665,83 +708,83 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: false } : s));
             }
             
-            // Show persistent retry notification using global notification system
-            const key = `ssh-timeout-${ssh_target_ip}`;
-            if (window.__cloudGlobalNotifications) {
-              // Capture variables in closure for retry function
-              const retryTargetIp = ssh_target_ip;
-              const retryOriginalIp = ip;
-              const retryIdx = idx;
-              
-              const timeoutNotification = createSSHTimeoutNotification(retryTargetIp, 'cloud', () => {
-                // Re-trigger backend scheduling and re-schedule frontend polling with delay
-                const ssh_user = SSH_CONFIG.username;
-                const ssh_pass = '';
-                const ssh_key = '';
+                // Show persistent retry notification using global notification system
+                const key = `ssh-timeout-${ssh_target_ip}`;
+                if (window.__cloudGlobalNotifications) {
+                  // Capture variables in closure for retry function
+                  const retryTargetIp = ssh_target_ip;
+                  const retryOriginalIp = ip;
+                  const retryIdx = idx;
                   
-                  message.info(`Retrying SSH polling for ${retryTargetIp}. Will begin after 2 minutes.`);
-                  
-                  try {
-                    fetch(`https://${hostIP}:2020/poll-ssh-status`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ips: [retryTargetIp], ssh_user, ssh_pass, ssh_key })
-                    }).then(() => {
-                      // Reset the card status to loading state for retry
-                      setCardStatusForIpInSession(retryOriginalIp, { loading: true, applied: false });
-                      if (window.__cloudMountedNetworkApply) {
-                        setCardStatus(prev => {
-                          const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === retryOriginalIp);
-                          return prev.map((s, i) => i === currentIdx ? { loading: true, applied: false } : s);
+                  const timeoutNotification = createSSHTimeoutNotification(retryTargetIp, 'cloud', () => {
+                    // Re-trigger backend scheduling and re-schedule frontend polling with delay
+                    const ssh_user = SSH_CONFIG.username;
+                    const ssh_pass = '';
+                    const ssh_key = '';
+                      
+                      message.info(`Retrying SSH polling for ${retryTargetIp}. Will begin after 2 minutes.`);
+                      
+                      try {
+                        fetch(`https://${hostIP}:2020/poll-ssh-status`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ ips: [retryTargetIp], ssh_user, ssh_pass, ssh_key })
+                        }).then(() => {
+                          // Reset the card status to loading state for retry
+                          setCardStatusForIpInSession(retryOriginalIp, { loading: true, applied: false });
+                          if (window.__cloudMountedNetworkApply) {
+                            setCardStatus(prev => {
+                              const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === retryOriginalIp);
+                              return prev.map((s, i) => i === currentIdx ? { loading: true, applied: false } : s);
+                            });
+                          }
+                        }).catch(err => {
+                          message.error(`Failed to restart SSH polling for ${retryTargetIp}: ${err.message}`);
+                          // Ensure loader stays off if retry setup fails
+                          setCardStatusForIpInSession(retryOriginalIp, { loading: false, applied: false });
+                          if (window.__cloudMountedNetworkApply) {
+                            setCardStatus(prev => {
+                              const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === retryOriginalIp);
+                              return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
+                            });
+                          }
                         });
+                      } catch (_) {
+                        message.error(`Failed to restart SSH polling for ${retryTargetIp}`);
+                        // Ensure loader stays off if retry setup fails
+                        setCardStatusForIpInSession(retryOriginalIp, { loading: false, applied: false });
+                        if (window.__cloudMountedNetworkApply) {
+                          setCardStatus(prev => {
+                            const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === retryOriginalIp);
+                            return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
+                          });
+                        }
                       }
-                    }).catch(err => {
-                      message.error(`Failed to restart SSH polling for ${retryTargetIp}: ${err.message}`);
-                      // Ensure loader stays off if retry setup fails
-                      setCardStatusForIpInSession(retryOriginalIp, { loading: false, applied: false });
-                      if (window.__cloudMountedNetworkApply) {
-                        setCardStatus(prev => {
-                          const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === retryOriginalIp);
-                          return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
-                        });
-                      }
-                    });
-                  } catch (_) {
-                    message.error(`Failed to restart SSH polling for ${retryTargetIp}`);
-                    // Ensure loader stays off if retry setup fails
-                    setCardStatusForIpInSession(retryOriginalIp, { loading: false, applied: false });
-                    if (window.__cloudMountedNetworkApply) {
-                      setCardStatus(prev => {
-                        const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === retryOriginalIp);
-                        return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
-                      });
+                      
+                      // Clear any existing timers and set a fresh delayed start
+                      try {
+                        if (window.__cloudPolling && window.__cloudPolling[retryTargetIp]) {
+                          clearInterval(window.__cloudPolling[retryTargetIp]);
+                          delete window.__cloudPolling[retryTargetIp];
+                        }
+                        if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
+                          clearTimeout(window.__cloudPollingStart[retryTargetIp]);
+                          delete window.__cloudPollingStart[retryTargetIp];
+                        }
+                      } catch (_) {}
+                      
+                      setDelayStartForIp(retryTargetIp, Date.now());
+                      const to = setTimeout(() => {
+                        beginInterval();
+                        if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
+                          delete window.__cloudPollingStart[retryTargetIp];
+                        }
+                      }, POLL_DELAY_MS);
+                      if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+                      window.__cloudPollingStart[retryTargetIp] = to;
                     }
-                  }
-                  
-                  // Clear any existing timers and set a fresh delayed start
-                  try {
-                    if (window.__cloudPolling && window.__cloudPolling[retryTargetIp]) {
-                      clearInterval(window.__cloudPolling[retryTargetIp]);
-                      delete window.__cloudPolling[retryTargetIp];
-                    }
-                    if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
-                      clearTimeout(window.__cloudPollingStart[retryTargetIp]);
-                      delete window.__cloudPollingStart[retryTargetIp];
-                    }
-                  } catch (_) {}
-                  
-                  setDelayStartForIp(retryTargetIp, Date.now());
-                  const to = setTimeout(() => {
-                    beginInterval();
-                    if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
-                      delete window.__cloudPollingStart[retryTargetIp];
-                    }
-                  }, POLL_DELAY_MS);
-                  if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-                  window.__cloudPollingStart[retryTargetIp] = to;
+                  );
                 }
-              );
-            }
             
             message.error(`SSH polling timeout for ${ssh_target_ip}. Please check the node manually.`);
             if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
@@ -752,22 +795,43 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           fetchWithRetry(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ssh_target_ip)}`)
             .then(res => res.json())
             .then(data => {
+              // Log response for debugging
+              console.log(`[SSH Polling Cloud] Response for ${ssh_target_ip}:`, data);
+              
               // Validate response to ensure data integrity
               const validatedData = validateSSHResponse(data, ssh_target_ip);
               
               if (validatedData.status === 'success' && validatedData.ip === ssh_target_ip) {
-                setCardStatusForIpInSession(forms[idx]?.ip || ssh_target_ip, { loading: false, applied: true });
-                if (window.__cloudMountedNetworkApply) {
-                  setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: true } : s));
+                console.log(`[SSH Polling Cloud] Success for ${ssh_target_ip}, stopping polling`);
+                
+                // Ensure we clear any existing polling before updating state
+                if (window.__cloudPolling[ssh_target_ip]) {
+                  clearInterval(window.__cloudPolling[ssh_target_ip]);
+                  delete window.__cloudPolling[ssh_target_ip];
                 }
-                message.success(`Node ${data.ip} is back online!`);
+                
+                // Update session storage first
+                setCardStatusForIpInSession(ip, { loading: false, applied: true });
+                
+                // Update local state with proper synchronization
+                if (window.__cloudMountedNetworkApply) {
+                  setCardStatus(prev => {
+                    const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === ip);
+                    if (currentIdx === -1) return prev;
+                    return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
+                  });
+                }
+                
+                message.success(`Node ${validatedData.ip} is back online!`);
                 notifySshSuccess(ssh_target_ip);
-                clearInterval(pollInterval);
-                if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
+                
+                // Ensure cleanup of all polling resources
                 if (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip]) {
+                  clearTimeout(window.__cloudPollingStart[ssh_target_ip]);
                   delete window.__cloudPollingStart[ssh_target_ip];
                 }
                 setDelayStartForIp(ssh_target_ip, null);
+                
                 // Ensure form data is stored
                 const nodeForm = forms[idx];
                 const nodeIp = nodeForm?.ip || `node${idx + 1}`;
@@ -775,19 +839,34 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                 // Note: After network changes are applied, the node IPs may have changed.
                 // Automatic data fetching is disabled. Use "Refetch Data" button if needed.
               } else if (data.status === 'fail' && data.ip === ssh_target_ip) {
+                console.log(`[SSH Polling Cloud] Fail for ${ssh_target_ip}, continuing polling`);
                 infoRestartThrottled(ssh_target_ip);
+              } else {
+                console.log(`[SSH Polling Cloud] Unexpected response for ${ssh_target_ip}:`, data);
               }
             })
             .catch(err => {
-              console.error('SSH status check failed:', err);
+              console.error(`[SSH Polling Cloud] Error for ${ssh_target_ip}:`, err);
               message.error(`SSH polling failed: ${err.message}. ${SSH_CONFIG.MESSAGES.RESPONSE_LOST}`);
               // On persistent network errors in recovery mode, stop polling to prevent stuck loader
               if (pollCount > POLL_MAX_POLLS / 2) {
-                clearInterval(pollInterval);
+                console.log(`[SSH Polling Cloud] Stopping polling for ${ssh_target_ip} due to max retries`);
+                
+                // Ensure cleanup before updating state
+                if (window.__cloudPolling[ssh_target_ip]) {
+                  clearInterval(window.__cloudPolling[ssh_target_ip]);
+                  delete window.__cloudPolling[ssh_target_ip];
+                }
+                
                 setCardStatusForIpInSession(forms[idx]?.ip || ssh_target_ip, { loading: false, applied: false });
                 if (window.__cloudMountedNetworkApply) {
-                  setCardStatus(prev => prev.map((s, i) => i === idx ? { loading: false, applied: false } : s));
+                  setCardStatus(prev => {
+                    const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === (forms[idx]?.ip || ssh_target_ip));
+                    if (currentIdx === -1) return prev;
+                    return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
+                  });
                 }
+                
                 if (window.__cloudPolling) delete window.__cloudPolling[ssh_target_ip];
                 setDelayStartForIp(ssh_target_ip, null);
                 message.error(`SSH polling failed due to network errors for ${ssh_target_ip}. Please check connectivity.`);
@@ -1496,7 +1575,10 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                       // Persist status to sessionStorage so it reflects on remount or in other menus
                       setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
                       if (window.__cloudMountedNetworkApply) {
-                        setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
+                        setCardStatus(prev => {
+                          const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
+                          return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
+                        });
                       }
                       message.success(`Node ${data.ip} is back online!`);
                       notifySshSuccess(node_ip);
@@ -1662,7 +1744,25 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     try {
       const hmRaw = sessionStorage.getItem('cloud_hostnameMap');
       const hm = hmRaw ? JSON.parse(hmRaw) : {};
+      
+      // Restore the removed node's hostname
       if (hostname) hm[ip] = hostname;
+      
+      // Restore sequential hostname assignments
+      const currentHostnames = Object.values(hm).filter(hn => hn !== hostname);
+      const sortedHostnames = currentHostnames.sort();
+      
+      // Reassign hostnames to maintain sequential order
+      Object.keys(hm).forEach(nodeIp => {
+        if (nodeIp !== ip) {
+          const currentIndex = Object.keys(hm).indexOf(nodeIp);
+          // Adjust index for the restored node
+          const adjustedIndex = currentIndex >= idx ? currentIndex + 1 : currentIndex;
+          const newHostname = `SQDN-${String(adjustedIndex + 1).padStart(3, '0')}`;
+          hm[nodeIp] = newHostname;
+        }
+      });
+      
       sessionStorage.setItem('cloud_hostnameMap', JSON.stringify(hm));
     } catch (_) {}
 
@@ -1705,6 +1805,32 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       cancelText: 'Cancel',
       cancelButtonProps: { size: 'small', style: { width: 90 } },
       onOk: () => {
+        // Reassign hostnames before removing the node
+        const hostnameMap = getCloudHostnameMap();
+        const removedHostname = hostnameMap[ip];
+        
+        // If we're removing a node with a hostname, reassign hostnames
+        if (removedHostname) {
+          // Get all current hostnames and sort them
+          const currentHostnames = Object.values(hostnameMap).filter(hn => hn !== removedHostname);
+          const sortedHostnames = currentHostnames.sort();
+          
+          // Reassign hostnames sequentially
+          const newHostnameMap = {};
+          Object.keys(hostnameMap).forEach(nodeIp => {
+            if (nodeIp !== ip) {
+              const currentIndex = Object.keys(hostnameMap).indexOf(nodeIp);
+              // Adjust index if it's after the removed node
+              const adjustedIndex = currentIndex > idx ? currentIndex - 1 : currentIndex;
+              const newHostname = `SQDN-${String(adjustedIndex + 1).padStart(3, '0')}`;
+              newHostnameMap[nodeIp] = newHostname;
+            }
+          });
+          
+          // Save the updated hostname map
+          saveCloudHostnameMap(newHostnameMap);
+        }
+        
         // Backup data for Undo
         const licenseNode = (licenseNodes || []).find(n => n.ip === ip) || { ip };
         let networkApplyResultEntry = null;
@@ -2128,102 +2254,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     type="default"
                     style={{ width: 120 }}
                   >
-                    Refetch Data
+                    Fetch Data
                   </Button>
                 </div>
-              </div>
-              <Table
-                columns={getColumns(form, idx)}
-                dataSource={form.tableData}
-                pagination={false}
-                bordered
-                size="small"
-                scroll={{ x: true }}
-                rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
-              />
-
-              {/* Default Gateway Field */}
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
-                <Form.Item
-                  label="Default Gateway"
-                  validateStatus={form.defaultGatewayError ? 'error' : ''}
-                  help={form.defaultGatewayError}
-                  required
-                  style={{ minWidth: 220 }}
-                >
-                  <Input
-                    value={form.defaultGateway}
-                    placeholder="Enter Default Gateway"
-                    onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Select Disk"
-                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
-                  validateStatus={form.diskError ? 'error' : ''}
-                  help={form.diskError}
-                  style={{ minWidth: 220 }}
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select disk(s)"
-                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
-                      if (typeof d === 'string') return d;
-                      if (d && typeof d === 'object') {
-                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
-                      }
-                      return String(d ?? '');
-                    }) : []}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
-                    onChange={value => handleDiskChange(idx, value)}
-                    optionLabelProp="label"
-                  >
-                    {(nodeDisks[form.ip] || []).map(disk => (
-                      <Option
-                        key={disk.id || disk.wwn || `${disk.name}|${disk.size}`}
-                        value={disk.value || disk.id || disk.wwn || `${disk.name}|${disk.size}`}
-                        label={String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
-                      >
-                        {String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-                <Form.Item
-                  label="Select Role"
-                  required
-                  validateStatus={form.roleError ? 'error' : ''}
-                  help={form.roleError}
-                  style={{ minWidth: 220 }}
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select role(s)"
-                    value={form.selectedRoles || []}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
-                    onChange={value => handleRoleChange(idx, value)}
-                  >
-                    <Option value="Control">Control</Option>
-                    <Option value="Compute">Compute</Option>
-                    <Option value="Storage">Storage</Option>
-                    <Option value="Monitoring">Monitoring</Option>
-                  </Select>
-                </Form.Item>
-              </div>
-              {/* License Details Display - all in one line */}
-              <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
-                <span>{form.licenseType || '-'}</span>
-                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
-                <span>{form.licensePeriod || '-'}</span>
-                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
-                <span>{form.licenseCode || '-'}</span>
               </div>
               <Table
                 columns={getColumns(form, idx)}

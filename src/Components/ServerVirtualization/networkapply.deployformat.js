@@ -170,6 +170,17 @@ export function buildDeployConfigPayload(form) {
     roles: selectedRoles || []
   };
   
+  // Add Network role to roles array
+  if (out.roles && Array.isArray(out.roles)) {
+    // Check if "Network" role is not already present
+    if (!out.roles.includes("Network")) {
+      out.roles.push("Network");
+    }
+  } else {
+    // If roles is not an array or is undefined, create a new array with Network role
+    out.roles = ["Network"];
+  }
+  
   // Add server_vip if provided
   if (serverVip) {
     out.server_vip = serverVip;

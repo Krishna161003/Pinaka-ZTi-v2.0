@@ -154,11 +154,24 @@ export const fetchWithRetry = async (url, options = {}, retries = SSH_CONFIG.RES
       
       clearTimeout(timeoutId);
       
+      // Additional validation for response completeness
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      return response;
+      // Check if response body is valid
+      const responseBody = await response.text();
+      if (!responseBody) {
+        throw new Error('Empty response body received');
+      }
+      
+      // Try to parse JSON
+      try {
+        const jsonData = JSON.parse(responseBody);
+        return { ...response, json: () => Promise.resolve(jsonData) };
+      } catch (parseError) {
+        throw new Error(`Failed to parse response JSON: ${parseError.message}`);
+      }
     } catch (error) {
       console.warn(`Fetch attempt ${i + 1} failed:`, error.message);
       
@@ -166,8 +179,9 @@ export const fetchWithRetry = async (url, options = {}, retries = SSH_CONFIG.RES
         throw new Error(`Failed after ${retries + 1} attempts: ${error.message}`);
       }
       
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, SSH_CONFIG.RESPONSE_RETRY_DELAY));
+      // Wait before retry with exponential backoff
+      const delay = SSH_CONFIG.RESPONSE_RETRY_DELAY * Math.pow(2, i);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 };
@@ -179,16 +193,43 @@ export const fetchWithRetry = async (url, options = {}, retries = SSH_CONFIG.RES
  * @returns {Object} Validated response object
  */
 export const validateSSHResponse = (data, expectedIp) => {
+  // Enhanced validation with more detailed error messages
   if (!data || typeof data !== 'object') {
-    throw new Error('Invalid response format');
+    throw new Error('Invalid response format: Response is not an object');
   }
   
-  if (!data.status) {
-    throw new Error('Missing status in response');
+  if (!('status' in data)) {
+    throw new Error('Missing status field in response');
   }
   
-  if (expectedIp && data.ip !== expectedIp) {
-    throw new Error(`IP mismatch: expected ${expectedIp}, got ${data.ip}`);
+  if (typeof data.status !== 'string') {
+    throw new Error('Invalid status field: Expected string');
+  }
+  
+  // For success responses, we need an IP
+  if (data.status === 'success') {
+    if (!('ip' in data)) {
+      throw new Error('Missing IP field in success response');
+    }
+    
+    if (typeof data.ip !== 'string') {
+      throw new Error('Invalid IP field: Expected string');
+    }
+    
+    if (expectedIp && data.ip !== expectedIp) {
+      throw new Error(`IP mismatch: expected ${expectedIp}, got ${data.ip}`);
+    }
+  }
+  
+  // For fail responses, we also need an IP
+  if (data.status === 'fail') {
+    if (!('ip' in data)) {
+      throw new Error('Missing IP field in fail response');
+    }
+    
+    if (typeof data.ip !== 'string') {
+      throw new Error('Invalid IP field in fail response: Expected string');
+    }
   }
   
   return {

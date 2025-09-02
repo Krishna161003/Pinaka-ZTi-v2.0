@@ -20,6 +20,7 @@ ceilometer_ipmi
 ceilometer_compute
 ceilometer_central
 ceilometer_notification
+cron 
 gnocchi_metricd
 gnocchi_api
 magnum_conductor
