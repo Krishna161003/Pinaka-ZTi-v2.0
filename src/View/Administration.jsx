@@ -194,8 +194,8 @@ const Administration = () => {
   const [integrationModalVisible, setIntegrationModalVisible] = useState(false);
   const [emailFields, setEmailFields] = useState([{ id: 1, email: '' }]);
   const [integrationFields, setIntegrationFields] = useState([
-    { 
-      id: 1, 
+    {
+      id: 1,
       type: 'slack',
       webhookUrl: '',
       channel: '',
@@ -452,6 +452,7 @@ const Administration = () => {
     };
     fetchUsers();
   }, []);
+  const [activeTab, setActiveTab] = useState("1");
 
   return (
     <Layout1>
@@ -578,331 +579,6 @@ const Administration = () => {
                     >
                       Add Company Details
                     </Button>
-                    <Button
-                      type="primary"
-                      onClick={() => setEmailModalVisible(true)}
-                    >
-                      Add Emails and Notifications
-                    </Button>
-                    <Modal
-                      title="Manage Notification Emails"
-                      open={emailModalVisible}
-                      onCancel={() => {
-                        const form = document.getElementById('emailForm');
-                        if (form) form.reset();
-                        setEmailFields([{ id: Date.now(), email: '' }]);
-                        setEmailModalVisible(false);
-                      }}
-                      footer={[
-                        <Button 
-                          key="add" 
-                          onClick={() => {
-                            setEmailFields([...emailFields, { id: Date.now(), email: '' }]);
-                          }}
-                        >
-                          + Add Another Email
-                        </Button>,
-                        <Button key="cancel" onClick={() => {
-                          setEmailModalVisible(false);
-                          setEmailFields([{ id: 1, email: '' }]);
-                        }}>
-                          Cancel
-                        </Button>,
-                        <Button 
-                          key="submit" 
-                          type="primary" 
-                          onClick={() => {
-                            const form = document.getElementById('emailForm');
-                            if (form) {
-                              form.requestSubmit();
-                            }
-                          }}
-                        >
-                          Save Emails
-                        </Button>
-                      ]}
-                      width={700}
-                    >
-                      <Form
-                        id="emailForm"
-                        layout="vertical"
-                        onFinish={async (values) => {
-                          const emails = emailFields.map((field) => ({
-                            email: values[`email-${field.id}`],
-                            description: values[`desc-${field.id}`] || '',
-                            types: values[`types-${field.id}`] || []
-                          })).filter(item => item.email);
-                          
-                          try {
-                            // Add your API call here to save the emails
-                            console.log('Emails to save:', emails);
-                            // await saveEmails(emails); // Uncomment and implement your API call
-                            
-                            // Clear the form
-                            const form = document.getElementById('emailForm');
-                            if (form) form.reset();
-                            setEmailFields([{ id: Date.now(), email: '' }]);
-                            setEmailModalVisible(false);
-                          } catch (error) {
-                            console.error('Error saving emails:', error);
-                            // Handle error (e.g., show error message)
-                          }
-                        }}
-                      >
-                        <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '8px' }}>
-                          {emailFields.map((field, index) => (
-                            <div key={field.id} style={{ 
-                              marginBottom: '16px', 
-                              padding: '16px', 
-                              border: '1px solid #f0f0f0', 
-                              borderRadius: '4px',
-                              position: 'relative'
-                            }}>
-                              {index > 0 && (
-                                <Button 
-                                  type="text" 
-                                  danger 
-                                  size="small" 
-                                  style={{ position: 'absolute', right: '8px', top: '8px' }}
-                                  onClick={() => {
-                                    const newFields = emailFields.filter(f => f.id !== field.id);
-                                    setEmailFields(newFields);
-                                  }}
-                                >
-                                  Remove
-                                </Button>
-                              )}
-                              <Form.Item
-                                label={`Email Address ${index + 1}`}
-                                name={`email-${field.id}`}
-                                rules={[
-                                  { required: true, message: 'Please input email address' },
-                                  { type: 'email', message: 'Please enter a valid email address' }
-                                ]}
-                              >
-                                <Input placeholder="example@domain.com" />
-                              </Form.Item>
-                              <Form.Item
-                                label="Description (Optional)"
-                                name={`desc-${field.id}`}
-                              >
-                                <Input.TextArea rows={2} placeholder="e.g., Primary contact, Billing department, etc." />
-                              </Form.Item>
-                              <Form.Item
-                                label="Notification Types"
-                                name={`types-${field.id}`}
-                                rules={[{ required: true, message: 'Please select at least one notification type' }]}
-                              >
-                                <Select mode="multiple" placeholder="Select notification types">
-                                  <Select.Option value="alerts">Alerts</Select.Option>
-                                  <Select.Option value="reports">Reports</Select.Option>
-                                  <Select.Option value="warnings">Warnings</Select.Option>
-                                  <Select.Option value="errors">Errors</Select.Option>
-                                  <Select.Option value="system">System Notifications</Select.Option>
-                                </Select>
-                              </Form.Item>
-                            </div>
-                          ))}
-                        </div>
-                      </Form>
-                    </Modal>
-                    <Button
-                      type="primary"
-                      onClick={() => setIntegrationModalVisible(true)}
-                    >
-                      Add 3rd Party Integration
-                    </Button>
-                    <Modal
-                      title="Manage 3rd Party Integrations"
-                      open={integrationModalVisible}
-                      onCancel={() => {
-                        setIntegrationModalVisible(false);
-                        setIntegrationFields([{ 
-                          id: 1, 
-                          type: 'slack',
-                          webhookUrl: '',
-                          channel: '',
-                          name: ''
-                        }]);
-                      }}
-                      footer={[
-                        <Button 
-                          key="add" 
-                          onClick={() => {
-                            setIntegrationFields([...integrationFields, { 
-                              id: Date.now(), 
-                              type: 'slack',
-                              webhookUrl: '',
-                              channel: '',
-                              name: ''
-                            }]);
-                          }}
-                        >
-                          + Add Another Integration
-                        </Button>,
-                        <Button 
-                          key="cancel" 
-                          onClick={() => {
-                            setIntegrationModalVisible(false);
-                            setIntegrationFields([{ 
-                              id: 1, 
-                              type: 'slack',
-                              webhookUrl: '',
-                              channel: '',
-                              name: ''
-                            }]);
-                          }}
-                        >
-                          Cancel
-                        </Button>,
-                        <Button 
-                          key="submit" 
-                          type="primary" 
-                          onClick={() => {
-                            const form = document.getElementById('integrationForm');
-                            if (form) {
-                              form.requestSubmit();
-                            }
-                          }}
-                        >
-                          Save Integrations
-                        </Button>
-                      ]}
-                      width={800}
-                    >
-                      <Form
-                        id="integrationForm"
-                        layout="vertical"
-                        onFinish={(values) => {
-                          const integrations = integrationFields.map(field => {
-                            const base = {
-                              id: field.id,
-                              type: values[`type-${field.id}`],
-                              name: values[`name-${field.id}`] || '',
-                              webhookUrl: values[`webhook-${field.id}`],
-                              channel: values[`channel-${field.id}`]
-                            };
-                            
-                            // Only include channel for Slack
-                            if (base.type === 'slack') {
-                              delete base.channel;
-                            }
-                            
-                            return base;
-                          }).filter(item => item.webhookUrl); // Remove empty integrations
-                          
-                          console.log('Integrations to save:', integrations);
-                          // Add your API call here to save the integrations
-                          setIntegrationModalVisible(false);
-                          setIntegrationFields([{ 
-                            id: 1, 
-                            type: 'slack',
-                            webhookUrl: '',
-                            channel: '',
-                            name: ''
-                          }]);
-                        }}
-                      >
-                        <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>
-                          {integrationFields.map((field, index) => (
-                            <div 
-                              key={field.id} 
-                              style={{ 
-                                marginBottom: '16px', 
-                                padding: '16px', 
-                                border: '1px solid #f0f0f0', 
-                                borderRadius: '4px',
-                                position: 'relative'
-                              }}
-                            >
-                              {index > 0 && (
-                                <Button 
-                                  type="text" 
-                                  danger 
-                                  size="small" 
-                                  style={{ position: 'absolute', right: '8px', top: '8px' }}
-                                  onClick={() => {
-                                    const newFields = integrationFields.filter(f => f.id !== field.id);
-                                    setIntegrationFields(newFields);
-                                  }}
-                                >
-                                  Remove
-                                </Button>
-                              )}
-                              
-                              <Form.Item
-                                label="Integration Type"
-                                name={`type-${field.id}`}
-                                initialValue={field.type}
-                                rules={[{ required: true, message: 'Please select integration type' }]}
-                              >
-                                <Select 
-                                  onChange={(value) => {
-                                    const newFields = [...integrationFields];
-                                    const fieldIndex = newFields.findIndex(f => f.id === field.id);
-                                    if (fieldIndex !== -1) {
-                                      newFields[fieldIndex].type = value;
-                                      setIntegrationFields(newFields);
-                                    }
-                                  }}
-                                >
-                                  <Select.Option value="slack">Slack</Select.Option>
-                                  <Select.Option value="teams">Microsoft Teams</Select.Option>
-                                </Select>
-                              </Form.Item>
-                              
-                              <Form.Item
-                                label="Display Name"
-                                name={`name-${field.id}`}
-                                rules={[{ required: true, message: 'Please enter a display name' }]}
-                              >
-                                <Input placeholder="e.g., Dev Team Alerts, Marketing Updates" />
-                              </Form.Item>
-                              
-                              {field.type === 'slack' && (
-                                <Form.Item
-                                  label="Slack Channel"
-                                  name={`channel-${field.id}`}
-                                  rules={[{ required: true, message: 'Please enter Slack channel name' }]}
-                                >
-                                  <Input placeholder="#channel-name or @username" addBefore="#" />
-                                </Form.Item>
-                              )}
-                              
-                              <Form.Item
-                                label={field.type === 'slack' ? 'Slack Webhook URL' : 'Teams Webhook URL'}
-                                name={`webhook-${field.id}`}
-                                rules={[
-                                  { required: true, message: 'Webhook URL is required' },
-                                  {
-                                    type: 'url',
-                                    message: 'Please enter a valid URL',
-                                  },
-                                ]}
-                              >
-                                <Input 
-                                  placeholder={field.type === 'slack' 
-                                    ? 'https://hooks.slack.com/services/...' 
-                                    : 'https://outlook.office.com/webhook/...'} 
-                                />
-                              </Form.Item>
-                              
-                              <Form.Item
-                                label="Notification Types"
-                                name={`notifications-${field.id}`}
-                              >
-                                <Select mode="multiple" placeholder="Select notification types">
-                                  <Select.Option value="alerts">Alerts</Select.Option>
-                                  <Select.Option value="reports">Reports</Select.Option>
-                                  <Select.Option value="warnings">Warnings</Select.Option>
-                                  <Select.Option value="errors">Errors</Select.Option>
-                                </Select>
-                              </Form.Item>
-                            </div>
-                          ))}
-                        </div>
-                      </Form>
-                    </Modal>
                   </div>
 
                   <Modal
@@ -911,188 +587,390 @@ const Administration = () => {
                     onCancel={() => {
                       companyForm.resetFields();
                       setCompanyModalVisible(false);
+                      setActiveTab("1");
                     }}
                     footer={[
-                      <Button 
-                        key="cancel" 
+                      <Button
+                        key="previous"
+                        onClick={() => setActiveTab((prev) => String(Number(prev) - 1))}
+                        disabled={activeTab === "1"}
+                      >
+                        Previous
+                      </Button>,
+                      <Button
+                        key="cancel"
                         onClick={() => {
                           companyForm.resetFields();
                           setCompanyModalVisible(false);
+                          setActiveTab("1");
                         }}
                       >
                         Cancel
                       </Button>,
-                      <Button 
-                        key="submit" 
-                        type="primary" 
-                        onClick={() => {
-                          companyForm.submit();
-                        }}
-                      >
-                        Save
-                      </Button>
-                    ]}
-                    width={800}
-                  >
-                    <Card
-                      style={{
-                        boxShadow: 'none',
-                        borderRadius: '8px',
-                      }}
-                    >
-                      <Form
-                        form={companyForm}
-                        name="company_details"
-                        layout="vertical"
-                        autoComplete="off"
-                        style={{ padding: '0 8px' }}
-                        onFinish={async (values) => {
+                      <Button
+                        key="next"
+                        type="primary"
+                        onClick={async () => {
                           try {
-                            const res = await fetch(`https://${hostIP}:5000/api/company`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify(values),
-                            });
-                            const data = await res.json();
-                            console.log(data);
-                            message.success(data.message || "Company details saved successfully!");
-                            companyForm.resetFields();
-                            setCompanyModalVisible(false);
-                          } catch (error) {
-                            console.error('Error saving company details:', error);
-                            message.error("Failed to save company details");
+                            if (activeTab === "1") {
+                              await companyForm.validateFields([
+                                "companyName",
+                                "pan",
+                                "address",
+                                "gstin",
+                                "contactPerson",
+                                "phone",
+                                "email",
+                              ]);
+                            } else if (activeTab === "2") {
+                              await companyForm.validateFields(["emails"]);
+                            } else if (activeTab === "3") {
+                              await companyForm.validateFields(["slack_integrations", "teams_integrations"]);
+                            }
+                            setActiveTab((prev) => String(Number(prev) + 1));
+                          } catch (err) {
+                            console.log("Validation failed:", err);
+                          }
+                        }}
+                        disabled={activeTab === "3"}
+                      >
+                        Next
+                      </Button>,
+                      <Button
+                        key="save"
+                        type="primary"
+                        onClick={async () => {
+                          try {
+                            await companyForm.validateFields();
+                            companyForm.submit();
+                          } catch (err) {
+                            console.log("Save blocked, validation failed:", err);
                           }
                         }}
                       >
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Form.Item
-                              label="Company Name"
-                              name="companyName"
-                              rules={[
-                                { required: true, message: 'Please input company name!' },
-                                { min: 2, message: 'Company name is too short (minimum 2 characters)' },
-                                { max: 100, message: 'Company name is too long (maximum 100 characters)' }
-                              ]}
-                            >
-                              <Input placeholder="Enter company name" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              label="PAN"
-                              name="pan"
-                              rules={[
-                                { required: true, message: 'Please input PAN number!' },
-                                {
-                                  pattern: /^[A-Za-z0-9]{10}$/,
-                                  message: 'PAN must be 10 alphanumeric characters'
-                                }
-                              ]}
-                            >
-                              <Input
-                                placeholder="Enter PAN number"
-                                style={{ textTransform: 'uppercase' }}
-                                maxLength={10}
-                              />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                        <Form.Item
-                          label="Registered Address"
-                          name="address"
-                          rules={[
-                            { required: true, message: 'Please input registered address!' },
-                            { min: 10, message: 'Address must be at least 10 characters long' },
-                            { max: 500, message: 'Address cannot exceed 500 characters' }
-                          ]}
-                        >
-                          <Input
-                            placeholder="Enter registered address"
-                            showCount
-                            maxLength={500}
-                          />
-                        </Form.Item>
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Form.Item
-                              label="GSTIN/VAT ID"
-                              name="gstin"
-                              rules={[
-                                { required: true, message: 'Please input GSTIN/VAT ID!' },
-                                {
-                                  pattern: /^[0-9A-Za-z]{15}$/,
-                                  message: 'GSTIN must be 15 alphanumeric characters'
-                                }
-                              ]}
-                            >
-                              <Input
-                                placeholder="Enter 15-digit GSTIN"
-                                style={{ textTransform: 'uppercase' }}
-                                maxLength={15}
-                              />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              label="Contact Person"
-                              name="contactPerson"
-                              rules={[
-                                { required: true, message: 'Please input contact person name!' },
-                                { min: 2, message: 'Name is too short (minimum 2 characters)' },
-                                { max: 100, message: 'Name is too long (maximum 100 characters)' }
-                              ]}
-                            >
-                              <Input placeholder="Enter contact person name" />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Form.Item
-                              label="Phone Number"
-                              name="phone"
-                              rules={[
-                                { required: true, message: 'Please input phone number!' },
-                                {
-                                  pattern: /^[0-9]{10}$/,
-                                  message: 'Please enter a valid 10-digit phone number'
-                                }
-                              ]}
-                            >
-                              <Input
-                                placeholder="Enter phone number"
-                                maxLength={10}
-                                type="tel"
-                              />
-                            </Form.Item>
-                          </Col>
-                          <Col span={12}>
-                            <Form.Item
-                              label="Email ID"
-                              name="email"
-                              rules={[
-                                { required: true, message: 'Please input email address' },
-                                {
-                                  type: 'email',
-                                  message: 'Please enter a valid email address'
-                                }
-                              ]}
-                            >
-                              <Input
-                                placeholder="Enter email address"
-                                type="email"
-                              />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-  
-                      </Form>
-                    </Card>
+                        Save
+                      </Button>,
+                    ]}
+                    width={800}
+                  >
+                    {/* ✅ Single Form wrapping all tabs */}
+                    <Form
+                      form={companyForm}
+                      name="company_details"
+                      layout="vertical"
+                      autoComplete="off"
+                      onFinish={async (values) => {
+                        try {
+                          const payload = {
+                            company_name: values.companyName,
+                            pan_number: values.pan,
+                            gst_number: values.gstin,
+                            address: values.address,
+                            contact_person: values.contactPerson,
+                            phone_number: values.phone,
+                            email_id: values.email,
+                            notification_emails: values.emails || [],
+                            notification_description: values.description || null,
+                            integrations: [
+                              ...(values.slack_integrations || []).map((s) => ({ type: "Slack", ...s })),
+                              ...(values.teams_integrations || []).map((t) => ({ type: "Teams", ...t })),
+                            ],
+                          };
+
+                          const res = await fetch(`https://${hostIP}:5000/api/company`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload),
+                          });
+
+                          const data = await res.json();
+                          if (res.ok) {
+                            message.success(data.message || "Company details saved successfully!");
+                            companyForm.resetFields();
+                            setCompanyModalVisible(false);
+                            setActiveTab("1");
+                          } else {
+                            message.error(data.error || "Failed to save company details");
+                          }
+                        } catch (error) {
+                          console.error("Error saving company details:", error);
+                          message.error("Failed to save company details");
+                        }
+                      }}
+                    >
+                      <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key)} style={{ marginTop: -16 }}>
+                        {/* TAB 1: Company Details */}
+                        <Tabs.TabPane tab="Company Details" key="1">
+                          <Row gutter={16}>
+                            {/* Company Name */}
+                            <Col span={12}>
+                              <Form.Item
+                                label="Company Name"
+                                name="companyName"
+                                rules={[
+                                  { required: true, message: "Company name is required" },
+                                  { min: 3, message: "Company name must be at least 3 characters" },
+                                  {
+                                    pattern: /^[A-Za-z0-9\s\.\,&'-]+$/,
+                                    message: "Company name can contain letters, numbers, spaces, and basic symbols",
+                                  },
+                                ]}
+                              >
+                                <Input placeholder="Enter company name" />
+                              </Form.Item>
+                            </Col>
+
+                            {/* PAN Number */}
+                            <Col span={12}>
+                              <Form.Item
+                                label="PAN Number"
+                                name="pan"
+                                rules={[
+                                  { required: true, message: "PAN number is required" },
+                                  {
+                                    pattern: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
+                                    message: "Enter a valid PAN number (e.g., ABCDE1234F)",
+                                  },
+                                ]}
+                              >
+                                <Input
+                                  placeholder="Enter PAN number"
+                                  maxLength={10}
+                                  onChange={(e) => {
+                                    e.target.value = e.target.value.toUpperCase().replace(/\s/g, "");
+                                  }}
+                                />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          <Row gutter={16}>
+                            {/* Address */}
+                            <Col span={24}>
+                              <Form.Item
+                                label="Address"
+                                name="address"
+                                rules={[
+                                  { required: true, message: "Address is required" },
+                                  { min: 5, message: "Address must be at least 5 characters" },
+                                ]}
+                              >
+                                <Input.TextArea placeholder="Enter address" autoSize={{ minRows: 2, maxRows: 4 }} />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          <Row gutter={16}>
+                            {/* GST Number */}
+                            <Col span={12}>
+                              <Form.Item
+                                label="GST Number"
+                                name="gstin"
+                                rules={[
+                                  { required: true, message: "GST number is required" },
+                                  {
+                                    len: 15,
+                                    message: "GST number must be exactly 15 characters",
+                                  },
+                                ]}
+                              >
+                                <Input
+                                  placeholder="Enter GST number"
+                                  maxLength={15}
+                                  onChange={(e) => {
+                                    e.target.value = e.target.value.toUpperCase().replace(/\s/g, "");
+                                  }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            {/* Contact Person */}
+                            <Col span={12}>
+                              <Form.Item
+                                label="Contact Person"
+                                name="contactPerson"
+                                rules={[
+                                  { required: true, message: "Contact person is required" },
+                                  {
+                                    pattern: /^[A-Za-z\s]+$/,
+                                    message: "Only alphabets and spaces are allowed",
+                                  },
+                                  { min: 3, message: "Contact person must be at least 3 characters" },
+                                ]}
+                              >
+                                <Input placeholder="Enter contact person" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          <Row gutter={16}>
+                            {/* Phone Number */}
+                            <Col span={12}>
+                              <Form.Item
+                                label="Phone Number"
+                                name="phone"
+                                rules={[
+                                  { required: true, message: "Phone number is required" },
+                                  {
+                                    pattern: /^[6-9][0-9]{9}$/,
+                                    message: "Enter a valid 10-digit Indian phone number",
+                                  },
+                                ]}
+                              >
+                                <Input placeholder="Enter phone number" maxLength={10} />
+                              </Form.Item>
+                            </Col>
+
+                            {/* Email */}
+                            <Col span={12}>
+                              <Form.Item
+                                label="Email ID"
+                                name="email"
+                                rules={[
+                                  { required: true, message: "Email is required" },
+                                  { type: "email", message: "Enter a valid email" },
+                                ]}
+                              >
+                                <Input placeholder="Enter email ID" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        </Tabs.TabPane>
+
+
+
+                        {/* TAB 2: Emails & Notifications */}
+                        <Tabs.TabPane tab="Add Emails and Notifications" key="2">
+                          <Form.List name="emails" initialValue={[""]}>
+                            {(fields, { add, remove }) => (
+                              <>
+                                {fields.map(({ key, name }) => (
+                                  <Form.Item
+                                    key={key}
+                                    label="Email ID"
+                                    name={name}
+                                    rules={[
+                                      { required: true, message: "Email is required" },
+                                      { type: "email", message: "Enter a valid email" },
+                                    ]}
+                                  >
+                                    <Input
+                                      placeholder="Enter email"
+                                      addonAfter={
+                                        fields.length > 1 && (
+                                          <a onClick={() => remove(name)} style={{ color: "red" }}>
+                                            Remove
+                                          </a>
+                                        )
+                                      }
+                                    />
+                                  </Form.Item>
+                                ))}
+                                <Form.Item style={{ marginTop: -10 }}>
+                                  <Button type="default" onClick={() => add()}>+ Add another email</Button>
+                                </Form.Item>
+                              </>
+                            )}
+                          </Form.List>
+
+                          <Form.Item label="Description" name="description">
+                            <Input placeholder="Enter description (optional)" />
+                          </Form.Item>
+                        </Tabs.TabPane>
+
+                        {/* TAB 3: Integrations */}
+                        <Tabs.TabPane tab="Add 3rd Party Integrations" key="3">
+                          <h6>Slack Integrations</h6>
+                          <Form.List name="slack_integrations" initialValue={[{}]}>
+                            {(fields, { add, remove }) => (
+                              <>
+                                {fields.map(({ key, name }, index) => (
+                                  <div key={key} style={{ marginBottom: 12 }}>
+                                    <Form.Item
+                                      name={[name, "workspace"]}
+                                      label="Workspace URL"
+                                      rules={[{ required: true, message: "Workspace URL is required" }]}
+                                    >
+                                      <Input placeholder="Enter workspace URL" />
+                                    </Form.Item>
+                                    <Form.Item
+                                      name={[name, "channel"]}
+                                      label="Channel / Webhook"
+                                      rules={[{ required: true, message: "Channel/Webhook is required" }]}
+                                    >
+                                      <Input placeholder="Enter channel/webhook" />
+                                    </Form.Item>
+                                    {index > 0 && (
+                                      <a onClick={() => remove(name)} style={{ color: "red" }}>
+                                        Remove Slack Integration
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                                <Form.Item style={{ marginTop: -10 }}>
+                                  <Button type="default" onClick={() => add()}>+ Add another Slack integration</Button>
+                                </Form.Item>
+                              </>
+                            )}
+                          </Form.List>
+
+                          <h6>Teams Integrations</h6>
+                          <Form.List name="teams_integrations" initialValue={[{}]}>
+                            {(fields, { add, remove }) => (
+                              <>
+                                {fields.map(({ key, name }, index) => (
+                                  <div key={key} style={{ marginBottom: 12 }}>
+                                    <Form.Item
+                                      name={[name, "webhook"]}
+                                      label="Webhook URL"
+                                      rules={[{ required: true, message: "Webhook URL is required" }]}
+                                    >
+                                      <Input placeholder="Enter webhook URL" />
+                                    </Form.Item>
+                                    <Form.Item name={[name, "channel"]} label="Channel (Optional)">
+                                      <Input placeholder="Enter channel" />
+                                    </Form.Item>
+                                    {index > 0 && (
+                                      <a onClick={() => remove(name)} style={{ color: "red" }}>
+                                        Remove Teams Integration
+                                      </a>
+                                    )}
+                                  </div>
+                                ))}
+                                <Form.Item style={{ marginTop: -10 }}>
+                                  <Button type="default" onClick={() => add()}>+ Add another Teams integration</Button>
+                                </Form.Item>
+                              </>
+                            )}
+                          </Form.List>
+                        </Tabs.TabPane>
+                      </Tabs>
+                    </Form>
                   </Modal>
+
+
                 </div>
               </>
             )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
             <Modal
               title={<div style={{ marginBottom: "20px" }}>User Details</div>}

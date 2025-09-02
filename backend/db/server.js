@@ -33,21 +33,21 @@ function getLocalIP() {
 // Helper function to calculate end date based on license period (number of days)
 function calculateEndDate(licensePeriod) {
   if (!licensePeriod) return null;
-  
+
   const today = new Date();
   const startDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-  
+
   // Parse license period as number of days
   const days = parseInt(licensePeriod);
-  
+
   if (isNaN(days) || days < 0) {
     console.warn(`Invalid license period: ${licensePeriod}. Expected a positive number of days.`);
     return null;
   }
-  
+
   const endDate = new Date(today);
   endDate.setDate(today.getDate() + days);
-  
+
   return endDate.toISOString().split('T')[0]; // YYYY-MM-DD format
 }
 
@@ -177,34 +177,34 @@ function checkAndUpdateExpiredLicenses() {
     });
   });
 
-// Fetch deployed server IPs for a given cloudname (and optional user filter)
-// Retrieves distinct server IPs from deployed_server table for a specific cloud
-// Supports optional user filtering and returns IP addresses for network operations
-app.get('/api/deployed-server-ips', (req, res) => {
-  try {
-    const { cloudname, user_id } = req.query;
-    if (!cloudname) {
-      return res.status(400).json({ error: 'cloudname is required' });
-    }
-    // Fetch distinct IPs from deployed_server for the cloud
-    // If user_id provided and column exists in schema, filter by it; otherwise ignore
-    const params = [cloudname];
-    const whereUser = user_id ? ' AND (user_id = ?)' : '';
-    if (user_id) params.push(user_id);
-    const sql = `SELECT DISTINCT serverip FROM deployed_server WHERE cloudname = ?${whereUser}`;
-    db.query(sql, params, (err, rows) => {
-      if (err) {
-        console.error('Error fetching deployed server IPs:', err);
-        return res.status(500).json({ error: 'Database error' });
+  // Fetch deployed server IPs for a given cloudname (and optional user filter)
+  // Retrieves distinct server IPs from deployed_server table for a specific cloud
+  // Supports optional user filtering and returns IP addresses for network operations
+  app.get('/api/deployed-server-ips', (req, res) => {
+    try {
+      const { cloudname, user_id } = req.query;
+      if (!cloudname) {
+        return res.status(400).json({ error: 'cloudname is required' });
       }
-      const ips = Array.isArray(rows) ? rows.map(r => r.serverip).filter(Boolean) : [];
-      return res.json({ ips });
-    });
-  } catch (e) {
-    console.error('Unexpected error in /api/deployed-server-ips:', e);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
+      // Fetch distinct IPs from deployed_server for the cloud
+      // If user_id provided and column exists in schema, filter by it; otherwise ignore
+      const params = [cloudname];
+      const whereUser = user_id ? ' AND (user_id = ?)' : '';
+      if (user_id) params.push(user_id);
+      const sql = `SELECT DISTINCT serverip FROM deployed_server WHERE cloudname = ?${whereUser}`;
+      db.query(sql, params, (err, rows) => {
+        if (err) {
+          console.error('Error fetching deployed server IPs:', err);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        const ips = Array.isArray(rows) ? rows.map(r => r.serverip).filter(Boolean) : [];
+        return res.json({ ips });
+      });
+    } catch (e) {
+      console.error('Unexpected error in /api/deployed-server-ips:', e);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 }
 const https = require('https');
 const fs = require('fs');
@@ -246,7 +246,7 @@ app.use(
 // Returns license details and availability status for validation purposes
 app.post('/api/check-license-exists', (req, res) => {
   const { license_code } = req.body;
-  
+
   if (!license_code) {
     return res.status(400).json({ error: 'License code is required' });
   }
@@ -268,21 +268,21 @@ app.post('/api/check-license-exists', (req, res) => {
     const sql = 'SELECT * FROM License WHERE license_code = ?';
     db.query(sql, [license_code], (err, results) => {
       db.end(); // Close the connection
-      
+
       if (err) {
         console.error('Database query error:', err);
         return res.status(500).json({ error: 'Error checking license' });
       }
-      
+
       if (results.length > 0) {
-        return res.status(200).json({ 
+        return res.status(200).json({
           exists: true,
           message: 'This license code is already in use',
           license: results[0]
         });
       }
-      
-      return res.status(200).json({ 
+
+      return res.status(200).json({
         exists: false,
         message: 'License code is available'
       });
@@ -724,6 +724,122 @@ db.connect((err) => {
   }
   console.log("MySQL connected...");
 
+
+
+  // --- Create Table (run once at startup) ---
+  const createCompanyTableSQL = `
+  CREATE TABLE IF NOT EXISTS Company_All (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_name VARCHAR(255) NOT NULL,
+    pan_number VARCHAR(20) NOT NULL UNIQUE,
+    address TEXT NOT NULL,
+    gst_number VARCHAR(50) NOT NULL UNIQUE,
+    contact_person VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(20) NOT NULL,
+    email_id VARCHAR(255) NOT NULL,          -- main email
+    notification_emails JSON NOT NULL,       -- multiple emails stored as JSON array
+    notification_description TEXT NULL,
+    integrations JSON NOT NULL,              -- Slack/Teams integrations stored as JSON
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+`;
+
+  db.query(createCompanyTableSQL, (err) => {
+    if (err) {
+      console.error("❌ Error creating Company_All table:", err);
+    } else {
+      console.log("✅ Company_All table checked/created successfully");
+    }
+  });
+
+  // --- API: Insert Company Details ---
+  app.post("/api/company", (req, res) => {
+    const {
+      company_name,
+      pan_number,
+      address,
+      gst_number,
+      contact_person,
+      phone_number,
+      email_id,
+      notification_emails,
+      notification_description,
+      integrations,
+    } = req.body;
+
+    const sql = `
+    INSERT INTO Company_All 
+    (company_name, pan_number, address, gst_number, contact_person, phone_number, email_id, notification_emails, notification_description, integrations)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+    db.query(
+      sql,
+      [
+        company_name,
+        pan_number,
+        address,
+        gst_number,
+        contact_person,
+        phone_number,
+        email_id,
+        JSON.stringify(notification_emails || []),
+        notification_description || null,
+        JSON.stringify(integrations || []),
+      ],
+      (err, result) => {
+        if (err) {
+          console.error("❌ Insert error:", err);
+          return res.status(500).json({ error: "Database insert failed" });
+        }
+        res.status(201).json({ message: "✅ Company saved successfully", id: result.insertId });
+      }
+    );
+  });
+
+  // --- API: Get All Companies ---
+  app.get("/api/company", (req, res) => {
+    const sql = `SELECT * FROM Company_All ORDER BY created_at DESC`;
+
+    db.query(sql, (err, results) => {
+      if (err) {
+        console.error("❌ Fetch error:", err);
+        return res.status(500).json({ error: "Database fetch failed" });
+      }
+      // Parse JSON fields back before sending
+      const formatted = results.map((row) => ({
+        ...row,
+        notification_emails: JSON.parse(row.notification_emails || "[]"),
+        integrations: JSON.parse(row.integrations || "[]"),
+      }));
+      res.json(formatted);
+    });
+  });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   // Create users table if not exists
   const usersTableSQL = `
     CREATE TABLE IF NOT EXISTS users (
@@ -749,7 +865,7 @@ db.connect((err) => {
       console.log("Default user ensured...");
     });
   });
-  
+
   // Create new deployment_activity_log table with default timestamp
   const deploymentActivityLogTableSQL = `
     CREATE TABLE IF NOT EXISTS deployment_activity_log (
@@ -808,7 +924,7 @@ db.connect((err) => {
     db.query(licenseTableSQL, (err, result) => {
       if (err) throw err;
       console.log("License table checked/created...");
-      
+
       // Add start_date and end_date columns to existing License table if they don't exist
       // MySQL may not support IF NOT EXISTS for ADD COLUMN in your version; attempt and ignore duplicate errors
       db.query("ALTER TABLE License ADD COLUMN start_date DATE NULL", (altErr) => {
@@ -855,7 +971,7 @@ db.connect((err) => {
       db.query(deployedServerTableSQL, (err, result) => {
         if (err) throw err;
         console.log("Deployed Server table checked/created...");
-        
+
         // Ensure hostname column exists for older deployed_server tables
         db.query("ALTER TABLE deployed_server ADD COLUMN hostname VARCHAR(255) NULL", (altErr) => {
           if (altErr && altErr.code !== 'ER_DUP_FIELDNAME' && altErr.code !== 'ER_CANT_ADD_FIELD') {
@@ -889,7 +1005,7 @@ db.connect((err) => {
       }
     });
   });
-  
+
   // Create keycloak_client_secret table
   const keycloakClientSecretTableSQL = `
     CREATE TABLE IF NOT EXISTS keycloak_client_secret (
@@ -898,7 +1014,7 @@ db.connect((err) => {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB;
   `;
-  
+
   db.query(keycloakClientSecretTableSQL, (err, result) => {
     if (err) throw err;
     console.log("Keycloak client secret table checked/created...");
@@ -906,7 +1022,7 @@ db.connect((err) => {
 
   // Set up periodic check for expired licenses (run every hour)
   setInterval(checkAndUpdateExpiredLicenses, 60 * 60 * 1000); // 60 minutes * 60 seconds * 1000 milliseconds
-  
+
   // Also run the check once on startup
   setTimeout(checkAndUpdateExpiredLicenses, 5000); // Run after 5 seconds to ensure DB is ready
 });
@@ -1168,10 +1284,10 @@ app.patch('/api/deployment-activity-log/:serverid', (req, res) => {
 // Checks for expired licenses and returns comprehensive license information
 app.get('/api/license-details/:serverid', (req, res) => {
   const { serverid } = req.params;
-  
+
   // First check and update any expired licenses
   checkAndUpdateExpiredLicenses();
-  
+
   const sql = 'SELECT license_code, license_type, license_period, license_status, start_date, end_date FROM License WHERE server_id = ? ORDER BY id DESC LIMIT 1';
   db.query(sql, [serverid], (err, results) => {
     if (err) {
@@ -1348,27 +1464,27 @@ app.get('/api/deployed-servers', (req, res) => {
 // Returns server ID, IP, and role information for server identification
 app.get('/api/server-details-by-ip', (req, res) => {
   const { ip, userId } = req.query;
-  
+
   if (!ip) {
     return res.status(400).json({ error: 'IP parameter is required' });
   }
 
   let sql = "SELECT serverid, serverip, hostname, role FROM deployed_server WHERE serverip = ?";
   const params = [ip];
-  
+
   if (userId) {
     sql += ' AND user_id = ?';
     params.push(userId);
   }
-  
+
   sql += ' ORDER BY datetime DESC LIMIT 1';
-  
+
   db.query(sql, params, (err, results) => {
     if (err) {
       console.error('Error fetching server details by IP:', err);
       return res.status(500).json({ error: 'Database error' });
     }
-    
+
     if (results && results.length > 0) {
       res.json(results[0]);
     } else {
@@ -1912,7 +2028,7 @@ app.post('/api/finalize-child-deployment/:serverid', (req, res) => {
               const licensePeriod = licResults[0]?.license_period;
               const startDate = new Date().toISOString().split('T')[0]; // Today's date
               const endDate = calculateEndDate(licensePeriod);
-              
+
               const updLicSQL = `UPDATE License SET license_status = 'activated', server_id = ?, start_date = ?, end_date = ? WHERE license_code = ?`;
               db.query(updLicSQL, [serverid, startDate, endDate, licenseCodeToUse], (licUpdErr) => {
                 if (licUpdErr) {
@@ -2043,15 +2159,15 @@ app.get('/api/get-keycloak-secrets', (req, res) => {
       console.error('Error retrieving Keycloak client secrets:', err);
       return res.status(500).json({ error: 'Failed to retrieve client secrets' });
     }
-    
+
     if (results.length === 0) {
       return res.status(404).json({ error: 'No client secrets found in database' });
     }
-    
+
     const clientSecrets = results.map(row => row.client_secret);
     console.log(`Retrieved ${clientSecrets.length} client secret(s) from database`);
-    
-    return res.status(200).json({ 
+
+    return res.status(200).json({
       client_secrets: clientSecrets,
       client_secret: clientSecrets[0], // For backward compatibility - returns most recent
       count: clientSecrets.length,
@@ -2065,45 +2181,45 @@ app.get('/api/get-keycloak-secrets', (req, res) => {
 // Only inserts if the client secret is different from existing ones
 app.post('/api/store-keycloak-secret', (req, res) => {
   const { client_secret, source_file } = req.body;
-  
+
   if (!client_secret) {
     return res.status(400).json({ error: 'client_secret is required' });
   }
 
   // First check if this client secret already exists
   const checkSql = `SELECT sno FROM keycloak_client_secret WHERE client_secret = ? LIMIT 1`;
-  
+
   db.query(checkSql, [client_secret], (checkErr, checkResults) => {
     if (checkErr) {
       console.error('Error checking existing Keycloak client secret:', checkErr);
       return res.status(500).json({ error: 'Failed to check existing client secret' });
     }
-    
+
     // If client secret already exists, don't insert
     if (checkResults && checkResults.length > 0) {
       const existingId = checkResults[0].sno;
       console.log(`Client secret already exists in database (ID: ${existingId}), skipping insertion`);
-      
-      return res.status(200).json({ 
+
+      return res.status(200).json({
         message: 'Client secret already exists, no insertion needed',
         record_id: existingId,
         action: 'skipped'
       });
     }
-    
+
     // Client secret is new, proceed with insertion
     const insertSql = `INSERT INTO keycloak_client_secret (client_secret) VALUES (?)`;
-    
+
     db.query(insertSql, [client_secret], (insertErr, insertResult) => {
       if (insertErr) {
         console.error('Error storing new Keycloak client secret:', insertErr);
         return res.status(500).json({ error: 'Failed to store Keycloak client secret' });
       }
-      
+
       const recordId = insertResult.insertId;
       console.log(`New Keycloak client secret stored successfully with ID: ${recordId}, source: ${source_file || 'unknown'}`);
-      
-      return res.status(200).json({ 
+
+      return res.status(200).json({
         message: 'New Keycloak client secret stored successfully',
         record_id: recordId,
         action: 'inserted'
