@@ -397,8 +397,24 @@ def submit_network_config():
                 if netmask:
                     if not validate_subnet_mask(netmask):
                         return jsonify({"success": False, "message": f"Invalid subnet mask for interface {real_iface}"}), 400
-                # Network available
-                if not is_network_available(iface_ip):
+                # Network available - Only validate for Mgmt interfaces in segregated mode
+                # Determine if this is a segregated configuration by checking configType if available
+                # Otherwise, check if any interface has Mgmt type as a fallback
+                is_segregated = data.get("configType") == "segregated"
+                if not is_segregated:
+                    # Fallback check: if any interface has Mgmt type, it's likely segregated
+                    is_segregated = any(
+                        isinstance(cfg.get("type"), list) and "Mgmt" in cfg.get("type", [])
+                        for cfg in data.get("using_interfaces", {}).values()
+                    )
+                
+                # In segregated mode, only validate network availability for Mgmt interfaces
+                # In default mode, validate all interfaces
+                should_validate_network = True
+                if is_segregated and iface_type and isinstance(iface_type, list):
+                    should_validate_network = "Mgmt" in iface_type
+                
+                if should_validate_network and not is_network_available(iface_ip):
                     return jsonify({"success": False, "message": f"Network for interface {real_iface} is not available or used by another device"}), 400
             # DNS in Properties
             if "DNS" in props:
@@ -450,7 +466,6 @@ def submit_network_config():
             200,
         )
 
-# ... (rest of the code remains the same)
     except Exception as e:
         app.logger.error(f"❌ Exception occurred: {str(e)}")
         return jsonify({"success": False, "message": f"Bad Request: {str(e)}"}), 400

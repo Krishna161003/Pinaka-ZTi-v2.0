@@ -1886,7 +1886,7 @@ def check_ssh_status():
     
     # Check if we have a result for this IP
     if ip in ssh_polling_results:
-        result = ssh_polling_results[ip]
+        result = ssh_polling_results[ip].copy()  # Create a copy to avoid modifying the original
         
         # Add metadata for response tracking
         result['response_timestamp'] = time.time()
@@ -1915,7 +1915,8 @@ def check_ssh_status():
             else:
                 print(f"DEBUG: Returning persistent result for {ip}: {result} (age: {current_time - result_time:.1f}s)")
                 # DO NOT delete the result - keep it for multiple fetches
-                return jsonify(result)
+                # But make sure we're returning a copy so concurrent requests don't interfere
+                return jsonify(result.copy())
         else:
             # For 'fail' status, return and remove it so it can be updated by next polling attempt
             print(f"DEBUG: Returning transient fail result for {ip}: {result}")

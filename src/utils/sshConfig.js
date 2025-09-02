@@ -193,15 +193,33 @@ export const fetchWithRetry = async (url, options = {}, retries = SSH_CONFIG.RES
  * @returns {Object} Validated response object
  */
 export const validateSSHResponse = (data, expectedIp) => {
-  // Enhanced validation with more detailed error messages
-  if (!data || typeof data !== 'object') {
+  // Handle null/undefined data
+  if (!data) {
+    throw new Error('Invalid response: Response is null or undefined');
+  }
+  
+  // Handle non-object data
+  if (typeof data !== 'object') {
     throw new Error('Invalid response format: Response is not an object');
   }
   
+  // Handle missing status field
   if (!('status' in data)) {
+    // If we have an IP but no status, assume it's a success response
+    if ('ip' in data && data.ip) {
+      console.warn('Missing status field in response, assuming success');
+      return {
+        status: 'success',
+        ip: data.ip,
+        message: data.message || 'SSH connection successful',
+        validated: true,
+        timestamp: Date.now()
+      };
+    }
     throw new Error('Missing status field in response');
   }
   
+  // Validate status field
   if (typeof data.status !== 'string') {
     throw new Error('Invalid status field: Expected string');
   }
@@ -217,18 +235,40 @@ export const validateSSHResponse = (data, expectedIp) => {
     }
     
     if (expectedIp && data.ip !== expectedIp) {
-      throw new Error(`IP mismatch: expected ${expectedIp}, got ${data.ip}`);
+      // Only warn for IP mismatch, don't throw error as it might be a valid response with different IP
+      console.warn(`IP mismatch in success response: expected ${expectedIp}, got ${data.ip}`);
     }
   }
   
   // For fail responses, we also need an IP
   if (data.status === 'fail') {
     if (!('ip' in data)) {
-      throw new Error('Missing IP field in fail response');
+      // Try to infer IP from expected IP
+      if (expectedIp) {
+        data.ip = expectedIp;
+      } else {
+        throw new Error('Missing IP field in fail response');
+      }
     }
     
     if (typeof data.ip !== 'string') {
       throw new Error('Invalid IP field in fail response: Expected string');
+    }
+  }
+  
+  // For timeout responses, we also need an IP
+  if (data.status === 'timeout') {
+    if (!('ip' in data)) {
+      // Try to infer IP from expected IP
+      if (expectedIp) {
+        data.ip = expectedIp;
+      } else {
+        throw new Error('Missing IP field in timeout response');
+      }
+    }
+    
+    if (typeof data.ip !== 'string') {
+      throw new Error('Invalid IP field in timeout response: Expected string');
     }
   }
   

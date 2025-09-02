@@ -1287,9 +1287,35 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           nextTypes = [nextTypes[nextTypes.length - 1]]; // Keep only the last selected
         }
         
-        // Ensure only one row can have External_Traffic
-        const someOtherHasExternal = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External_Traffic'));
+        // Enforce that each type can only be selected on one interface across the entire node
+        // Check if any of the newly selected types are already selected on other interfaces
+        const newlySelectedTypes = nextTypes.filter(type => 
+          !Array.isArray(row.type) || !row.type.includes(type)
+        );
+        
+        if (newlySelectedTypes.length > 0) {
+          // Remove these types from other rows
+          updated.forEach((r, idx) => {
+            if (idx !== rowIdx && Array.isArray(r.type)) {
+              const typesToRemove = newlySelectedTypes.filter(type => r.type.includes(type));
+              if (typesToRemove.length > 0) {
+                r.type = r.type.filter(type => !newlySelectedTypes.includes(type));
+                // Show warning message for each removed type
+                typesToRemove.forEach(type => {
+                  try { 
+                    message.warning(`Type '${type}' moved from another interface to this one.`); 
+                  } catch (_) {}
+                });
+              }
+            }
+          });
+        }
+        
+        // Handle External_Traffic exclusivity - can only be on one interface
         if (nextTypes.includes('External_Traffic')) {
+          const someOtherHasExternal = updated.some((r, idx) => 
+            idx !== rowIdx && Array.isArray(r.type) && r.type.includes('External_Traffic')
+          );
           if (someOtherHasExternal) {
             // Remove External_Traffic and notify
             nextTypes = nextTypes.filter(t => t !== 'External_Traffic');
@@ -1299,7 +1325,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         
         // Handle Mgmt exclusivity - can only be on one interface
         if (nextTypes.includes('Mgmt')) {
-          const someOtherHasMgmt = updated.some((r, idx) => idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt'));
+          const someOtherHasMgmt = updated.some((r, idx) => 
+            idx !== rowIdx && Array.isArray(r.type) && r.type.includes('Mgmt')
+          );
           if (someOtherHasMgmt) {
             // Remove Mgmt from other rows
             updated.forEach((r, idx) => {
@@ -1381,6 +1409,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           if (value && !/^(409[0-4]|40[0-8][0-9]|[1-3][0-9]{3}|[1-9][0-9]{1,2}|[1-9])$/.test(value)) {
             row.errors[field] = 'VLAN ID must be 1-4094';
           } else {
+            // Always clear the error when the field is empty or valid
             delete row.errors[field];
           }
         }
@@ -1512,9 +1541,14 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         title: 'Type',
         dataIndex: 'type',
         render: (_, record, rowIdx) => {
-          // Removed the exclusivity checks for Mgmt and External_Traffic
-          // This allows the same type to be selected on multiple interfaces
-          const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
+          // Get all types that are already selected on other interfaces
+          const selectedTypes = form.tableData
+            .filter((_, i) => i !== rowIdx)
+            .flatMap(row => Array.isArray(row.type) ? row.type : []);
+            
+          // Get currently selected types for this row
+          const currentTypes = Array.isArray(record.type) ? record.type : [];
+          
           return (
             <Select
               mode="multiple"
@@ -1528,40 +1562,41 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             >
               {form.configType === 'segregated' ? (
                 <>
-                  {hasExt ? (
-                    // When External_Traffic is selected on this row, hide all other options
+                  {/* Show Mgmt option only if not selected elsewhere or currently selected here */}
+                  {(!selectedTypes.includes('Mgmt') || currentTypes.includes('Mgmt')) && (
+                    <Option value="Mgmt">
+                      <Tooltip placement="right" title="Management">
+                        Mgmt
+                      </Tooltip>
+                    </Option>
+                  )}
+                  
+                  {/* Show VXLAN option only if not selected elsewhere or currently selected here */}
+                  {(!selectedTypes.includes('VXLAN') || currentTypes.includes('VXLAN')) && (
+                    <Option value="VXLAN">
+                      <Tooltip placement="right" title="VXLAN">
+                        VXLAN
+                      </Tooltip>
+                    </Option>
+                  )}
+                  
+                  {/* Show Storage option only if not selected elsewhere or currently selected here */}
+                  {(!selectedTypes.includes('Storage') || currentTypes.includes('Storage')) && 
+                   Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
+                    <Option value="Storage">
+                      <Tooltip placement="right" title="Storage">
+                        Storage
+                      </Tooltip>
+                    </Option>
+                  )}
+                  
+                  {/* Show External_Traffic option only if not selected elsewhere or currently selected here */}
+                  {(!selectedTypes.includes('External_Traffic') || currentTypes.includes('External_Traffic')) && (
                     <Option value="External_Traffic">
                       <Tooltip placement="right" title="External_Traffic">
                         External_Traffic
                       </Tooltip>
                     </Option>
-                  ) : (
-                    <>
-                      {/* Always show all options regardless of what's selected elsewhere */}
-                      <Option value="Mgmt">
-                        <Tooltip placement="right" title="Management" >
-                          Mgmt
-                        </Tooltip>
-                      </Option>
-                      <Option value="VXLAN">
-                        <Tooltip placement="right" title="VXLAN">
-                          VXLAN
-                        </Tooltip>
-                      </Option>
-                      {/* Only show Storage if disks are present */}
-                      {Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
-                        <Option value="Storage">
-                          <Tooltip placement="right" title="Storage">
-                            Storage
-                          </Tooltip>
-                        </Option>
-                      )}
-                      <Option value="External_Traffic">
-                        <Tooltip placement="right" title="External_Traffic">
-                          External_Traffic
-                        </Tooltip>
-                      </Option>
-                    </>
                   )}
                 </>
               ) : (
@@ -1646,12 +1681,37 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     ];
   };
 
-  const handleSubmit = (nodeIdx) => {
+  const handleSubmit = async (nodeIdx) => {
     if (cardStatus[nodeIdx].loading || cardStatus[nodeIdx].applied) return;
     // Validate all rows for this node
     const form = forms[nodeIdx];
-    // Removed validation that enforces only one External_Traffic interface
-    // This allows multiple interfaces to have the same type
+    
+    // In segregated mode, ensure each type is only selected once across all interfaces
+    if (form.configType === 'segregated') {
+      const allSelectedTypes = [];
+      const typeOccurrences = {};
+      
+      // Collect all selected types and count occurrences
+      form.tableData.forEach((row, index) => {
+        if (Array.isArray(row.type)) {
+          row.type.forEach(type => {
+            allSelectedTypes.push({ type, rowIndex: index });
+            typeOccurrences[type] = (typeOccurrences[type] || 0) + 1;
+          });
+        }
+      });
+      
+      // Check for duplicate types
+      const duplicateTypes = Object.entries(typeOccurrences)
+        .filter(([type, count]) => count > 1)
+        .map(([type]) => type);
+        
+      if (duplicateTypes.length > 0) {
+        message.error(`Each type can only be selected once across all interfaces. Duplicate types: ${duplicateTypes.join(', ')}`);
+        return;
+      }
+    }
+    
     for (let i = 0; i < form.tableData.length; i++) {
       const row = form.tableData[i];
       if (form.useBond && !row.bondName?.trim()) {
@@ -1679,9 +1739,10 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
         delete filteredErrors.subnet;
         delete filteredErrors.dns;
       }
+      // VLAN ID validation should not block Apply Change operation
+      delete filteredErrors.vlanId;
       if (Object.keys(filteredErrors).length > 0) {
         message.error(`Row ${i + 1} contains invalid entries. Please fix them.`);
-      }
         return;
       }
     }
@@ -1823,36 +1884,39 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           }).then(() => {
             // Helper to schedule or re-schedule frontend polling for this IP
             const scheduleFrontendPolling = () => {
-            // Prevent duplicate timers for this IP
-            if (!window.__cloudPolling) window.__cloudPolling = {};
-            if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-            if (window.__cloudPolling[node_ip]) {
-              try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) { }
-              delete window.__cloudPolling[node_ip];
-            }
-            if (window.__cloudPollingStart[node_ip]) {
-              try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) { }
-              delete window.__cloudPollingStart[node_ip];
-            }
-            // Persist delay start time for recovery
-            try {
-              const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-              const map = raw ? JSON.parse(raw) : {};
-              map[node_ip] = Date.now();
-              sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-            } catch (_) { }
+              // Prevent duplicate timers for this IP
+              if (!window.__cloudPolling) window.__cloudPolling = {};
+              if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+              if (window.__cloudPolling[node_ip]) {
+                try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) { }
+                delete window.__cloudPolling[node_ip];
+              }
+              if (window.__cloudPollingStart[node_ip]) {
+                try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) { }
+                delete window.__cloudPollingStart[node_ip];
+              }
+              // Persist delay start time for recovery
+              try {
+                const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                const map = raw ? JSON.parse(raw) : {};
+                map[node_ip] = Date.now();
+                sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+              } catch (_) { }
 
-            // Delay starting the frontend polling until 90 seconds (to match backend delay)
-            const startPollingTimeout = setTimeout(() => {
-              let pollCount = 0;
-              const maxPolls = POLL_MAX_POLLS; // Maximum 5 minutes of polling
+              // Delay starting the frontend polling until 90 seconds (to match backend delay)
+              const startPollingTimeout = setTimeout(() => {
+                let pollCount = 0;
+                const maxPolls = POLL_MAX_POLLS; // Maximum 5 minutes of polling
 
-              const pollInterval = setInterval(() => {
-                pollCount++;
+                const pollInterval = setInterval(() => {
+                  pollCount++;
 
-                // Stop polling if we've exceeded the maximum attempts
+                  // Stop polling if we've exceeded the maximum attempts
                   if (pollCount > maxPolls) {
                     clearInterval(pollInterval);
+                    if (window.__cloudPolling[node_ip]) {
+                      delete window.__cloudPolling[node_ip];
+                    }
                     setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
                     if (window.__svMountedDeployment) {
                       setCardStatus(prev => {
@@ -1899,105 +1963,124 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                         });
                       }
                     );
-                  delete window.__cloudPolling[node_ip];
-                  return;
-                }
+                    return;
+                  }
 
-                fetch(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
-                  .then(res => res.json())
-                  .then(data => {
-                    if (data.status === 'success' && data.ip === node_ip) {
-                      // Persist status to sessionStorage so it reflects on remount or in other menus
-                      setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
-                      if (window.__svMountedDeployment) {
-                        setCardStatus(prev => {
-                          const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
-                          return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
-                        });
+                  fetchWithRetry(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                      // Validate response to ensure data integrity
+                      let validatedData;
+                      try {
+                        validatedData = validateSSHResponse(data, node_ip);
+                      } catch (validationError) {
+                        console.warn(`SSH response validation failed for ${node_ip}:`, validationError.message);
+                        // Continue with unvalidated data but log the issue
+                        validatedData = { ...data, validated: false };
                       }
-                      message.success(`Node ${data.ip} is back online!`);
-                      // Cross-menu notification on success
-                      {
-                        let suppress = false;
-                        try {
-                          if (window.__svMountedDeployment) suppress = true;
-                          else {
-                            const active = sessionStorage.getItem('serverVirtualization_activeTab');
-                            if (active === '5') suppress = true;
-                          }
-                        } catch (_) { }
-                        if (!suppress) {
-                          notification.open({
-                            key: `sv-ssh-success-${node_ip}`,
-                            message: `Node ${data.ip} is back online`,
-                            description: 'You can return to Deployment to continue.',
-                            duration: 8,
-                            btn: (
-                              <Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>
-                            ),
+                      
+                      if (validatedData.status === 'success' && validatedData.ip === node_ip) {
+                        // Ensure we clear any existing polling before updating state
+                        if (window.__cloudPolling[node_ip]) {
+                          clearInterval(window.__cloudPolling[node_ip]);
+                          delete window.__cloudPolling[node_ip];
+                        }
+                        
+                        // Update session storage first
+                        setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
+                        
+                        // Update local state with proper synchronization
+                        if (window.__svMountedDeployment) {
+                          setCardStatus(prev => {
+                            const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
+                            if (currentIdx === -1) return prev;
+                            return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
                           });
                         }
-                      }
-                      clearInterval(pollInterval);
-                      delete window.__cloudPolling[node_ip];
-                      if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
-                        delete window.__cloudPollingStart[node_ip];
-                      }
-                      // Clear delay-start entry for this IP
-                      try {
-                        const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                        const map = raw ? JSON.parse(raw) : {};
-                        if (map[node_ip]) {
-                          delete map[node_ip];
-                          sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                        
+                        message.success(`Node ${validatedData.ip} is back online!`);
+                        {
+                          let suppress = false;
+                          try {
+                            if (window.__svMountedDeployment) suppress = true;
+                            else {
+                              const active = sessionStorage.getItem('serverVirtualization_activeTab');
+                              if (active === '5') suppress = true;
+                            }
+                          } catch (_) { }
+                          if (!suppress) {
+                            notification.open({
+                              key: `sv-ssh-success-${validatedData.ip}`,
+                              message: `Node ${validatedData.ip} is back online`,
+                              description: 'You can return to Deployment to continue.',
+                              duration: 8,
+                              btn: (<Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
+                            });
+                          }
                         }
-                      } catch (_) { }
-                      // Store the form data for this node in sessionStorage
-                      const nodeIp = form.ip || `node${nodeIdx + 1}`;
-                      storeFormData(nodeIp, form);
-                    } else if (data.status === 'fail' && data.ip === node_ip) {
-                      if (cardStatus[nodeIdx]?.loading || !window.__svMountedDeployment) {
-                        infoRestartThrottled(node_ip);
-                      }
-                    }
-                  })
-                  .catch(err => {
-                    console.error('SSH status check failed:', err);
-                    // On persistent network errors, ensure we don't get stuck in loading state
-                    if (pollCount > maxPolls / 2) { // After half the attempts failed
-                      clearInterval(pollInterval);
-                      setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
-                      if (window.__svMountedDeployment) {
-                        setCardStatus(prev => {
-                          const idxNow = forms.findIndex(f => f?.ip === form.ip);
-                          return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-                        });
-                      }
-                      if (window.__cloudPolling) delete window.__cloudPolling[node_ip];
-                      // Clear delay-start entry for this IP
-                      try {
-                        const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                        const map = raw ? JSON.parse(raw) : {};
-                        if (map[node_ip]) {
-                          delete map[node_ip];
-                          sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                        
+                        // Clear delay-start entry for this IP
+                        try {
+                          const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                          const map = raw ? JSON.parse(raw) : {};
+                          if (map[node_ip]) {
+                            delete map[node_ip];
+                            sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                          }
+                        } catch (_) { }
+                        
+                        // Store the form data for this node in sessionStorage
+                        const idxNow = forms.findIndex(ff => ff?.ip === form.ip);
+                        const formNow = forms[idxNow];
+                        if (formNow) storeFormData(form.ip, formNow);
+                                      
+                        // Note: After network changes are applied, the node IPs may have changed.
+                        // Automatic data fetching is disabled. Use "Refetch Data" button if needed.
+                      } else if (validatedData.status === 'fail' && validatedData.ip === node_ip) {
+                        if (cardStatus[nodeIdx]?.loading || !window.__svMountedDeployment) {
+                          infoRestartThrottled(node_ip);
                         }
-                      } catch (_) { }
-                      message.error(`SSH polling failed due to network errors for ${node_ip}. Please check connectivity.`);
-                    }
-                  });
-              }, POLL_INTERVAL_MS); // Check every 5 seconds
+                      }
+                    })
+                    .catch(err => {
+                      console.error(`SSH status check failed for ${node_ip}:`, err);
+                      message.error(`SSH polling failed: ${err.message}. ${SSH_CONFIG.MESSAGES.RESPONSE_LOST}`);
+                      // On persistent network errors, stop polling to prevent stuck loader
+                      if (pollCount > POLL_MAX_POLLS / 2) {
+                        if (window.__cloudPolling[node_ip]) {
+                          clearInterval(window.__cloudPolling[node_ip]);
+                          delete window.__cloudPolling[node_ip];
+                        }
+                        setCardStatusForIpInSession(forms[nodeIdx]?.ip || node_ip, { loading: false, applied: false });
+                        if (window.__svMountedDeployment) {
+                          setCardStatus(prev => {
+                            const idxNow = forms.findIndex(ff => ff?.ip === (forms[nodeIdx]?.ip || node_ip));
+                            if (idxNow === -1) return prev;
+                            return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+                          });
+                        }
+                        message.error(`SSH polling failed due to network errors for ${node_ip}. Please check connectivity.`);
+                        
+                        // Clear delay-start entry for this IP
+                        try {
+                          const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
+                          const map = raw ? JSON.parse(raw) : {};
+                          if (map[node_ip]) {
+                            delete map[node_ip];
+                            sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
+                          }
+                        } catch (_) { }
+                      }
+                    });
+                }, POLL_INTERVAL_MS); // Check every 5 seconds
 
-              // Store the interval reference globally (do not clear on unmount to allow background polling)
-              if (!window.__cloudPolling) window.__cloudPolling = {};
-              window.__cloudPolling[node_ip] = pollInterval;
-            }, POLL_DELAY_MS); // Start polling after 90 seconds
+                window.__cloudPolling[node_ip] = pollInterval;
+              }, POLL_DELAY_MS);
 
-            if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-            window.__cloudPollingStart[node_ip] = startPollingTimeout;
+              if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
+              window.__cloudPollingStart[node_ip] = startPollingTimeout;
             };
 
-            // Initial schedule
             scheduleFrontendPolling();
           }).catch(err => {
             console.error('SSH polling setup failed:', err);
@@ -2005,11 +2088,22 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
             setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
             if (window.__svMountedDeployment) {
               setCardStatus(prev => {
-                const idxNow = forms.findIndex(f => f?.ip === form.ip);
-                return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
+                const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
+                if (currentIdx === -1) return prev;
+                return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
               });
             }
             message.error(`Failed to start SSH polling for ${node_ip}: ${err.message}. Please check network connectivity.`);
+            
+            // Clear any existing polling timers for this IP
+            if (window.__cloudPolling && window.__cloudPolling[node_ip]) {
+              clearInterval(window.__cloudPolling[node_ip]);
+              delete window.__cloudPolling[node_ip];
+            }
+            if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
+              clearTimeout(window.__cloudPollingStart[node_ip]);
+              delete window.__cloudPollingStart[node_ip];
+            }
           });
           // --- End SSH Polling Section ---
 
@@ -2254,7 +2348,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     // Each node must have: serverip, hostname, server_vip, Mgmt, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
     // Do NOT send a 'type' field from frontend; backend sets type='primary'.
     const nodes = Object.values(configs).map(form => ({
-      serverip: form.ip,
+      serverip: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt')?.ip || form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('VXLAN') : row.type === 'VXLAN')?.ip,
       hostname: hostnameMap[form.ip] || form?.hostname || '',
       // Send all selected roles as a comma-separated string to store multiple roles in DB
       role: Array.isArray(form.selectedRoles) && form.selectedRoles.length > 0 ? form.selectedRoles.join(',') : 'child',
