@@ -311,6 +311,34 @@ const Report = ({ onDeploymentComplete }) => {
   // Build display of node IPs for title
   const getNodeIpsTitle = () => {
     try {
+      // First, try to get management IPs from network configuration data
+      const rawMap = sessionStorage.getItem('cloud_networkApplyResult');
+      if (rawMap) {
+        const configMap = JSON.parse(rawMap) || {};
+        const managementIps = Object.values(configMap).map(form => {
+          if (!form || !form.tableData) return null;
+          
+          // Determine management IP based on config type
+          if (form.configType === 'default') {
+            // For default configuration, use the primary type interface IP
+            const primaryRow = form.tableData.find(row => row.type === 'primary');
+            return primaryRow?.ip || null;
+          } else if (form.configType === 'segregated') {
+            // For segregated configuration, use the Mgmt type interface IP
+            const mgmtRow = form.tableData.find(row => 
+              Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
+            );
+            return mgmtRow?.ip || null;
+          }
+          return null;
+        }).filter(Boolean);
+        
+        if (managementIps.length) return managementIps.join(', ');
+      }
+    } catch (_) {}
+    
+    // Fallback to original IPs from session storage
+    try {
       const raw = sessionStorage.getItem('cloud_lastDeploymentNodes');
       if (raw) {
         const arr = JSON.parse(raw);
@@ -318,6 +346,7 @@ const Report = ({ onDeploymentComplete }) => {
         if (ips.length) return ips.join(', ');
       }
     } catch (_) {}
+    
     try {
       const rawMap = sessionStorage.getItem('cloud_networkApplyResult');
       if (rawMap) {
@@ -326,9 +355,87 @@ const Report = ({ onDeploymentComplete }) => {
         if (ips.length) return ips.join(', ');
       }
     } catch (_) {}
-    return sessionStorage.getItem('cloud_server_ip') || 'N/A';
+    
+    // Try to get server IP from various session storage keys
+    const serverIp = sessionStorage.getItem('cloud_server_ip') || 
+                     sessionStorage.getItem('server_ip') ||
+                     sessionStorage.getItem('currentServerIp');
+    
+    if (serverIp) {
+      return serverIp;
+    }
+    
+    // If session is cleared, indicate that node information is not available
+    return 'Node information unavailable (session cleared)';
   };
   const nodeIpsTitle = getNodeIpsTitle();
+
+  // Fetch active deployment nodes from backend when session is cleared
+  const [activeNodes, setActiveNodes] = useState([]);
+  const [loadingActiveNodes, setLoadingActiveNodes] = useState(false);
+  
+  useEffect(() => {
+    // Only fetch if we detect session data is cleared
+    const hasSessionData = sessionStorage.getItem('cloud_lastDeploymentNodes') || 
+                          sessionStorage.getItem('cloud_networkApplyResult') ||
+                          sessionStorage.getItem('cloud_server_ip') || 
+                          sessionStorage.getItem('server_ip') ||
+                          sessionStorage.getItem('currentServerIp');
+                          
+    if (!hasSessionData) {
+      setLoadingActiveNodes(true);
+      // Get user ID from session storage
+      let userId = '';
+      try {
+        const loginRaw = sessionStorage.getItem('loginDetails');
+        if (loginRaw) {
+          const loginObj = JSON.parse(loginRaw);
+          userId = loginObj?.data?.id || '';
+        }
+      } catch (_) { 
+        userId = sessionStorage.getItem('user_id') || sessionStorage.getItem('userId') || '';
+      }
+      
+      if (userId) {
+        // Fetch active deployment nodes from backend
+        fetch(`https://${hostIP}:5000/api/active-deployment-nodes?user_id=${encodeURIComponent(userId)}&type=secondary`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && Array.isArray(data.nodes)) {
+              setActiveNodes(data.nodes);
+            }
+            setLoadingActiveNodes(false);
+          })
+          .catch(err => {
+            console.error('Error fetching active deployment nodes:', err);
+            setLoadingActiveNodes(false);
+          });
+      } else {
+        setLoadingActiveNodes(false);
+      }
+    }
+  }, []);
+  
+  // Enhanced getNodeIpsTitle that uses backend data when session is cleared
+  const getEnhancedNodeIpsTitle = () => {
+    // First try the original method
+    const originalTitle = getNodeIpsTitle();
+    
+    // If we have active nodes from backend and original title indicates session cleared
+    if (activeNodes.length > 0 && originalTitle.includes('session cleared')) {
+      const ips = activeNodes.map(node => node.serverip).filter(Boolean);
+      if (ips.length > 0) {
+        return ips.join(', ');
+      }
+    }
+    
+    return originalTitle;
+  };
+  
+  const enhancedNodeIpsTitle = getEnhancedNodeIpsTitle();
+  
+  // Update the card title to use the enhanced title
+  const cardTitle = `Deployment Progress for ${cloudName} (${enhancedNodeIpsTitle})`;
 
   return (
     <div style={{ padding: '20px' }}>
@@ -336,7 +443,7 @@ const Report = ({ onDeploymentComplete }) => {
         Node Addition Status
       </h5>
       <Divider />
-      <Card title={`Deployment Progress for ${cloudName} (${nodeIpsTitle})`}>
+      <Card title={cardTitle}>
         <Row gutter={24}>
           <Col span={24}>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', width: '100%', marginBottom: '30px' }}>

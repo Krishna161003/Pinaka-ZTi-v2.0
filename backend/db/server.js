@@ -543,6 +543,48 @@ app.get('/api/pending-child-deployments', (req, res) => {
   });
 });
 
+// API: Get active deployment nodes for a user
+// Retrieves currently active deployment nodes from deployment_activity_log
+// Returns server information for ongoing deployments when session data is cleared
+app.get('/api/active-deployment-nodes', (req, res) => {
+  const { user_id, cloudname, type } = req.query;
+  
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id parameter is required' });
+  }
+
+  // Build query for active deployments (status = 'progress')
+  let sql = `
+    SELECT serverid, serverip, hostname, cloudname, type, role, server_vip, Management, Storage, External_Traffic, VXLAN, datetime
+    FROM deployment_activity_log 
+    WHERE user_id = ? AND status = 'progress'
+  `;
+  
+  const params = [user_id];
+  
+  // Add optional filters
+  if (cloudname) {
+    sql += ' AND cloudname = ?';
+    params.push(cloudname);
+  }
+  
+  if (type) {
+    sql += ' AND type = ?';
+    params.push(type);
+  }
+  
+  sql += ' ORDER BY datetime ASC';
+  
+  db.query(sql, params, (err, rows) => {
+    if (err) {
+      console.error('Error fetching active deployment nodes:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    return res.json({ nodes: rows || [] });
+  });
+});
+
 // Get license details by server ID
 // Checks password update status for a specific user from the database
 // Returns update_pwd_status flag to determine if user has completed initial setup

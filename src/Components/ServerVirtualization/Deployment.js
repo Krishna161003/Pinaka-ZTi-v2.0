@@ -319,7 +319,6 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   // On mount, do not fetch data automatically - only fetch when user clicks "Fetch Data" button
   useEffect(() => {
-    // Automatic data fetching is disabled per user requirement
     // Data is only fetched when the user explicitly clicks the "Fetch Data" button
   }, []);
   // Per-card loading and applied state, restore from sessionStorage if available

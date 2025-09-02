@@ -2,7 +2,7 @@ version: "3.3"
 services:
   react-app:
     # build: .
-    image: pinaka-zti-v20-react-app:1.2
+    image: pinaka-zti-v20-react-app:1.1
     ports:
       - "1010:443"
     depends_on:
@@ -17,7 +17,7 @@ services:
 
   node-backend:
     # build: ./backend/db
-    image: pinaka-zti-v20-node-back:1.2
+    image: pinaka-zti-v20-node-back:1.1
     ports:
       - "5000:5000"
     depends_on:
