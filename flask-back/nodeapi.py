@@ -275,7 +275,9 @@ def store_network_config(data):
         # Overwrite with the latest cleaned data (no append/merge)
         with open(file_path, "w") as f:
             json.dump(incoming, f, indent=4)
-    return True
+    
+    # Return the file path to indicate success and provide location information
+    return file_path
 
 def validate_ip_address(ip):
     """Validate an IP address format."""
@@ -369,13 +371,13 @@ def submit_network_config():
                     return jsonify({"success": False, "message": f"Invalid or missing type for {real_iface}"}), 400
             # vlan_id
             vlan_id = iface_config.get("vlan_id")
-            if vlan_id is not None:
-                try:
-                    vlan_num = int(vlan_id)
-                    if not (1 <= vlan_num <= 4094):
-                        return jsonify({"success": False, "message": f"Invalid VLAN ID for {real_iface}"}), 400
-                except Exception:
-                    return jsonify({"success": False, "message": f"Invalid VLAN ID for {real_iface}"}), 400
+            # if vlan_id is not None:
+            #     try:
+            #         vlan_num = int(vlan_id)
+            #         if not (1 <= vlan_num <= 4094):
+            #             return jsonify({"success": False, "message": f"Invalid VLAN ID for {real_iface}"}), 400
+            #     except Exception:
+            #         return jsonify({"success": False, "message": f"Invalid VLAN ID for {real_iface}"}), 400
             # Bond_Slave
             if bond_slave and bond_slave not in ["YES", "NO"]:
                 return jsonify({"success": False, "message": f"Bond_Slave for {real_iface} must be 'YES' or 'NO'"}), 400
@@ -455,16 +457,22 @@ def submit_network_config():
                     return jsonify({"success": False, "message": f"DNS server {dns} is not reachable"}), 400
 
         # All validations passed, store the configuration
-        store_network_config(data)
-
-        return (
-            jsonify({
-                "success": True, 
-                "message": "Network configuration validated and saved successfully", 
-                "key": data.get("hostname") or data.get("default_gateway") or "unknown"
-            }),
-            200,
-        )
+        config_path = store_network_config(data)
+        
+        # Return a more detailed success response with additional information
+        response_data = {
+            "success": True,
+            "message": "Network configuration validated and saved successfully",
+            "key": data.get("hostname") or data.get("default_gateway") or "unknown",
+            "config_path": config_path,
+            "timestamp": datetime.now().isoformat(),
+            "status": "configuration_applied"
+        }
+        
+        # Log the successful response
+        app.logger.info(f"Network configuration applied successfully for {response_data['key']}")
+        
+        return jsonify(response_data), 200
 
     except Exception as e:
         app.logger.error(f"❌ Exception occurred: {str(e)}")

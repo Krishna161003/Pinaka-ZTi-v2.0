@@ -13,42 +13,44 @@ const Lifecyclemgmt = () => {
   } = theme.useToken();
   const hostIP = window.location.hostname;
   const [fileList, setFileList] = useState([]);
-  const [jobId, setJobId] = useState(() => localStorage.getItem('lm_job_id') || null);
+  const [jobId, setJobId] = useState(() => sessionStorage.getItem('lm_job_id') || null);
   const [job, setJob] = useState(() => {
-    const v = localStorage.getItem('lm_job');
+    const v = sessionStorage.getItem('lm_job');
     try { return v ? JSON.parse(v) : null; } catch { return null; }
   });
   const [activeTab, setActiveTab] = useState('upload');
   const [history, setHistory] = useState(() => {
-    const v = localStorage.getItem('lm_history');
+    const v = sessionStorage.getItem('lm_history');
     try { return v ? JSON.parse(v) : []; } catch { return []; }
   });
   const [diagnostics, setDiagnostics] = useState(() => {
-    const v = localStorage.getItem('lm_diagnostics');
+    const v = sessionStorage.getItem('lm_diagnostics');
     try { return v ? JSON.parse(v) : []; } catch { return []; }
   });
   const [downloadingFiles, setDownloadingFiles] = useState({});
   const [polling, setPolling] = useState(false);
+  const [diagnosticLoading, setDiagnosticLoading] = useState(false); // New state for diagnostic tool loading
   const pollTimerRef = useRef(null);
   const lastStateRef = useRef(job?.state || null);
   const isRunning = job?.state === 'running';
 
   const persistJob = (jid, data) => {
-    if (jid) localStorage.setItem('lm_job_id', jid);
-    if (data) localStorage.setItem('lm_job', JSON.stringify(data));
+    if (jid) sessionStorage.setItem('lm_job_id', jid);
+    if (data) sessionStorage.setItem('lm_job', JSON.stringify(data));
   };
 
   const persistHistory = (items) => {
-    localStorage.setItem('lm_history', JSON.stringify(items || []));
+    sessionStorage.setItem('lm_history', JSON.stringify(items || []));
   };
 
   const persistDiagnostics = (items) => {
-    localStorage.setItem('lm_diagnostics', JSON.stringify(items || []));
+    sessionStorage.setItem('lm_diagnostics', JSON.stringify(items || []));
   };
 
   // Run log collection
   const runLogCollection = async () => {
     try {
+      setDiagnosticLoading(true); // Set loading state to true
       const res = await fetch(`https://${hostIP}:2020/run-log-collection`, {
         method: 'POST',
       });
@@ -62,6 +64,8 @@ const Lifecyclemgmt = () => {
       }
     } catch (error) {
       message.error('Failed to start diagnosis');
+    } finally {
+      setDiagnosticLoading(false); // Set loading state to false regardless of success or failure
     }
   };
 
@@ -115,7 +119,7 @@ const Lifecyclemgmt = () => {
     }
   };
 
-  // Fetch lifecycle history from Node backend (fallback to localStorage on error)
+  // Fetch lifecycle history from Node backend (fallback to sessionStorage on error)
   const fetchHistoryFromServer = async () => {
     try {
       const res = await fetch(`https://${hostIP}:5000/api/lifecycle-history`);
@@ -125,8 +129,8 @@ const Lifecyclemgmt = () => {
       setHistory(rows);
       persistHistory(rows);
     } catch (e) {
-      // Fallback to localStorage
-      const v = localStorage.getItem('lm_history');
+      // Fallback to sessionStorage
+      const v = sessionStorage.getItem('lm_history');
       try { setHistory(v ? JSON.parse(v) : []); } catch { setHistory([]); }
     }
   };
@@ -435,6 +439,7 @@ const Lifecyclemgmt = () => {
                           type="primary"
                           icon={<PlayCircleOutlined />}
                           onClick={runLogCollection}
+                          loading={diagnosticLoading}
                           style={{ width: '170px' }}
                         >
                           Run Diagnostic Tool 

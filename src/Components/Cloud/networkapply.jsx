@@ -27,17 +27,33 @@ if (!window.__cloudGlobalNotifications) {
         description: (
           <div>
             <div style={{ marginBottom: 8 }}>{description}</div>
-            <Button
-              type="primary"
-              size="small"
-              onClick={() => {
-                notification.close(notificationKey);
-                delete this.notifications[key];
-                if (onRetry) onRetry();
-              }}
-            >
-              Retry Connection
-            </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => {
+                  notification.close(notificationKey);
+                  delete this.notifications[key];
+                  if (onRetry) onRetry();
+                }}
+              >
+                Retry Connection
+              </Button>
+              <Button
+                type="default"
+                size="small"
+                onClick={() => {
+                  notification.close(notificationKey);
+                  delete this.notifications[key];
+                  // Mark as completed functionality will be handled by the caller
+                  if (window.markAsCompleted) {
+                    window.markAsCompleted(key.replace('ssh-timeout-', ''));
+                  }
+                }}
+              >
+                Mark as Completed
+              </Button>
+            </div>
           </div>
         ),
         duration: 0, // Don't auto-close
@@ -55,6 +71,38 @@ if (!window.__cloudGlobalNotifications) {
 const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const [hostServerId, setHostServerId] = useState(() => sessionStorage.getItem('host_server_id') || '');
   const [firstCloudName, setFirstCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
+
+  // Add the markAsCompleted function to handle the "Mark as Completed" button
+  useEffect(() => {
+    window.markAsCompleted = (ip) => {
+      // Find the form index for this IP
+      const formIndex = forms.findIndex(f => f.ip === ip);
+      if (formIndex === -1) {
+        console.warn(`Form not found for IP: ${ip}`);
+        return;
+      }
+
+      // Update the card status to mark as completed (loading: false, applied: true)
+      setCardStatusForIpInSession(ip, { loading: false, applied: true });
+      if (window.__cloudMountedNetworkApply) {
+        setCardStatus(prev => prev.map((s, i) => i === formIndex ? { loading: false, applied: true } : s));
+      }
+
+      // Store form data in session storage
+      const form = forms[formIndex];
+      if (form) {
+        storeFormData(ip, form);
+      }
+
+      // Show success message
+      message.success(`Node ${ip} marked as completed successfully!`);
+    };
+
+    // Cleanup function to remove the global function when component unmounts
+    return () => {
+      delete window.markAsCompleted;
+    };
+  }, [forms]);
 
   const { Option } = Select;
   const ipRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/;
@@ -1441,6 +1489,29 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: true } : s));
     // Persist loader state immediately by IP to survive navigation
     setCardStatusForIpInSession(form.ip, { loading: true, applied: false });
+    
+    // Set a timeout to prevent infinite loading
+    let overallTimeoutId;
+    let fetchTimeoutId;
+    
+    const clearAllTimeouts = () => {
+      if (overallTimeoutId) clearTimeout(overallTimeoutId);
+      if (fetchTimeoutId) clearTimeout(fetchTimeoutId);
+    };
+    
+    overallTimeoutId = setTimeout(() => {
+      // Stop button loader
+      setBtnLoading(prev => {
+        const next = [...prev];
+        next[nodeIdx] = false;
+        return next;
+      });
+      // Re-enable fields/table
+      setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: false, applied: false } : s));
+      setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
+      message.error('Network configuration request timed out. Please try again.');
+    }, 30000); // 30 seconds timeout
+    
     // Determine how many servers are already deployed to compute hostname starting index
     let deployedCount = 0;
     try {
@@ -1473,12 +1544,24 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
       license_type: form.licenseType || null,
       license_period: form.licensePeriod || null,
     };
+    
+    // Add abort controller for fetch request
+    const controller = new AbortController();
+    fetchTimeoutId = setTimeout(() => {
+      controller.abort();
+      clearAllTimeouts(); // Clear the overall timeout as well
+    }, 25000); // 25 seconds timeout for fetch
+    
     fetch(`https://${form.ip}:2020/submit-network-config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal
     })
-      .then(res => res.json())
+      .then(res => {
+        clearAllTimeouts(); // Clear both timeouts
+        return res.json();
+      })
       .then(result => {
         if (result.success) {
           // Keep fields disabled (loading stays true); stop button spinner and proceed to polling
@@ -1679,6 +1762,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           }, RESTART_DURATION);
         } else {
           // Validation failed on backend, stop button loader for user to correct
+          clearTimeout(timeoutId); // Clear the timeout
           setBtnLoading(prev => {
             const next = [...prev];
             next[nodeIdx] = false;
@@ -1691,6 +1775,7 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         }
       })
       .catch(err => {
+        clearTimeout(timeoutId); // Clear the timeout
         // Network error during validation, stop button loader
         setBtnLoading(prev => {
           const next = [...prev];
@@ -1700,7 +1785,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         // Re-enable fields/table on error
         setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { ...s, loading: false, applied: false } : s));
         setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
-        message.error('Network error: ' + err.message);
+        
+        if (err.name === 'AbortError') {
+          message.error('Network configuration request timed out. Please try again.');
+        } else {
+          message.error('Network error: ' + err.message);
+        }
       });
     return;
 

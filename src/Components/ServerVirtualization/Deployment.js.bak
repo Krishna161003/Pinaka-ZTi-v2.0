@@ -35,42 +35,22 @@ window.__globalNotifications = window.__globalNotifications || {
     notification.warning({
       key,
       message,
-      description: (
-        <div>
-          <div style={{ marginBottom: 8 }}>{description}</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {onRetry && (
-              <Button 
-                type="primary" 
-                size="small" 
-                onClick={() => {
-                  notification.close(key);
-                  window.__globalNotifications.active.delete(key);
-                  onRetry();
-                }}
-              >
-                Retry Connection
-              </Button>
-            )}
-            <Button
-              type="default"
-              size="small"
-              onClick={() => {
-                notification.close(key);
-                window.__globalNotifications.active.delete(key);
-                // Mark as completed functionality will be handled by the caller
-                if (window.markAsCompleted) {
-                  window.markAsCompleted(key.replace('ssh-timeout-', ''));
-                }
-              }}
-            >
-              Mark as Completed
-            </Button>
-          </div>
-        </div>
-      ),
+      description,
       duration: 0, // Don't auto-close
       onClose: () => window.__globalNotifications.active.delete(key),
+      btn: onRetry ? (
+        <Button 
+          type="primary" 
+          size="small" 
+          onClick={() => {
+            notification.close(key);
+            window.__globalNotifications.active.delete(key);
+            onRetry();
+          }}
+        >
+          Retry Connection
+        </Button>
+      ) : null,
     });
     window.__globalNotifications.active.add(key);
   }
@@ -113,39 +93,6 @@ function infoRestartThrottled(ip) {
 
 const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const cloudName = getCloudName();
-
-  // Add the markAsCompleted function to handle the "Mark as Completed" button
-  useEffect(() => {
-    window.markAsCompleted = (ip) => {
-      // Find the form index for this IP
-      const formIndex = forms.findIndex(f => f.ip === ip);
-      if (formIndex === -1) {
-        console.warn(`Form not found for IP: ${ip}`);
-        return;
-      }
-
-      // Update the card status to mark as completed (loading: false, applied: true)
-      setCardStatusForIpInSession(ip, { loading: false, applied: true });
-      if (window.__svMountedDeployment) {
-        setCardStatus(prev => prev.map((s, i) => i === formIndex ? { loading: false, applied: true } : s));
-      }
-
-      // Store form data in session storage
-      const form = forms[formIndex];
-      if (form) {
-        storeFormData(ip, form);
-      }
-
-      // Show success message
-      message.success(`Node ${ip} marked as completed successfully!`);
-    };
-
-    // Cleanup function to remove the global function when component unmounts
-    return () => {
-      delete window.markAsCompleted;
-    };
-  }, [forms]);
-
 
   const { Option } = Select;
   const ipRegex = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.|$)){4}$/;
