@@ -143,7 +143,7 @@ const AppLayout = ({ children }) => {
           to={sessionStorage.getItem("lastZtiPath") || "/servervirtualization"}
           style={{ textDecoration: "none", color: "inherit" }}
         >
-          Zti Wizard
+          ZTi Wizard
         </Link>
       ),
     },

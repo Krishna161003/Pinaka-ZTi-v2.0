@@ -14,8 +14,8 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY . .
 
 # Build React app (disable eslint + source maps)
-ENV DISABLE_ESLINT_PLUGIN=true
-ENV GENERATE_SOURCEMAP=false
+#ENV DISABLE_ESLINT_PLUGIN=true
+#ENV GENERATE_SOURCEMAP=false
 RUN npm run build
 
 # Stage 2: Nginx server
