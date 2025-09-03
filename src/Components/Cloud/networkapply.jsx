@@ -1161,8 +1161,9 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
             MgmtTaken = selectedTypes?.has('Mgmt') && !(Array.isArray(record.type) && record.type.includes('Mgmt'));
             externalTaken = selectedTypes?.has('External_Traffic') && !(Array.isArray(record.type) && record.type.includes('External_Traffic'));
           }
+          const currentTypes = Array.isArray(record.type) ? record.type : [];
 
-          const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
+          // const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
               mode={form.configType === 'segregated' ? "multiple" : undefined} // Only use multiple mode in segregated mode
