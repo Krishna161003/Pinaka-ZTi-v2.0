@@ -1203,46 +1203,50 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
-              mode={form.configType === 'default' ? undefined : "multiple"}
+              mode={form.configType === 'default' ? undefined : "tags"}
+              maxTagCount={1}
               allowClear
               style={{ width: '100%' }}
               value={form.configType === 'default' ? record.type : (record.type || undefined)}
               placeholder="Select type"
               onChange={value => {
-                // In segregated mode, if a type is selected that's already used elsewhere, 
-                // remove it from the other interface first
-                if (form.configType === 'segregated' && Array.isArray(value) && value.length > 0) {
-                  const newValue = [...value];
-                  let movedTypes = [];
-
-                  // Check each selected type
-                  for (let i = 0; i < newValue.length; i++) {
-                    const type = newValue[i];
-                    // Check if this type is already selected in another row
+                // In both modes, ensure only one type is selected
+                let newValue = value;
+                
+                if (form.configType === 'segregated') {
+                  // In segregated mode, only keep the last selected type
+                  if (Array.isArray(value) && value.length > 0) {
+                    newValue = [value[value.length - 1]];
+                    
+                    // If a type is selected that's already used elsewhere, remove it from the other interface
+                    const selectedType = newValue[0];
                     for (let j = 0; j < form.tableData.length; j++) {
-                      if (j !== rowIdx && Array.isArray(form.tableData[j].type) && form.tableData[j].type.includes(type)) {
+                      if (j !== rowIdx && Array.isArray(form.tableData[j].type) && form.tableData[j].type.includes(selectedType)) {
                         // Remove this type from the other row
                         const otherRow = form.tableData[j];
-                        const updatedTypes = otherRow.type.filter(t => t !== type);
+                        const updatedTypes = otherRow.type.filter(t => t !== selectedType);
                         handleCellChange(nodeIdx, j, 'type', updatedTypes);
-                        movedTypes.push(type);
+                        message.warning(`Type ${selectedType} moved from other interface`);
                         break;
                       }
                     }
                   }
-
-                  // Show warning if types were moved
-                  if (movedTypes.length > 0) {
-                    message.warning(`Type(s) ${movedTypes.join(', ')} moved from other interface`);
-                  }
-
-                  handleCellChange(nodeIdx, rowIdx, 'type', newValue);
                 } else {
-                  handleCellChange(nodeIdx, rowIdx, 'type', value);
+                  // In default mode, ensure only one type is selected
+                  if (value && value.length > 1) {
+                    newValue = value[value.length - 1];
+                  }
+                  
+                  // If primary is selected, set other row to secondary and vice versa
+                  if (newValue === 'primary' || newValue === 'secondary') {
+                    const otherRowIdx = rowIdx === 0 ? 1 : 0;
+                    handleCellChange(nodeIdx, otherRowIdx, 'type', newValue === 'primary' ? 'secondary' : 'primary');
+                  }
                 }
+                
+                handleCellChange(nodeIdx, rowIdx, 'type', newValue);
               }}
               disabled={cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied}
-              maxTagCount={1}
             >
               {form.configType === 'segregated' ? (
                 <>
@@ -1316,7 +1320,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               value={record.ip}
               placeholder="Enter IP Address"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'ip', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))}
+              disabled={
+                cardStatus[nodeIdx]?.loading || 
+                cardStatus[nodeIdx]?.applied ||
+                (form.configType === 'default' && record.type === 'secondary') ||
+                (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))
+              }
             />
           </Form.Item>
         ),
@@ -1334,7 +1343,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               value={record.subnet}
               placeholder="Enter Subnet"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'subnet', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))}
+              disabled={
+                cardStatus[nodeIdx]?.loading || 
+                cardStatus[nodeIdx]?.applied ||
+                (form.configType === 'default' && record.type === 'secondary') ||
+                (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))
+              }
             />
           </Form.Item>
         ),
@@ -1352,7 +1366,12 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
               value={record.dns}
               placeholder="Enter Nameserver"
               onChange={e => handleCellChange(nodeIdx, rowIdx, 'dns', e.target.value)}
-              disabled={(cardStatus[nodeIdx]?.loading || cardStatus[nodeIdx]?.applied) || (form.configType === 'default' && record.type === 'secondary') || (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))}
+              disabled={
+                cardStatus[nodeIdx]?.loading || 
+                cardStatus[nodeIdx]?.applied ||
+                (form.configType === 'default' && record.type === 'secondary') ||
+                (form.configType === 'segregated' && Array.isArray(record.type) && record.type.includes('External_Traffic'))
+              }
             />
           </Form.Item>
         ),
@@ -2417,99 +2436,6 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
                     Fetch Data
                   </Button>
                 </div>
-              </div>
-              <Table
-                columns={getColumns(form, idx)}
-                dataSource={form.tableData}
-                pagination={false}
-                bordered
-                size="small"
-                scroll={{ x: true }}
-                rowClassName={() => (cardStatus[idx]?.loading || cardStatus[idx]?.applied ? 'ant-table-disabled' : '')}
-              />
-
-              {/* Default Gateway Field */}
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, margin: '16px 0 0 0' }}>
-                <Form.Item
-                  label="Default Gateway"
-                  validateStatus={form.defaultGatewayError ? 'error' : ''}
-                  help={form.defaultGatewayError}
-                  required
-                  style={{ minWidth: 220 }}
-                >
-                  <Input
-                    value={form.defaultGateway}
-                    placeholder="Enter Default Gateway"
-                    onChange={e => handleCellChange(idx, 0, 'defaultGateway', e.target.value)}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || cardStatus[idx]?.applied}
-                  />
-                </Form.Item>
-                <Form.Item
-                  label="Select Disk"
-                  required={Array.isArray(form.selectedRoles) && form.selectedRoles.includes('Storage')}
-                  validateStatus={form.diskError ? 'error' : ''}
-                  help={form.diskError}
-                  style={{ minWidth: 220 }}
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select disk(s)"
-                    value={Array.isArray(form.selectedDisks) ? form.selectedDisks.map(d => {
-                      if (typeof d === 'string') return d;
-                      if (d && typeof d === 'object') {
-                        return d.wwn || d.id || d.value || d.label || d.name || JSON.stringify(d);
-                      }
-                      return String(d ?? '');
-                    }) : []}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableDisks[form.ip])}
-                    onChange={value => handleDiskChange(idx, value)}
-                    optionLabelProp="label"
-                  >
-                    {(nodeDisks[form.ip] || []).map(disk => (
-                      <Option
-                        key={disk.id || disk.wwn || `${disk.name}|${disk.size}`}
-                        value={disk.value || disk.id || disk.wwn || `${disk.name}|${disk.size}`}
-                        label={String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
-                      >
-                        {String(disk.display || disk.label || `${disk.name || 'Disk'} (${disk.size || 'N/A'})`)}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-                <Form.Item
-                  label="Select Role"
-                  required
-                  validateStatus={form.roleError ? 'error' : ''}
-                  help={form.roleError}
-                  style={{ minWidth: 220 }}
-                >
-                  <Select
-                    mode="multiple"
-                    allowClear
-                    placeholder="Select role(s)"
-                    value={form.selectedRoles || []}
-                    style={{ width: 200 }}
-                    disabled={cardStatus[idx]?.loading || (cardStatus[idx]?.applied && !forceEnableRoles[form.ip])}
-                    onChange={value => handleRoleChange(idx, value)}
-                  >
-                    <Option value="Control">Control</Option>
-                    <Option value="Compute">Compute</Option>
-                    <Option value="Storage">Storage</Option>
-                    <Option value="Monitoring">Monitoring</Option>
-                  </Select>
-                </Form.Item>
-              </div>
-              {/* License Details Display - all in one line */}
-              <div style={{ margin: '16px 0 0 0', padding: '8px 16px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 4, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 500, marginRight: 16 }}>License Type:</span>
-                <span>{form.licenseType || '-'}</span>
-                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Period:</span>
-                <span>{form.licensePeriod || '-'}</span>
-                <span style={{ fontWeight: 500, margin: '0 0 0 32px' }}>License Code:</span>
-                <span>{form.licenseCode || '-'}</span>
               </div>
               <Table
                 columns={getColumns(form, idx)}
