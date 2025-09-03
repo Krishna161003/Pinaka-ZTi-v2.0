@@ -1203,10 +1203,10 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
           const hasExt = Array.isArray(record.type) && record.type.includes('External_Traffic');
           return (
             <Select
-              mode="multiple"
+              mode={form.configType === 'default' ? undefined : "multiple"}
               allowClear
               style={{ width: '100%' }}
-              value={record.type || undefined}
+              value={form.configType === 'default' ? record.type : (record.type || undefined)}
               placeholder="Select type"
               onChange={value => {
                 // In segregated mode, if a type is selected that's already used elsewhere, 
@@ -1372,6 +1372,17 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
     // Validate all rows for this node
     const form = forms[nodeIdx];
 
+    // In default mode, ensure exactly one primary and one secondary interface
+    if (form.configType === 'default') {
+      const primaryCount = form.tableData.filter(row => row.type === 'primary').length;
+      const secondaryCount = form.tableData.filter(row => row.type === 'secondary').length;
+      
+      if (primaryCount !== 1 || secondaryCount !== 1) {
+        message.error('In default mode, exactly one primary and one secondary interface must be selected.');
+        return;
+      }
+    }
+
     // Enforce only one of each type in segregated mode
     if (form.configType === 'segregated') {
       const typeOccurrences = {};
@@ -1395,7 +1406,6 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         return;
       }
     }
-
     // Enforce only one External_Traffic in segregated mode
     if (form.configType === 'segregated') {
       const extCount = form.tableData.reduce((acc, r) => acc + (Array.isArray(r.type) && r.type.includes('External_Traffic') ? 1 : 0), 0);
@@ -1418,13 +1428,18 @@ const NetworkApply = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => 
         message.error(`Row ${i + 1}: Please enter a Bond Name.`);
         return;
       }
-      if (!row.type || (Array.isArray(row.type) && row.type.length === 0)) {
+      if (!row.type || (form.configType === 'segregated' && Array.isArray(row.type) && row.type.length === 0)) {
         message.error(`Row ${i + 1}: Please select a Type.`);
         return;
       }
+      if (form.configType === 'default' && (!row.type || (row.type !== 'primary' && row.type !== 'secondary'))) {
+        message.error(`Row ${i + 1}: Please select either Primary or Secondary type.`);
+        return;
+      }
       const isExternal = form.configType === 'segregated' && Array.isArray(row.type) && row.type.includes('External_Traffic');
+      const isSecondary = form.configType === 'default' && row.type === 'secondary';
       // Validate required fields (skip for secondary in default mode and External_Traffic in segregated)
-      if (!(form.configType === 'default' && row.type === 'secondary') && !isExternal) {
+      if (!isSecondary && !isExternal) {
         for (const field of ['ip', 'subnet', 'dns']) {
           if (!row[field]) {
             message.error(`Row ${i + 1}: Please enter ${field.toUpperCase()}.`);
