@@ -1602,8 +1602,7 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
                   )}
 
                   {/* Show Storage option only if not selected elsewhere or currently selected here */}
-                  {(!selectedTypes.has('Storage') || currentTypes.includes('Storage')) &&
-                   Array.isArray(nodeDisks[form.ip]) && nodeDisks[form.ip].length > 0 && (
+                  {(!selectedTypes.has('Storage') || currentTypes.includes('Storage')) && (
                     <Option value="Storage">
                       <Tooltip placement="right" title="Storage">
                         Storage
