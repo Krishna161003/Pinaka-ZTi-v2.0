@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Input, Tag, message, Modal, notification } from 'antd';
+import React, { useState, useEffect, useRef } from 'react';
+import { Table, Button, Input, Tag, message, Modal, notification, Upload } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
 import axios from 'axios';
+import * as XLSX from 'xlsx';
 
 const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNode, onUndoRemoveNode }) => {
     const [data, setData] = useState(results || []);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         // Robust merge: combine nodes + results + previous local state, keyed by IP.
@@ -105,6 +108,65 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
             ));
             message.error(`License validation failed for ${ip}: ${error.response?.data?.message || error.message}`);
         }
+    };
+
+    // Handle bulk upload of licenses from Excel file
+    const handleBulkUpload = (file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                // Validate file structure
+                if (jsonData.length < 2) {
+                    message.error('Invalid file format. File must contain headers and at least one data row.');
+                    return false;
+                }
+
+                // Check headers (first row)
+                const headers = jsonData[0].map(header => header.toString().trim().toLowerCase());
+                const ipIndex = headers.indexOf('ip address');
+                const licenseIndex = headers.indexOf('license');
+
+                if (ipIndex === -1 || licenseIndex === -1) {
+                    message.error('Invalid file format. File must contain "IP Address" and "License" columns.');
+                    return false;
+                }
+
+                // Process data rows
+                const licenseMap = new Map();
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (row.length > Math.max(ipIndex, licenseIndex)) {
+                        const ip = row[ipIndex]?.toString().trim();
+                        const license = row[licenseIndex]?.toString().trim();
+                        
+                        if (ip && license) {
+                            licenseMap.set(ip, license);
+                        }
+                    }
+                }
+
+                // Update data with licenses
+                setData(prev => prev.map(row => {
+                    if (licenseMap.has(row.ip)) {
+                        return { ...row, license: licenseMap.get(row.ip) };
+                    }
+                    return row;
+                }));
+
+                message.success(`Successfully imported licenses for ${licenseMap.size} nodes.`);
+            } catch (error) {
+                console.error('Bulk upload error:', error);
+                message.error('Failed to process the Excel file. Please check the file format.');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        return false; // Prevent default upload behavior
     };
 
     // Remove node with confirmation and session cleanup + Undo
@@ -291,7 +353,14 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
 
     return (
         <div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Upload
+                    accept=".xlsx,.xls"
+                    beforeUpload={handleBulkUpload}
+                    showUploadList={false}
+                >
+                    <Button style={{ width: "75px" }} icon={<UploadOutlined />}>Bulk Upload</Button>
+                </Upload>
                 <Button
                     size="middle"
                     style={{ width: "75px" }}
@@ -345,6 +414,19 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
                     visit <a href="https://pinakastra.com/generate-key" target="_blank" rel="noopener noreferrer">
                         https://pinakastra.com/generate-key
                     </a>, fill in the required details, and generate your activation key.
+                    <br />
+                    <br />
+                    <strong>Bulk Upload Instructions:</strong>
+                    <br />
+                    Create an Excel file with two columns: "IP Address" and "License".
+                    <br />
+                    Example:
+                    <br />
+                    IP Address | License
+                    <br />
+                    192.168.1.10 | ABC123456789
+                    <br />
+                    192.168.1.11 | XYZ987654321
                 </span>
             </div>
         </div>

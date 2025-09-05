@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Input, Form, Space, message, Modal } from 'antd';
 
 const subnetRegex = /^([0-9]{1,3}\.){3}[0-9]{1,3}\/(\d|[1-2]\d|3[0-2])$/;
@@ -57,10 +57,6 @@ const Cloud = ({ onNext, results, setResults }) => {
       fetchScan(values.subnet, 'scan');
     });
   };
-
-  // const handleRefresh = () => {
-  //   fetchScan(form.getFieldValue('subnet'), 'refresh');
-  // };
 
   // Validate selected IPs are not already used in deployed_server table
   const handleNextClick = async () => {
@@ -158,6 +154,25 @@ const Cloud = ({ onNext, results, setResults }) => {
     onNext && onNext(selected, data);
   };
 
+  // Filter data based on search text
+  const filteredData = useMemo(() => {
+    if (!searchText) return data;
+    const q = searchText.toLowerCase();
+    return data.filter((row) => {
+      return (
+        (row.ip || '').toLowerCase().includes(q) ||
+        (row.mac || '').toLowerCase().includes(q) ||
+        (row.last_seen || '').toLowerCase().includes(q)
+      );
+    });
+  }, [data, searchText]);
+
+  // Ensure selectedRowKeys only includes keys that exist in the current filtered data
+  const displayedSelectedRowKeys = useMemo(() => {
+    const filteredRowKeys = new Set(filteredData.map(row => row.ip + (row.mac || '')));
+    return selectedRowKeys.filter(key => filteredRowKeys.has(key));
+  }, [selectedRowKeys, filteredData]);
+
   const columns = [
     {
       title: 'IP Address',
@@ -236,19 +251,18 @@ const Cloud = ({ onNext, results, setResults }) => {
       <Table
         rowSelection={{
           type: 'checkbox',
-          selectedRowKeys,
-          onChange: setSelectedRowKeys,
+          selectedRowKeys: displayedSelectedRowKeys,
+          onChange: (selectedKeys) => {
+            // When selecting, we need to preserve previous selections that might not be visible
+            const filteredKeys = new Set(filteredData.map(row => row.ip + (row.mac || '')));
+            // Keep all previously selected keys that are not in the current view
+            const preservedKeys = selectedRowKeys.filter(key => !filteredKeys.has(key));
+            // Add the newly selected keys
+            setSelectedRowKeys([...preservedKeys, ...selectedKeys]);
+          },
         }}
         columns={columns}
-        dataSource={data.filter((row) => {
-          if (!searchText) return true;
-          const q = searchText.toLowerCase();
-          return (
-            (row.ip || '').toLowerCase().includes(q) ||
-            (row.mac || '').toLowerCase().includes(q) ||
-            (row.last_seen || '').toLowerCase().includes(q)
-          );
-        })}
+        dataSource={filteredData}
         rowKey={record => record.ip + (record.mac || '')}
         loading={scanLoading}
         pagination={false}

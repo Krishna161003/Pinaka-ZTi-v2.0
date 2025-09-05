@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Divider,
   Table,
@@ -60,6 +60,25 @@ const DataTable = ({ next }) => {
       })
       .catch(() => {});
   };
+
+  // Filter data based on search text
+  const filteredData = useMemo(() => {
+    if (!searchText) return data;
+    const q = searchText.toLowerCase();
+    return data.filter((row) => {
+      return (
+        (row.ip || '').toLowerCase().includes(q) ||
+        (row.mac || '').toLowerCase().includes(q) ||
+        (row.last_seen || '').toLowerCase().includes(q)
+      );
+    });
+  }, [data, searchText]);
+
+  // Ensure selectedRowKeys only includes keys that exist in the current filtered data
+  const displayedSelectedRowKeys = useMemo(() => {
+    const filteredRowKeys = new Set(filteredData.map(row => row.ip + (row.mac || '')));
+    return selectedRowKeys.filter(key => filteredRowKeys.has(key));
+  }, [selectedRowKeys, filteredData]);
 
   const columns = [
     { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
@@ -131,19 +150,18 @@ const DataTable = ({ next }) => {
       <Table
         rowSelection={{
           type: 'checkbox',
-          selectedRowKeys,
-          onChange: setSelectedRowKeys,
+          selectedRowKeys: displayedSelectedRowKeys,
+          onChange: (selectedKeys) => {
+            // When selecting, we need to preserve previous selections that might not be visible
+            const filteredKeys = new Set(filteredData.map(row => row.ip + (row.mac || '')));
+            // Keep all previously selected keys that are not in the current view
+            const preservedKeys = selectedRowKeys.filter(key => !filteredKeys.has(key));
+            // Add the newly selected keys
+            setSelectedRowKeys([...preservedKeys, ...selectedKeys]);
+          },
         }}
         columns={columns}
-        dataSource={data.filter((row) => {
-          if (!searchText) return true;
-          const q = searchText.toLowerCase();
-          return (
-            (row.ip || '').toLowerCase().includes(q) ||
-            (row.mac || '').toLowerCase().includes(q) ||
-            (row.last_seen || '').toLowerCase().includes(q)
-          );
-        })}
+        dataSource={filteredData}
         rowKey={(record) => record.ip + (record.mac || '')}
         loading={scanLoading}
         pagination={false}
