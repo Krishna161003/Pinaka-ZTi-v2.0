@@ -359,7 +359,7 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
                     beforeUpload={handleBulkUpload}
                     showUploadList={false}
                 >
-                    <Button style={{ width: "75px" }} icon={<UploadOutlined />}>Bulk Upload</Button>
+                    <Button style={{ width: "120px" }} icon={<UploadOutlined />}>Bulk Upload</Button>
                 </Upload>
                 <Button
                     size="middle"

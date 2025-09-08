@@ -368,7 +368,7 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
             beforeUpload={handleBulkUpload}
             showUploadList={false}
           >
-            <Button style={{ width: "75px" }} icon={<UploadOutlined />}>Bulk Upload</Button>
+            <Button style={{ width: "120px" }} icon={<UploadOutlined />}>Bulk Upload</Button>
           </Upload>
           <Button
             size="middle"
