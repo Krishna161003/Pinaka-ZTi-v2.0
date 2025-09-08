@@ -1,0 +1,114 @@
+version: "3.3"
+services:
+  react-app:
+    # build: .
+    image: localhost:4000/pinakastra/pinaka-zti-v20-react-app:1.1
+    ports:
+      - "1010:443"
+    depends_on:
+      - node-backend
+      - mysql-db
+    networks:
+      - pinakastra-cloud_my-network
+    volumes:
+      - ./ssl:/etc/nginx/ssl # Mount the SSL directory
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    restart: always
+
+  node-backend:
+    # build: ./backend/db
+    image: localhost:4000/pinakastra/pinaka-zti-v20-node-back:1.1
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mysql-db
+    environment:
+      - DB_HOST=mysql-db
+      - DB_USER=root
+      - DB_PASSWORD=1@P1n@k@1603
+      - DB_NAME=standalone
+      - EMAIL_USER=pinakastra.join@gmail.com
+      - EMAIL_PASS=sqei dbiv vxou ddsy
+      - SESSION_SECRET=your-secret-key
+    entrypoint: [ "/bin/sh", "-c", "./wait-for-it-script.sh mysql-db node server.js" ]
+    volumes:
+      - ./ssl:/etc/ssl # Mount the SSL directory
+      - ./update-password.sh:/usr/src/app/update-password.sh
+      - ./.env:/usr/src/app/.env
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+  mysql-db:
+    image: localhost:4000/pinakastra/db:1.1
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 1@P1n@k@1603
+      MYSQL_DATABASE: standalone
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+volumes:
+  mysql-data:
+  shared-data:
+
+networks:
+  pinakastra-cloud_my-network:
+    external: true
+pinakasupport@FD-001:~/.pinaka_wd$ cat docker-compose-keycloak.yml
+version: "3.3"
+services:
+  keycloak:
+    image: localhost:4000/pinakastra/sso:1.1
+    container_name: keycloak
+    environment:
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloakpassword
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+      - KEYCLOAK_LOGLEVEL=DEBUG
+      - KC_HOSTNAME_STRICT=false
+      - KC_HTTPS_KEY_STORE_FILE=/etc/x509/https/keystore.p12
+      - KC_HTTPS_KEY_STORE_PASSWORD=yourpassword
+    ports:
+      - 9090:8443 # Expose HTTP port to 9090
+    volumes:
+      - ./src/Components/keycloak.conf:/opt/keycloak/conf/keycloak.conf:ro
+      - ./ssl/keystore.p12:/etc/x509/https/keystore.p12
+      - ./realm.json:/opt/keycloak/data/import/realm.json
+    command:
+      - start
+      - --import-realm
+    depends_on:
+      - keycloak-db
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+  keycloak-db:
+    image: localhost:4000/pinakastra/sso-db:1.1
+    container_name: keycloak-db
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloakpassword
+      POSTGRES_DB: keycloak
+    ports:
+      - 5432:5432
+    networks:
+      - pinakastra-cloud_my-network
+    restart: always
+
+networks:
+  pinakastra-cloud_my-network:
+    external: true
