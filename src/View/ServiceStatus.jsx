@@ -1009,7 +1009,7 @@ const ServiceStatus = () => {
                   onCancel={() => setReconfigureOpen(false)}
                   okText="Run Reconfigure"
                   cancelText="Cancel"
-                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy }}
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || (selectedNodes.length === 0 && selectedServices.length === 0) }}
                   cancelButtonProps={{ style: { width: 100 } }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1048,7 +1048,7 @@ const ServiceStatus = () => {
                   onCancel={() => setStopOpen(false)}
                   okText="Stop"
                   cancelText="Cancel"
-                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || selectedStopNodes.length === 0 }}
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || selectedStopNodes.length === 0 || selectedStopServices.length === 0 }}
                   cancelButtonProps={{ style: { width: 100 } }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1087,7 +1087,7 @@ const ServiceStatus = () => {
                   onCancel={() => setRestartOpen(false)}
                   okText="Restart"
                   cancelText="Cancel"
-                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || selectedRestartNodes.length === 0 }}
+                  okButtonProps={{ style: { width: 160 }, disabled: opsBusy || selectedRestartNodes.length === 0 || selectedRestartServices.length === 0 }}
                   cancelButtonProps={{ style: { width: 100 } }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
