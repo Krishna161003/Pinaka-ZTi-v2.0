@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const hostIP = window.location.hostname;
 
-const ValidateTable = ({ nodes = [], onNext, results, setResults }) => {
+const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, onUndoRemoveNode }) => {
     const [data, setData] = useState(results || []);
     const [infoModal, setInfoModal] = useState({ visible: false, details: '', record: null });
 
@@ -131,6 +131,12 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults }) => {
                     setResults && setResults(newData);
                     return newData;
                 });
+                
+                // Inform parent to also remove from License Activation input lists
+                try {
+                    if (onRemoveNode) onRemoveNode(ip, removedRecord, removedIndex);
+                } catch (_) {}
+
                 const key = `remove-${ip}`;
                 notification.open({
                     key,
@@ -149,6 +155,11 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults }) => {
                                     return arr;
                                 });
                             }
+
+                            // Inform parent to restore in License Activation input lists
+                            try {
+                                if (onUndoRemoveNode) onUndoRemoveNode(ip, removedRecord, removedIndex);
+                            } catch (_) {}
                         }}>
                             Undo
                         </Button>

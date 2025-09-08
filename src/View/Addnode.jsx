@@ -248,6 +248,26 @@ const App = () => {
                 return mergedRes;
               });
             }}
+            onRemoveNode={(ip, removedRecord, removedIndex) => {
+              // Remove from selectedNodes (source for Validation)
+              setSelectedNodes(prev => {
+                const next = prev.filter(n => n.ip !== ip);
+                try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(next)); } catch (_) { }
+                return next;
+              });
+            }}
+            onUndoRemoveNode={(ip, record, index) => {
+              // Restore into selectedNodes at original index
+              setSelectedNodes(prev => {
+                const arr = [...prev];
+                const idx = Math.min(Math.max(index ?? arr.length, 0), arr.length);
+                if (!arr.some(n => n.ip === ip)) {
+                  arr.splice(idx, 0, { ip, ...(record || {}) });
+                  try { sessionStorage.setItem('cloud_selectedNodes', JSON.stringify(arr)); } catch (_) { }
+                }
+                return arr;
+              });
+            }}
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Activate" key="3" disabled={disabledTabs["3"]}>
