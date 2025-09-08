@@ -2373,7 +2373,9 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     // Each node must have: serverip, hostname, server_vip, Mgmt, Storage, External_Traffic, VXLAN, license_code, license_type, license_period
     // Do NOT send a 'type' field from frontend; backend sets type='primary'.
     const nodes = Object.values(configs).map(form => ({
-      serverip: form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt')?.ip || form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('VXLAN') : row.type === 'VXLAN')?.ip,
+      serverip: form.configType === 'segregated' 
+        ? form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt')?.ip || form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('VXLAN') : row.type === 'VXLAN')?.ip
+        : form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('primary') : row.type === 'primary')?.ip || form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt')?.ip || form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('VXLAN') : row.type === 'VXLAN')?.ip || form.ip,
       hostname: hostnameMap[form.ip] || form?.hostname || '',
       // Send all selected roles as a comma-separated string to store multiple roles in DB
       role: Array.isArray(form.selectedRoles) && form.selectedRoles.length > 0 ? form.selectedRoles.join(',') : 'child',
