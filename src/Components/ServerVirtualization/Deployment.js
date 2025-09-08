@@ -3,7 +3,7 @@ import { Card, Table, Input, Select, Button, Form, Radio, Checkbox, Divider, Typ
 import { InfoCircleOutlined } from '@ant-design/icons';
 import { buildNetworkConfigPayload } from './networkapply.format';
 import { buildDeployConfigPayload } from './networkapply.deployformat';
-import { SSH_CONFIG, getStorageKey, parseSSHError, createSSHTimeoutNotification, validateSSHConfig, fetchWithRetry, validateSSHResponse } from '../../utils/sshConfig';
+import { getStorageKey, fetchWithRetry, validateSSHResponse } from '../../utils/sshConfig';
 
 const hostIP = window.location.hostname;
 
@@ -15,81 +15,15 @@ const getCloudName = () => {
   return meta ? meta.content : '';
 };
 
-// SSH Polling constants and helpers - using standardized config
+// SSH polling removed: using manual completion flow instead
 
-const POLL_DELAY_MS = SSH_CONFIG.POLL_DELAY_MS;
-const POLL_INTERVAL_MS = SSH_CONFIG.POLL_INTERVAL_MS;
-const POLL_MAX_POLLS = SSH_CONFIG.POLL_MAX_POLLS;
-const SSH_DELAY_START_KEY = getStorageKey('sv', 'DELAY_START_KEY_PREFIX');
-const RESTART_MSG_THROTTLE_MS = SSH_CONFIG.RESTART_MSG_THROTTLE_MS;
+// New: manual completion (Mark as Completed) enable delay and storage key
+const MARK_COMPLETE_DELAY_MS = 4 * 60 * 1000; // 4 minutes
+const MARK_ENABLE_AT_KEY = getStorageKey('sv', 'MARK_ENABLE_AT_KEY_PREFIX');
 
-// Store active polling timeouts and intervals
-window.__cloudPolling = window.__cloudPolling || {};
 
-// Global notification state for persistent notifications
-window.__globalNotifications = window.__globalNotifications || {
-  active: new Set(),
-  showNotification: (key, message, description, onRetry) => {
-    if (window.__globalNotifications.active.has(key)) return;
 
-    notification.warning({
-      key,
-      message,
-      description,
-      duration: 0, // Don't auto-close
-      onClose: () => window.__globalNotifications.active.delete(key),
-      btn: onRetry ? (
-        <Button
-          type="primary"
-          size="small"
-          onClick={() => {
-            notification.close(key);
-            window.__globalNotifications.active.delete(key);
-            onRetry();
-          }}
-        >
-          Retry Connection
-        </Button>
-      ) : null,
-    });
-    window.__globalNotifications.active.add(key);
-  }
-};
 
-// Global navigation to Deployment tab (tab key "5") for notifications
-function navigateToDeploymentTab() {
-  try {
-    const pathWithTab = '/servervirtualization?tab=5';
-    sessionStorage.setItem('serverVirtualization_activeTab', '5');
-    sessionStorage.setItem('lastServerVirtualizationPath', pathWithTab);
-    sessionStorage.setItem('lastMenuPath', pathWithTab);
-    sessionStorage.setItem('lastZtiPath', pathWithTab);
-  } catch (_) { }
-  try {
-    const url = new URL(window.location.origin + '/servervirtualization');
-    url.searchParams.set('tab', '5');
-    window.location.assign(url.toString());
-  } catch (_) {
-    // Fallback
-    window.location.href = '/servervirtualization?tab=5';
-  }
-}
-
-// Throttled info message for restart state to avoid spamming every 5s
-function infoRestartThrottled(ip) {
-  try {
-    const now = Date.now();
-    if (!window.__svRestartInfoTs) window.__svRestartInfoTs = {};
-    const last = window.__svRestartInfoTs[ip] || 0;
-    if (now - last > RESTART_MSG_THROTTLE_MS) {
-      window.__svRestartInfoTs[ip] = now;
-      message.info('Node restarting...');
-    }
-  } catch (_) {
-    // fallback: single info without throttle if globals blocked
-    message.info('Node restarting...');
-  }
-}
 
 const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   const cloudName = getCloudName();
@@ -379,6 +313,16 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
   // When validation fails, force-enable Roles selector on specific nodes (keyed by node ip)
   const [forceEnableRoles, setForceEnableRoles] = useState({});
   const [forceEnableDisks, setForceEnableDisks] = useState({});
+  // New: per-node "Mark as Completed" readiness and in-flight check state
+  const [markReady, setMarkReady] = useState({}); // ip -> boolean
+  const [markCheckLoading, setMarkCheckLoading] = useState({}); // ip -> boolean
+  const markTimersRef = React.useRef({}); // ip -> timeoutId
+  // Countdown ticker for enabling time display
+  const [nowTs, setNowTs] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // If licenseNodes changes (e.g. after license activation), restore from sessionStorage if available, else reset
   useEffect(() => {
@@ -479,317 +423,77 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
     // });
   }, [licenseNodes]);
 
-  // Recovery: if any node card is loading but no active timers exist, resume polling timers
+  // New: Manage enabling of per-node "Mark as Completed" button while a card is loading
   useEffect(() => {
-    // Ensure globals exist
-    if (!window.__cloudPolling) window.__cloudPolling = {};
-    if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-
-    let delayMap = {};
+    // Load persisted enable-at times
+    let enableAtMap = {};
     try {
-      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-      delayMap = raw ? JSON.parse(raw) : {};
-    } catch (_) { delayMap = {}; }
+      const raw = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+      enableAtMap = raw ? JSON.parse(raw) : {};
+    } catch (_) { enableAtMap = {}; }
 
-    const statusArrRaw = sessionStorage.getItem('sv_networkApplyCardStatus');
-    const statusArr = statusArrRaw ? JSON.parse(statusArrRaw) : [];
-
-    // Clean up any orphaned polling intervals that don't correspond to active nodes
-    const activeIps = new Set();
-
+    // For each form/node, set up or clear timers
     (forms || []).forEach((f, idx) => {
       const ip = f?.ip;
       if (!ip) return;
+      const st = cardStatus[idx] || {};
 
-      // Determine the correct SSH target IP based on config type
-      let ssh_target_ip;
-      if (f.configType === 'default') {
-        // For default config, use primary type interface IP
-        const primaryRow = f.tableData?.find(row => row.type === 'primary');
-        ssh_target_ip = primaryRow?.ip || ip; // fallback to main IP if primary not found
-      } else if (f.configType === 'segregated') {
-        // For segregated config, use Mgmt type interface IP
-        const MgmtRow = f.tableData?.find(row =>
-          Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
-        );
-        ssh_target_ip = MgmtRow?.ip || ip; // fallback to main IP if Mgmt not found
+      if (st.loading && !st.applied) {
+        const now = Date.now();
+        let enableAtTs = Number(enableAtMap[ip] || 0);
+        if (!enableAtTs) {
+          enableAtTs = now + MARK_COMPLETE_DELAY_MS;
+          enableAtMap[ip] = enableAtTs;
+          try { sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(enableAtMap)); } catch (_) {}
+        }
+        const remaining = Math.max(enableAtTs - now, 0);
+        // If already passed, mark ready immediately
+        if (remaining === 0) {
+          setMarkReady(prev => (prev[ip] ? prev : { ...prev, [ip]: true }));
+          // Clean persisted entry
+          try {
+            const raw2 = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+            const map2 = raw2 ? JSON.parse(raw2) : {};
+            if (map2[ip]) { delete map2[ip]; sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(map2)); }
+          } catch (_) {}
+        } else if (!markTimersRef.current[ip]) {
+          const to = setTimeout(() => {
+            setMarkReady(prev => ({ ...prev, [ip]: true }));
+            // Clean persisted entry on enable
+            try {
+              const raw3 = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+              const map3 = raw3 ? JSON.parse(raw3) : {};
+              if (map3[ip]) { delete map3[ip]; sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(map3)); }
+            } catch (_) {}
+            delete markTimersRef.current[ip];
+          }, remaining);
+          markTimersRef.current[ip] = to;
+        }
       } else {
-        // Fallback to main node IP for any other config type
-        ssh_target_ip = ip;
+        // Not loading/applied: clear timers and readiness state
+        if (markTimersRef.current[ip]) {
+          try { clearTimeout(markTimersRef.current[ip]); } catch (_) {}
+          delete markTimersRef.current[ip];
+        }
+        setMarkReady(prev => {
+          if (prev[ip]) { const next = { ...prev }; delete next[ip]; return next; }
+          return prev;
+        });
+        // Clean persisted entry
+        try {
+          const raw2 = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+          const map2 = raw2 ? JSON.parse(raw2) : {};
+          if (map2[ip]) { delete map2[ip]; sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(map2)); }
+        } catch (_) {}
       }
-
-      // Add to active IPs set
-      activeIps.add(ssh_target_ip);
     });
 
-    // Clean up orphaned intervals
-    Object.keys(window.__cloudPolling).forEach(pollingIp => {
-      if (!activeIps.has(pollingIp)) {
-        console.log(`[SSH Polling SV] Cleaning up orphaned polling interval for ${pollingIp}`);
-        clearInterval(window.__cloudPolling[pollingIp]);
-        delete window.__cloudPolling[pollingIp];
-      }
-    });
-
-    // Clean up orphaned start timeouts
-    Object.keys(window.__cloudPollingStart).forEach(startIp => {
-      if (!activeIps.has(startIp)) {
-        console.log(`[SSH Polling SV] Cleaning up orphaned start timeout for ${startIp}`);
-        clearTimeout(window.__cloudPollingStart[startIp]);
-        delete window.__cloudPollingStart[startIp];
-      }
-    });
-
-    // Resume polling for active nodes that need it
-    (forms || []).forEach((f, idx) => {
-      const ip = f?.ip;
-      if (!ip) return;
-
-      // Determine the correct SSH target IP based on config type
-      let ssh_target_ip;
-      if (f.configType === 'default') {
-        // For default config, use primary type interface IP
-        const primaryRow = f.tableData?.find(row => row.type === 'primary');
-        ssh_target_ip = primaryRow?.ip || ip; // fallback to main IP if primary not found
-      } else if (f.configType === 'segregated') {
-        // For segregated config, use Mgmt type interface IP
-        const MgmtRow = f.tableData?.find(row =>
-          Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
-        );
-        ssh_target_ip = MgmtRow?.ip || ip; // fallback to main IP if Mgmt not found
-      } else {
-        // Fallback to main node IP for any other config type
-        ssh_target_ip = ip;
-      }
-
-      // Add to active IPs set
-      activeIps.add(ssh_target_ip);
-
-      const st = statusArr[idx] || {};
-      const needsResume = st.loading && !st.applied && !window.__cloudPolling[ssh_target_ip] && !window.__cloudPollingStart[ssh_target_ip];
-      if (!needsResume) return;
-
-      const startAt = Number(delayMap[ssh_target_ip] || 0);
-      const elapsed = startAt ? (Date.now() - startAt) : Number.POSITIVE_INFINITY;
-      const remaining = startAt ? Math.max(POLL_DELAY_MS - elapsed, 0) : 0;
-
-      const beginInterval = () => {
-        let pollCount = 0;
-        const maxPolls = POLL_MAX_POLLS;
-        const interval = setInterval(() => {
-          pollCount++;
-
-          // Stop polling if we've exceeded the maximum attempts
-          if (pollCount > maxPolls) {
-            clearInterval(interval);
-            setCardStatusForIpInSession(ip, { loading: false, applied: false });
-            if (window.__svMountedDeployment) {
-              setCardStatus(prev => {
-                const idxNow = forms.findIndex(ff => ff?.ip === ip);
-                return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-              });
-            }
-
-            // Show persistent retry notification
-            const key = `ssh-timeout-${ssh_target_ip}`;
-
-            // Capture variables for recovery retry
-            const retryTargetIp = ssh_target_ip;
-            const retryOriginalIp = ip;
-            const retryIdx = idx;
-
-            window.__globalNotifications.showNotification(
-              key,
-              'Connection Timeout',
-              `Failed to connect to ${ssh_target_ip} after multiple attempts. The node may be taking longer than expected to come up.`,
-              () => {
-                // Re-trigger backend scheduling and restart frontend polling
-                const ssh_user = SSH_CONFIG.username;
-                const ssh_pass = '';
-                const ssh_key = '';
-
-                message.info(`Retrying SSH polling for ${retryTargetIp}. Will begin after  2 minutes.`);
-
-                fetch(`https://${hostIP}:2020/poll-ssh-status`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ips: [retryTargetIp], ssh_user, ssh_pass, ssh_key })
-                }).then(() => {
-                  // Reset delay start time and restart polling
-                  try {
-                    const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                    const map = raw ? JSON.parse(raw) : {};
-                    map[retryTargetIp] = Date.now();
-                    sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-                  } catch (_) {}
-
-                  // Reset card status to loading for retry
-                  setCardStatusForIpInSession(retryOriginalIp, { loading: true, applied: false });
-                  if (window.__svMountedDeployment) {
-                    setCardStatus(prev => {
-                      const idxNow = forms.findIndex(ff => ff?.ip === retryOriginalIp);
-                      return prev.map((s, i) => i === idxNow ? { loading: true, applied: false } : s);
-                    });
-                  }
-
-                  // Start fresh polling after delay
-                  const to = setTimeout(() => {
-                    beginInterval();
-                    if (window.__cloudPollingStart && window.__cloudPollingStart[retryTargetIp]) {
-                      delete window.__cloudPollingStart[retryTargetIp];
-                    }
-                  }, POLL_DELAY_MS);
-                  if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-                  window.__cloudPollingStart[retryTargetIp] = to;
-                }).catch(err => {
-                  message.error(`Failed to restart SSH polling for ${retryTargetIp}: ${err.message}`);
-                  // Ensure loader stays off if retry setup fails
-                  setCardStatusForIpInSession(retryOriginalIp, { loading: false, applied: false });
-                  if (window.__svMountedDeployment) {
-                    setCardStatus(prev => {
-                      const idxNow = forms.findIndex(ff => ff?.ip === retryOriginalIp);
-                      return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-                    });
-                  }
-                });
-              }
-            );
-
-            message.error(`SSH polling timeout for ${ssh_target_ip}. Please check the node manually.`);
-            {
-              let suppress = false;
-              try {
-                if (window.__svMountedDeployment) suppress = true;
-                else {
-                  const active = sessionStorage.getItem('serverVirtualization_activeTab');
-                  if (active === '5') suppress = true;
-                }
-              } catch (_) { }
-              if (!suppress) {
-                notification.warning({
-                  key: `sv-ssh-timeout-${ssh_target_ip}`,
-                  message: 'SSH polling timeout',
-                  description: `Timeout waiting for ${ssh_target_ip} to come online.`,
-                  duration: 8,
-                  btn: (<Button size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
-                });
-              }
-            }
-            delete window.__cloudPolling[ssh_target_ip];
-            return;
-          }
-
-          fetchWithRetry(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(ssh_target_ip)}`)
-            .then(res => res.json())
-            .then(data => {
-              // Log response for debugging
-              console.log(`[SSH Polling SV] Response for ${ssh_target_ip}:`, data);
-
-              // Validate response to ensure data integrity
-              const validatedData = validateSSHResponse(data, ssh_target_ip);
-
-              if (validatedData.status === 'success' && validatedData.ip === ssh_target_ip) {
-                console.log(`[SSH Polling SV] Success for ${ssh_target_ip}, stopping polling`);
-
-                // Ensure we clear any existing polling before updating state
-                if (window.__cloudPolling[ssh_target_ip]) {
-                  clearInterval(window.__cloudPolling[ssh_target_ip]);
-                  delete window.__cloudPolling[ssh_target_ip];
-                }
-
-                // Update session storage first
-                setCardStatusForIpInSession(ip, { loading: false, applied: true });
-
-                // Update local state with proper synchronization
-                if (window.__svMountedDeployment) {
-                  setCardStatus(prev => {
-                    const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === ip);
-                    if (currentIdx === -1) return prev;
-                    return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
-                  });
-                }
-
-                message.success(`Node ${ssh_target_ip} is back online!`);
-                {
-                  let suppress = false;
-                  try {
-                    if (window.__svMountedDeployment) suppress = true;
-                    else {
-                      const active = sessionStorage.getItem('serverVirtualization_activeTab');
-                      if (active === '5') suppress = true;
-                    }
-                  } catch (_) { }
-                  if (!suppress) {
-                    notification.open({
-                      key: `sv-ssh-success-${ssh_target_ip}`,
-                      message: `Node ${ssh_target_ip} is back online`,
-                      description: 'You can return to Deployment to continue.',
-                      duration: 8,
-                      btn: (<Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
-                    });
-                  }
-                }
-
-                // Ensure cleanup of all polling resources
-                if (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip]) {
-                  clearTimeout(window.__cloudPollingStart[ssh_target_ip]);
-                  delete window.__cloudPollingStart[ssh_target_ip];
-                }
-
-                // Store the form data for this node in sessionStorage
-                const idxNow = forms.findIndex(ff => ff?.ip === ip);
-                const formNow = forms[idxNow];
-                if (formNow) storeFormData(ip, formNow);
-
-                // Note: After network changes are applied, the node IPs may have changed.
-                // Automatic data fetching is disabled. Use "Refetch Data" button if needed.
-              } else if (data.status === 'fail' && data.ip === ssh_target_ip) {
-                console.log(`[SSH Polling SV] Fail for ${ssh_target_ip}, continuing polling`);
-                if (cardStatus[idx]?.loading || !window.__svMountedDeployment) {
-                  infoRestartThrottled(ssh_target_ip);
-                }
-              } else {
-                console.log(`[SSH Polling SV] Unexpected response for ${ssh_target_ip}:`, data);
-              }
-            })
-            .catch(err => {
-              console.error(`[SSH Polling SV] Error for ${ssh_target_ip}:`, err);
-              message.error(`SSH polling failed: ${err.message}. ${SSH_CONFIG.MESSAGES.RESPONSE_LOST}`);
-              // On persistent network errors in recovery mode, stop polling to prevent stuck loader
-              if (pollCount > POLL_MAX_POLLS / 2) {
-                console.log(`[SSH Polling SV] Stopping polling for ${ssh_target_ip} due to max retries`);
-
-                // Ensure cleanup before updating state
-                if (window.__cloudPolling[ssh_target_ip]) {
-                  clearInterval(window.__cloudPolling[ssh_target_ip]);
-                  delete window.__cloudPolling[ssh_target_ip];
-                }
-
-                setCardStatusForIpInSession(forms[idx]?.ip || ssh_target_ip, { loading: false, applied: false });
-                if (window.__svMountedDeployment) {
-                  setCardStatus(prev => {
-                    const idxNow = forms.findIndex(ff => ff?.ip === (forms[idx]?.ip || ssh_target_ip));
-                    if (idxNow === -1) return prev;
-                    return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-                  });
-                }
-
-                message.error(`SSH polling failed due to network errors for ${ssh_target_ip}. Please check connectivity.`);
-              }
-            });
-        }, POLL_INTERVAL_MS); // Check every 5 seconds
-
-        window.__cloudPolling[ssh_target_ip] = interval;
-      };
-
-      if (remaining > 0 && remaining !== Infinity) {
-        const to = setTimeout(() => {
-          beginInterval();
-          delete window.__cloudPollingStart[ssh_target_ip];
-        }, remaining);
-        window.__cloudPollingStart[ssh_target_ip] = to;
-      } else {
-        beginInterval();
+    // Clear timers for any IPs no longer present
+    Object.keys(markTimersRef.current || {}).forEach(ip => {
+      const stillExists = (forms || []).some(f => f?.ip === ip);
+      if (!stillExists) {
+        try { clearTimeout(markTimersRef.current[ip]); } catch (_) {}
+        delete markTimersRef.current[ip];
       }
     });
   }, [forms, cardStatus]);
@@ -900,15 +604,6 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       if (snapshot.licenseNodesEntry) {
         nodesArr.splice(insIdx, 0, snapshot.licenseNodesEntry);
         sessionStorage.setItem('sv_licenseNodes', JSON.stringify(nodesArr));
-      }
-    } catch (_) { }
-    try {
-      // restore delay-start timestamp for polling recovery
-      if (snapshot.delayStartTs && snapshot.ip) {
-        const raw = sessionStorage.getItem('sv_networkApplyPollingDelayStart');
-        const map = raw ? JSON.parse(raw) : {};
-        map[snapshot.ip] = snapshot.delayStartTs;
-        sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
       }
     } catch (_) { }
     try {
@@ -1066,7 +761,6 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           licenseActivationEntry: null,
           licenseStatusEntry: null,
           hostnameEntry: null,
-          delayStartTs: null,
         };
 
         // sv_networkApply restart/boot timers
@@ -1099,16 +793,6 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           }
         } catch (_) { }
 
-        // sv_networkApplyPollingDelayStart per-IP
-        try {
-          const raw = sessionStorage.getItem('sv_networkApplyPollingDelayStart');
-          const map = raw ? JSON.parse(raw) : {};
-          if (ip && map && Object.prototype.hasOwnProperty.call(map, ip)) {
-            snapshot.delayStartTs = map[ip];
-            delete map[ip];
-            sessionStorage.setItem('sv_networkApplyPollingDelayStart', JSON.stringify(map));
-          }
-        } catch (_) { }
 
         // sv_licenseActivationResults array
         try {
@@ -1175,32 +859,31 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           }
         } catch (_) { }
 
-        // Clear UI/polling timers for this IP and index
+        // Clear UI timers for this IP and index
         try {
           if (timerRefs.current[idx]) {
             clearTimeout(timerRefs.current[idx]);
           }
           timerRefs.current.splice(idx, 1);
-          if (window.__cloudPolling && window.__cloudPolling[ip]) {
-            clearInterval(window.__cloudPolling[ip]);
-            delete window.__cloudPolling[ip];
-          }
-          if (window.__cloudPollingStart && window.__cloudPollingStart[ip]) {
-            clearTimeout(window.__cloudPollingStart[ip]);
-            delete window.__cloudPollingStart[ip];
-          }
-          // Close any lingering SSH notifications for this IP
-          try {
-            notification.close(`sv-ssh-success-${ip}`);
-            notification.close(`sv-ssh-timeout-${ip}`);
-          } catch (_) { }
         } catch (_) { }
 
-        // Update local states
-        setLicenseNodes(prev => prev.filter((_, i) => i !== idx));
-        setForms(prev => prev.filter((_, i) => i !== idx));
-        setCardStatus(prev => prev.filter((_, i) => i !== idx));
-        setBtnLoading(prev => prev.filter((_, i) => i !== idx));
+          // Update local states
+          setLicenseNodes(prev => prev.filter((_, i) => i !== idx));
+          setForms(prev => prev.filter((_, i) => i !== idx));
+          setCardStatus(prev => prev.filter((_, i) => i !== idx));
+          setBtnLoading(prev => prev.filter((_, i) => i !== idx));
+          // Clear mark-completed timers and states for this IP
+          try {
+            if (markTimersRef.current[ip]) {
+              clearTimeout(markTimersRef.current[ip]);
+              delete markTimersRef.current[ip];
+            }
+            setMarkReady(prev => { const next = { ...prev }; if (ip && next[ip]) delete next[ip]; return next; });
+            setMarkCheckLoading(prev => { const next = { ...prev }; if (ip && next[ip]) delete next[ip]; return next; });
+            const raw = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            if (ip && map[ip]) { delete map[ip]; sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(map)); }
+          } catch (_) {}
         setForceEnableRoles(prev => {
           const next = { ...prev };
           if (ip) delete next[ip];
@@ -1861,276 +1544,17 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
           sessionStorage.setItem(RESTART_ENDTIME_KEY, JSON.stringify(restartEndTimes));
           sessionStorage.setItem(BOOT_ENDTIME_KEY, JSON.stringify(bootEndTimes));
 
-          // --- SSH Polling Section ---
-          // Determine the correct IP to use for SSH polling based on config type
-          let ssh_target_ip;
-          if (form.configType === 'default') {
-            // For default config, use primary type interface IP
-            const primaryRow = form.tableData?.find(row => row.type === 'primary');
-            ssh_target_ip = primaryRow?.ip || form.ip; // fallback to main IP if primary not found
-          } else if (form.configType === 'segregated') {
-            // For segregated config, use Mgmt type interface IP
-            const MgmtRow = form.tableData?.find(row =>
-              Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt'
-            );
-            ssh_target_ip = MgmtRow?.ip || form.ip; // fallback to main IP if Mgmt not found
-          } else {
-            // Fallback to main node IP for any other config type
-            ssh_target_ip = form.ip;
-          }
-
-          // Gather all required info for the polling API
-          const node_ip = ssh_target_ip; // Use the determined target IP for SSH
-          const ssh_user = 'pinakasupport';
-          const ssh_pass = ''; // Do not use password authentication
-          const ssh_key = ''; // Leave empty to use server-side .pem file (ps_key.pem)
-
-          // Note: Backend will use the .pem file on disk (e.g., flask-back/ps_key.pem). No passwords are used.
-
-          // Clear any existing polling timers for this IP before starting new ones
-          if (window.__cloudPolling && window.__cloudPolling[ssh_target_ip]) {
-            clearInterval(window.__cloudPolling[ssh_target_ip]);
-            delete window.__cloudPolling[ssh_target_ip];
-          }
-          if (window.__cloudPollingStart && window.__cloudPollingStart[ssh_target_ip]) {
-            clearTimeout(window.__cloudPollingStart[ssh_target_ip]);
-            delete window.__cloudPollingStart[ssh_target_ip];
-          }
-
-          // Start the polling by POSTing the IP to backend
-          fetch(`https://${hostIP}:2020/poll-ssh-status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ips: [node_ip], ssh_user, ssh_pass, ssh_key })
-          }).then(res => res.json()).then(data => {
-            if (data.success) {
-              message.info(`SSH polling scheduled for ${node_ip}. Will begin after 90 seconds.`);
-            }
-          }).then(() => {
-            // Helper to schedule or re-schedule frontend polling for this IP
-            const scheduleFrontendPolling = () => {
-              // Prevent duplicate timers for this IP
-              if (!window.__cloudPolling) window.__cloudPolling = {};
-              if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-              if (window.__cloudPolling[node_ip]) {
-                try { clearInterval(window.__cloudPolling[node_ip]); } catch (_) { }
-                delete window.__cloudPolling[node_ip];
-              }
-              if (window.__cloudPollingStart[node_ip]) {
-                try { clearTimeout(window.__cloudPollingStart[node_ip]); } catch (_) { }
-                delete window.__cloudPollingStart[node_ip];
-              }
-              // Persist delay start time for recovery
-              try {
-                const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                const map = raw ? JSON.parse(raw) : {};
-                map[node_ip] = Date.now();
-                sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-              } catch (_) { }
-
-              // Delay starting the frontend polling until 90 seconds (to match backend delay)
-              const startPollingTimeout = setTimeout(() => {
-                let pollCount = 0;
-                const maxPolls = POLL_MAX_POLLS; // Maximum 5 minutes of polling
-
-                const pollInterval = setInterval(() => {
-                  pollCount++;
-
-                  // Stop polling if we've exceeded the maximum attempts
-                  if (pollCount > maxPolls) {
-                    clearInterval(pollInterval);
-                    if (window.__cloudPolling[node_ip]) {
-                      delete window.__cloudPolling[node_ip];
-                    }
-                    setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
-                    if (window.__svMountedDeployment) {
-                      setCardStatus(prev => {
-                        const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
-                        return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
-                      });
-                    }
-                    message.error(`SSH polling timeout for ${node_ip}. Please check the node manually.`);
-                    // Clear delay-start entry for this IP
-                    try {
-                      const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                      const map = raw ? JSON.parse(raw) : {};
-                      if (map[node_ip]) {
-                        delete map[node_ip];
-                        sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-                      }
-                    } catch (_) { }
-                    // Cross-menu notification on timeout with Retry
-                    const key = `ssh-timeout-${node_ip}`;
-                    const description = `Failed to connect to ${node_ip} after multiple attempts. The node may be taking longer than expected to come up.`;
-
-                    // Capture variables in closure for retry function
-                    const retryNodeIp = node_ip;
-                    const retrySshUser = ssh_user;
-                    const retrySshPass = ssh_pass;
-                    const retrySshKey = ssh_key;
-
-                    window.__globalNotifications.showNotification(
-                      key,
-                      'Connection Timeout',
-                      description,
-                      () => {
-                        // Re-trigger backend scheduling and frontend polling
-                        fetch(`https://${hostIP}:2020/poll-ssh-status`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ ips: [retryNodeIp], ssh_user: retrySshUser, ssh_pass: retrySshPass, ssh_key: retrySshKey })
-                        }).then(() => {
-                          // Re-trigger the SSH polling with fresh state
-                          message.info(`Retrying SSH polling for ${retryNodeIp}. Will begin after 90 seconds.`);
-                          scheduleFrontendPolling();
-                        }).catch(err => {
-                          message.error(`Failed to restart SSH polling for ${retryNodeIp}: ${err.message}`);
-                        });
-                      }
-                    );
-                    return;
-                  }
-
-                  fetchWithRetry(`https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(node_ip)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                      // Validate response to ensure data integrity
-                      let validatedData;
-                      try {
-                        validatedData = validateSSHResponse(data, node_ip);
-                      } catch (validationError) {
-                        console.warn(`SSH response validation failed for ${node_ip}:`, validationError.message);
-                        // Continue with unvalidated data but log the issue
-                        validatedData = { ...data, validated: false };
-                      }
-
-                      if (validatedData.status === 'success' && validatedData.ip === node_ip) {
-                        // Ensure we clear any existing polling before updating state
-                        if (window.__cloudPolling[node_ip]) {
-                          clearInterval(window.__cloudPolling[node_ip]);
-                          delete window.__cloudPolling[node_ip];
-                        }
-
-                        // Update session storage first
-                        setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
-
-                        // Update local state with proper synchronization
-                        if (window.__svMountedDeployment) {
-                          setCardStatus(prev => {
-                            const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
-                            if (currentIdx === -1) return prev;
-                            return prev.map((s, i) => i === currentIdx ? { loading: false, applied: true } : s);
-                          });
-                        }
-
-                        message.success(`Node ${validatedData.ip} is back online!`);
-                        {
-                          let suppress = false;
-                          try {
-                            if (window.__svMountedDeployment) suppress = true;
-                            else {
-                              const active = sessionStorage.getItem('serverVirtualization_activeTab');
-                              if (active === '5') suppress = true;
-                            }
-                          } catch (_) { }
-                          if (!suppress) {
-                            notification.open({
-                              key: `sv-ssh-success-${validatedData.ip}`,
-                              message: `Node ${validatedData.ip} is back online`,
-                              description: 'You can return to Deployment to continue.',
-                              duration: 8,
-                              btn: (<Button type="primary" size="small" onClick={navigateToDeploymentTab}>Open Deployment</Button>),
-                            });
-                          }
-                        }
-
-                        // Clear delay-start entry for this IP
-                        try {
-                          const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                          const map = raw ? JSON.parse(raw) : {};
-                          if (map[node_ip]) {
-                            delete map[node_ip];
-                            sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-                          }
-                        } catch (_) { }
-
-                        // Store the form data for this node in sessionStorage
-                        const idxNow = forms.findIndex(ff => ff?.ip === form.ip);
-                        const formNow = forms[idxNow];
-                        if (formNow) storeFormData(form.ip, formNow);
-
-                        // Note: After network changes are applied, the node IPs may have changed.
-                        // Automatic data fetching is disabled. Use "Refetch Data" button if needed.
-                      } else if (validatedData.status === 'fail' && validatedData.ip === node_ip) {
-                        if (cardStatus[nodeIdx]?.loading || !window.__svMountedDeployment) {
-                          infoRestartThrottled(node_ip);
-                        }
-                      }
-                    })
-                    .catch(err => {
-                      console.error(`SSH status check failed for ${node_ip}:`, err);
-                      message.error(`SSH polling failed: ${err.message}. ${SSH_CONFIG.MESSAGES.RESPONSE_LOST}`);
-                      // On persistent network errors, stop polling to prevent stuck loader
-                      if (pollCount > POLL_MAX_POLLS / 2) {
-                        if (window.__cloudPolling[node_ip]) {
-                          clearInterval(window.__cloudPolling[node_ip]);
-                          delete window.__cloudPolling[node_ip];
-                        }
-                        setCardStatusForIpInSession(forms[nodeIdx]?.ip || node_ip, { loading: false, applied: false });
-                        if (window.__svMountedDeployment) {
-                          setCardStatus(prev => {
-                            const idxNow = forms.findIndex(ff => ff?.ip === (forms[nodeIdx]?.ip || node_ip));
-                            if (idxNow === -1) return prev;
-                            return prev.map((s, i) => i === idxNow ? { loading: false, applied: false } : s);
-                          });
-                        }
-                        message.error(`SSH polling failed due to network errors for ${node_ip}. Please check connectivity.`);
-
-                        // Clear delay-start entry for this IP
-                        try {
-                          const raw = sessionStorage.getItem(SSH_DELAY_START_KEY);
-                          const map = raw ? JSON.parse(raw) : {};
-                          if (map[node_ip]) {
-                            delete map[node_ip];
-                            sessionStorage.setItem(SSH_DELAY_START_KEY, JSON.stringify(map));
-                          }
-                        } catch (_) { }
-                      }
-                    });
-                }, POLL_INTERVAL_MS); // Check every 5 seconds
-
-                window.__cloudPolling[node_ip] = pollInterval;
-              }, POLL_DELAY_MS);
-
-              if (!window.__cloudPollingStart) window.__cloudPollingStart = {};
-              window.__cloudPollingStart[node_ip] = startPollingTimeout;
-            };
-
-            scheduleFrontendPolling();
-          }).catch(err => {
-            console.error('SSH polling setup failed:', err);
-            // If polling setup fails, ensure loader is turned off
-            setCardStatusForIpInSession(form.ip, { loading: false, applied: false });
-            if (window.__svMountedDeployment) {
-              setCardStatus(prev => {
-                const currentIdx = prev.findIndex((_, i) => forms[i]?.ip === form.ip);
-                if (currentIdx === -1) return prev;
-                return prev.map((s, i) => i === currentIdx ? { loading: false, applied: false } : s);
-              });
-            }
-            message.error(`Failed to start SSH polling for ${node_ip}: ${err.message}. Please check network connectivity.`);
-
-            // Clear any existing polling timers for this IP
-            if (window.__cloudPolling && window.__cloudPolling[node_ip]) {
-              clearInterval(window.__cloudPolling[node_ip]);
-              delete window.__cloudPolling[node_ip];
-            }
-            if (window.__cloudPollingStart && window.__cloudPollingStart[node_ip]) {
-              clearTimeout(window.__cloudPollingStart[node_ip]);
-              delete window.__cloudPollingStart[node_ip];
-            }
-          });
-          // --- End SSH Polling Section ---
+          // --- Manual completion flow (no automatic SSH polling) ---
+          // Persist when the "Mark as Completed" becomes available for this IP
+          try {
+            const raw = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            map[form.ip] = Date.now() + MARK_COMPLETE_DELAY_MS;
+            sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(map));
+          } catch (_) { }
+          // Ensure the button shows but is initially disabled; an effect will enable after delay
+          setMarkReady(prev => ({ ...prev, [form.ip]: false }));
+          // --- End Manual completion flow ---
 
 
           timerRefs.current[nodeIdx] = setTimeout(() => {
@@ -2159,11 +1583,101 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
 
   };
 
-  // Clean up only internal timers on unmount; keep global polling running in background
+  // Helper: read remaining seconds until mark-enabled for an IP
+  const getRemainingSeconds = (ip) => {
+    try {
+      const raw = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+      const map = raw ? JSON.parse(raw) : {};
+      const ts = Number(map[ip] || 0);
+      if (!ts) return 0;
+      const remainMs = ts - nowTs;
+      return Math.max(0, Math.ceil(remainMs / 1000));
+    } catch (_) {
+      return 0;
+    }
+  };
+  const formatMMSS = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  // One-shot manual completion: checks SSH to Mgmt/Primary IP based on config when user clicks the button
+  const handleMarkCompleted = async (nodeIdx) => {
+    try {
+      const form = forms[nodeIdx];
+      if (!form) return;
+      const ipKey = form.ip;
+
+      // Determine target IP strictly based on config type
+      let targetIp = '';
+      if (form.configType === 'segregated') {
+        const mgmtRow = form.tableData?.find(row => Array.isArray(row.type) ? row.type.includes('Mgmt') : row.type === 'Mgmt');
+        targetIp = mgmtRow?.ip || '';
+        if (!targetIp) {
+          message.error('Management (Mgmt) IP not configured for this node.');
+          return;
+        }
+      } else { // default
+        const primaryRow = form.tableData?.find(row => row.type === 'primary');
+        targetIp = primaryRow?.ip || '';
+        if (!targetIp) {
+          message.error('Primary interface IP not configured for this node.');
+          return;
+        }
+      }
+
+      setMarkCheckLoading(prev => ({ ...prev, [ipKey]: true }));
+
+      const url = `https://${hostIP}:2020/check-ssh-status?ip=${encodeURIComponent(targetIp)}`;
+      const res = await fetchWithRetry(url);
+      const data = await res.json();
+
+      let validated;
+      try {
+        validated = validateSSHResponse(data, targetIp);
+      } catch (_) {
+        validated = { ...data, ip: data?.ip || targetIp, status: data?.status || 'fail' };
+      }
+
+      if (validated.status === 'success' && validated.ip === targetIp) {
+        setCardStatusForIpInSession(form.ip, { loading: false, applied: true });
+        setCardStatus(prev => prev.map((s, i) => i === nodeIdx ? { loading: false, applied: true } : s));
+        storeFormData(form.ip, form);
+        message.success(`Node ${targetIp} is reachable over SSH.`);
+        try {
+          if (markTimersRef.current[form.ip]) {
+            clearTimeout(markTimersRef.current[form.ip]);
+            delete markTimersRef.current[form.ip];
+          }
+          const raw = sessionStorage.getItem(MARK_ENABLE_AT_KEY);
+          const map = raw ? JSON.parse(raw) : {};
+          if (map[form.ip]) { delete map[form.ip]; sessionStorage.setItem(MARK_ENABLE_AT_KEY, JSON.stringify(map)); }
+        } catch (_) {}
+        setMarkReady(prev => { const next = { ...prev }; delete next[form.ip]; return next; });
+      } else {
+        message.warning(`SSH still not reachable at ${targetIp}. Please try again later.`);
+      }
+    } catch (err) {
+      console.error('Mark as Completed check failed:', err);
+      message.error('Failed to perform SSH check: ' + (err?.message || String(err)));
+    } finally {
+      try {
+        const form = forms[nodeIdx];
+        if (form?.ip) setMarkCheckLoading(prev => ({ ...prev, [form.ip]: false }));
+      } catch (_) {}
+    }
+  };
+
+  // Clean up only internal timers on unmount
   useEffect(() => {
     return () => {
-      timerRefs.current.forEach(t => t && clearTimeout(t));
-      // Do not clear window.__cloudPolling or __cloudPollingStart here, to allow background progress
+      try { timerRefs.current.forEach(t => t && clearTimeout(t)); } catch (_) {}
+      // Clear any pending "Mark as Completed" enable timers
+      try {
+        Object.values(markTimersRef.current || {}).forEach(to => to && clearTimeout(to));
+        markTimersRef.current = {};
+      } catch (_) {}
     };
   }, []);
 
@@ -2566,7 +2080,28 @@ const Deployment = ({ onGoToReport, onRemoveNode, onUndoRemoveNode } = {}) => {
       <Divider />
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {forms.map((form, idx) => (
-          <Spin spinning={cardStatus[idx]?.loading} tip="Applying network changes & restarting node...">
+          <Spin
+            spinning={cardStatus[idx]?.loading}
+            tip={(
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div>Applying network changes & restarting node...</div>
+                <Button
+                  type="primary"
+                  size="small"
+                  style={{ marginTop: 8 }}
+                  disabled={!markReady[form.ip] || !!markCheckLoading[form.ip]}
+                  onClick={() => handleMarkCompleted(idx)}
+                >
+                  {markCheckLoading[form.ip] ? 'Checking...' : 'Mark as Completed'}
+                </Button>
+                {!markReady[form.ip] && (
+                  <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>
+                    Enables in {formatMMSS(getRemainingSeconds(form.ip))}
+                  </div>
+                )}
+              </div>
+            )}
+          >
             <Card key={form.ip} title={`Node: ${form.ip}`} style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

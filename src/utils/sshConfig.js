@@ -27,6 +27,7 @@ export const SSH_CONFIG = {
   RESTART_ENDTIME_KEY_PREFIX: '_networkApplyRestartEndTimes',
   BOOT_ENDTIME_KEY_PREFIX: '_networkApplyBootEndTimes',
   HOSTNAME_MAP_KEY_PREFIX: '_hostnameMap',
+  MARK_ENABLE_AT_KEY_PREFIX: '_manualCompletionEnableAt',
   
   // Backend Endpoints
   POLL_SSH_ENDPOINT: '/poll-ssh-status',
