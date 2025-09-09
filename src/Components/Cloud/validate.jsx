@@ -122,15 +122,14 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, 
             cancelText: 'Cancel',
             cancelButtonProps: { size: 'small', style: { width: 90 } },
             onOk: () => {
-                let removedIndex = -1;
-                let removedRecord = null;
-                setData(prev => {
-                    removedIndex = prev.findIndex(r => r.ip === ip);
-                    removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
-                    const newData = prev.filter(row => row.ip !== ip);
-                    setResults && setResults(newData);
-                    return newData;
-                });
+                // Compute removed record/index synchronously to avoid relying on async state updates
+                const prev = Array.isArray(data) ? data : [];
+                const removedIndex = prev.findIndex(r => r.ip === ip);
+                const removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+                const newData = prev.filter(row => row.ip !== ip);
+
+                setData(newData);
+                setResults && setResults(newData);
                 
                 // Inform parent to also remove from License Activation input lists
                 try {

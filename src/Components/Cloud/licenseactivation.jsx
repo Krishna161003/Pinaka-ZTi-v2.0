@@ -179,8 +179,7 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
             cancelText: 'Cancel',
             cancelButtonProps: { size: 'small', style: { width: 90 } },
             onOk: () => {
-                let removedIndex = -1;
-                let removedRecord = null;
+                // Snapshot session-related entries before UI/state changes
                 const snapshot = {
                     activationResultsIndex: -1,
                     activationResultsEntry: null,
@@ -216,13 +215,13 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
                     }
                 } catch (_) {}
 
-                setData(prev => {
-                    removedIndex = prev.findIndex(r => r.ip === ip);
-                    removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
-                    const newData = prev.filter(row => row.ip !== ip);
-                    setResults && setResults(newData);
-                    return newData;
-                });
+                // Compute removed row synchronously from current state to avoid relying on async setState
+                const prev = Array.isArray(data) ? data : [];
+                const removedIndex = prev.findIndex(r => r.ip === ip);
+                const removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+                const newData = prev.filter(row => row.ip !== ip);
+                setData(newData);
+                setResults && setResults(newData);
 
                 // Inform parent to also remove from Validation input lists
                 try {

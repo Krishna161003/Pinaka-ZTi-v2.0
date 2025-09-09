@@ -102,15 +102,13 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
       cancelText: 'Cancel',
       cancelButtonProps: { size: 'small', style: { width: 90 } },
       onOk: () => {
-        let removedIndex = -1;
-        let removedRecord = null;
-        setData(prev => {
-          removedIndex = prev.findIndex(r => r.ip === ip);
-          removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
-          const newData = prev.filter(row => row.ip !== ip);
-          setResults && setResults(newData);
-          return newData;
-        });
+        // Compute removed record/index synchronously from current state
+        const prev = Array.isArray(data) ? data : [];
+        const removedIndex = prev.findIndex(r => r.ip === ip);
+        const removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+        const newData = prev.filter(row => row.ip !== ip);
+        setData(newData);
+        setResults && setResults(newData);
         const key = `remove-${ip}`;
         notification.open({
           key,

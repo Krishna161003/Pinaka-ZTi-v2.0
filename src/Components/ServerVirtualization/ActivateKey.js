@@ -174,8 +174,6 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
       cancelText: 'Cancel',
       cancelButtonProps: { size: 'small', style: { width: 90 } },
       onOk: () => {
-        let removedIndex = -1;
-        let removedRecord = null;
         const snapshot = {
           statusEntry: null,
           activationResultsIndex: -1,
@@ -221,13 +219,13 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
           }
         } catch (_) {}
 
-        setData(prev => {
-          removedIndex = prev.findIndex(r => r.ip === ip);
-          removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
-          const newData = prev.filter(row => row.ip !== ip);
-          setResults && setResults(newData);
-          return newData;
-        });
+        // Compute removed row synchronously from current state to avoid relying on async setState
+        const prev = Array.isArray(data) ? data : [];
+        const removedIndex = prev.findIndex(r => r.ip === ip);
+        const removedRecord = removedIndex >= 0 ? prev[removedIndex] : null;
+        const newData = prev.filter(row => row.ip !== ip);
+        setData(newData);
+        setResults && setResults(newData);
 
         // Inform parent to remove from Validation/selected nodes as well
         try {
