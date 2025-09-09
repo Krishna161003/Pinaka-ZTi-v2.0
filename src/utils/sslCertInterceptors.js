@@ -49,30 +49,42 @@ axios.interceptors.response.use(
     // Check for SSL certificate specific errors
     const msg = String(err?.message || '').toLowerCase();
     const code = String(err?.code || '').toLowerCase();
+    const stack = String(err?.stack || '').toLowerCase();
+    const causeCode = String(err?.cause?.code || err?.cause || '').toLowerCase();
+    const blob = `${msg} ${code} ${stack} ${causeCode}`;
     const isSSLError = 
-      code.includes('cert_authority_invalid') ||
-      code.includes('err_cert_authority_invalid') ||
-      msg.includes('cert_authority_invalid') ||
-      msg.includes('self signed') ||
-      msg.includes('self-signed') ||
-      msg.includes('unable to verify') ||
-      msg.includes('certificate verify failed');
+      blob.includes('cert_authority_invalid') ||
+      blob.includes('err_cert_authority_invalid') ||
+      blob.includes('self signed') ||
+      blob.includes('self-signed') ||
+      blob.includes('unable to verify') ||
+      blob.includes('certificate verify failed') ||
+      blob.includes('err_ssl_protocol_error') ||
+      blob.includes('ssl');
 
     // Skip unreachable host errors (not SSL-related)
-    const isAddressUnreachable = code.includes('address_unreachable') || msg.includes('address_unreachable') ||
-      code.includes('err_address_unreachable') || msg.includes('err_address_unreachable');
+    const isAddressUnreachable = /address_unreachable|err_address_unreachable/.test(blob);
 
     // Skip connection refused / timed out (not SSL-related)
-    const isRefusedOrTimedOut =
-      code.includes('err_connection_refused') || msg.includes('err_connection_refused') ||
-      code.includes('econnrefused') || msg.includes('econnrefused') ||
-      code.includes('err_connection_timed_out') || msg.includes('err_connection_timed_out') ||
-      code.includes('etimedout') || msg.includes('etimedout') ||
-      msg.includes('timed out') || msg.includes('timeout');
+    const isRefusedOrTimedOut = /err_connection_refused|econnrefused|err_connection_timed_out|etimedout|timed out|timeout/.test(blob);
 
-    // Emit for HTTPS network errors except unreachable-host and refused/timeout cases. UI will probe/suppress CORS-only failures.
+    // Emit only for likely SSL-related network issues on HTTPS
     if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable && !isRefusedOrTimedOut) {
-      emitSSLError(payload);
+      // As a final guard, try a quick no-cors probe; if it succeeds, it's not an SSL handshake failure
+      try {
+        const u = new URL(payload.url);
+        const originProbe = `${u.origin}/`;
+        // Note: we intentionally do not await too long; a refusal usually rejects immediately, SSL also rejects
+        // If probe resolves, suppress the modal (likely CORS)
+        return fetch(originProbe, { method: 'GET', mode: 'no-cors', cache: 'no-store' })
+          .then(() => Promise.reject(err)) // reachable → suppress emit
+          .catch(() => { // unreachable → may be SSL or offline; only emit if not refused/timeout as checked above
+            if (isSSLError) emitSSLError(payload);
+            return Promise.reject(err);
+          });
+      } catch (_) {
+        if (isSSLError) emitSSLError(payload);
+      }
     }
     return Promise.reject(err);
   }
@@ -92,29 +104,18 @@ if (typeof window !== 'undefined' && window.fetch) {
       const method = (init && init.method) || (typeof input === 'object' && input && input.method) || 'GET';
       const payload = toPayloadFromUrl(url || '', method);
       
+      // Aggregate error hints
+      const blob = `${String(msg).toLowerCase()} ${String(e?.code || '').toLowerCase()} ${String(e?.name || '').toLowerCase()} ${String(e?.cause?.code || e?.cause || '').toLowerCase()} ${String(e?.stack || '').toLowerCase()}`;
+
       // Check for SSL certificate errors
-      const lowerMsg = msg.toLowerCase();
-      const isSSLError = 
-        lowerMsg.includes('cert_authority_invalid') ||
-        lowerMsg.includes('self signed') ||
-        lowerMsg.includes('self-signed') ||
-        lowerMsg.includes('unable to verify') ||
-        lowerMsg.includes('certificate verify failed');
+      const isSSLError = /cert_authority_invalid|self[- ]signed|unable to verify|certificate verify failed|err_ssl_protocol_error/.test(blob);
 
-      // Skip unreachable host errors (not SSL-related)
-      const isAddressUnreachable = lowerMsg.includes('address_unreachable') || lowerMsg.includes('err_address_unreachable');
+      // Skip unreachable/refused/timeout (not SSL-related)
+      const isAddressUnreachable = /address_unreachable|err_address_unreachable/.test(blob);
+      const isRefusedOrTimedOut = /err_connection_refused|econnrefused|err_connection_timed_out|etimedout|timed out|timeout/.test(blob);
 
-      // Skip connection refused / timed out (not SSL-related)
-      const isRefusedOrTimedOut =
-        lowerMsg.includes('err_connection_refused') ||
-        lowerMsg.includes('econnrefused') ||
-        lowerMsg.includes('err_connection_timed_out') ||
-        lowerMsg.includes('etimedout') ||
-        lowerMsg.includes('timed out') ||
-        lowerMsg.includes('timeout');
-
-      // Emit for HTTPS network errors except unreachable-host and refused/timeout cases. UI will probe/suppress CORS-only failures.
-      if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable && !isRefusedOrTimedOut) {
+      // Emit only for likely SSL-related issues
+      if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable && !isRefusedOrTimedOut && isSSLError) {
         emitSSLError(payload);
       }
       throw e;
