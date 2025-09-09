@@ -2,7 +2,7 @@
 # /usr/bin/python3 -> python3.11
 
 # sudo setcap cap_net_raw+ep /usr/bin/python3.11
-
+#python3 -m gunicorn --workers 3 --bind 0.0.0.0:2020 --certfile keycloak.crt --keyfile keycloak.key app:app
 
 from flask import Flask, request, jsonify, Response, stream_with_context, send_file,send_from_directory
 from werkzeug.utils import safe_join
@@ -3354,6 +3354,6 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=2020,
-        debug=True,
+        debug=False,
         ssl_context=("keycloak.crt", "keycloak.key"),  # (certificate, private key)
     )
