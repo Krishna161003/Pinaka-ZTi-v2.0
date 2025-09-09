@@ -8,6 +8,7 @@ const Cloud = ({ onNext, results, setResults }) => {
   const [form] = Form.useForm();
   const [subnet, setSubnet] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
+  const [nextLoading, setNextLoading] = useState(false);
   // const [refreshLoading, setRefreshLoading] = useState(false);
   const [data, setData] = useState(results || []);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -66,6 +67,7 @@ const Cloud = ({ onNext, results, setResults }) => {
     const selectedIPs = selected.map(s => (s.ip || '').trim()).filter(Boolean);
     if (!selectedIPs.length) return onNext && onNext(selected, data);
 
+    setNextLoading(true);
     const userId = getUserId();
     const url = new URL(`https://${hostIP}:5000/api/deployed-servers`);
     if (userId) url.searchParams.set('userId', userId);
@@ -78,10 +80,12 @@ const Cloud = ({ onNext, results, setResults }) => {
       } else {
         // If API fails, warn and proceed
         message.warning('Could not verify deployed servers. Proceeding without check.');
+        setNextLoading(false);
         return onNext && onNext(selected, data);
       }
     } catch (e) {
       message.warning('Network error during deployed servers check. Proceeding.');
+      setNextLoading(false);
       return onNext && onNext(selected, data);
     }
 
@@ -147,10 +151,12 @@ const Cloud = ({ onNext, results, setResults }) => {
           </div>
         ),
       });
+      setNextLoading(false);
       return; // Do not proceed
     }
 
     // No conflicts -> proceed
+    setNextLoading(false);
     onNext && onNext(selected, data);
   };
 
@@ -243,6 +249,7 @@ const Cloud = ({ onNext, results, setResults }) => {
           type="primary"
           disabled={selectedRowKeys.length === 0}
           onClick={handleNextClick}
+          loading={nextLoading}
           style={{ size: "middle", width: "75px" }}
         >
           Next
