@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNode, onUndoRemoveNode }) => {
     const [data, setData] = useState(results || []);
     const fileInputRef = useRef(null);
+    const [removedIps, setRemovedIps] = useState([]);
 
     useEffect(() => {
         // Robust merge: combine nodes + results + previous local state, keyed by IP.
@@ -23,8 +24,10 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
 
             if (ipSet.size === 0) return prev;
 
+            const removedSet = new Set(removedIps);
             const merged = [];
             for (const ip of ipSet) {
+                if (removedSet.has(ip)) continue; // honor local removals
                 const baseNode = nodeList.find(n => n.ip === ip) || prevMap.get(ip) || resMap.get(ip) || { ip };
                 const rRow = resMap.get(ip);
                 const old = prevMap.get(ip);
@@ -43,7 +46,7 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
             }
             return merged;
         });
-    }, [results, nodes]);
+    }, [results, nodes, removedIps]);
 
     const handleLicenseChange = (ip, value) => {
         setData(prev => prev.map(row =>
@@ -222,7 +225,9 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
                 const newData = prev.filter(row => row.ip !== ip);
                 setData(newData);
                 setResults && setResults(newData);
-
+                // Track locally removed IPs so merge doesn’t resurrect it from props
+                setRemovedIps(list => (list.includes(ip) ? list : [...list, ip]));
+                
                 // Inform parent to also remove from Validation input lists
                 try {
                     if (onRemoveNode) onRemoveNode(ip, removedRecord, removedIndex);
@@ -266,8 +271,10 @@ const LicenseActivation = ({ nodes = [], results, setResults, onNext, onRemoveNo
                                     return arr;
                                 });
                             }
+                            // Allow re-removal
+                            setRemovedIps(list => list.filter(x => x !== ip));
 
-                            // Inform parent to restore in Validation input lists
+                            // Inform parent to restore in License Activation input lists
                             try {
                                 if (onUndoRemoveNode) onUndoRemoveNode(ip, removedRecord, removedIndex);
                             } catch (_) {}

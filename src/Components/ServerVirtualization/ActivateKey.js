@@ -18,20 +18,25 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
   const cloudName = getCloudName();
   const [data, setData] = useState(results || []);
   const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    if (results) setData(results);
-    else setData(
-      (nodes || []).map(node => ({
-        ...node,
-        key: node.ip,
-        license: '',
-        result: null,
-        details: null,
-        checking: false,
-      }))
-    );
-  }, [results, nodes]);
+   useEffect(() => {
+    const removedSet = new Set(removedIps);
+    if (results) {
+      const filtered = (Array.isArray(results) ? results : []).filter(r => r && !removedSet.has(r.ip));
+      setData(filtered);
+    } else {
+      const filteredNodes = (nodes || []).filter(n => n && !removedSet.has(n.ip));
+      setData(
+        filteredNodes.map(node => ({
+          ...node,
+          key: node.ip,
+          license: '',
+          result: null,
+          details: null,
+          checking: false,
+        }))
+      );
+    }
+  }, [results, nodes, removedIps]);
 
   const handleLicenseChange = (ip, value) => {
     setData(prev => prev.map(row =>
@@ -226,6 +231,8 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
         const newData = prev.filter(row => row.ip !== ip);
         setData(newData);
         setResults && setResults(newData);
+        // Track locally removed so future merges don’t resurrect
+        setRemovedIps(list => (list.includes(ip) ? list : [...list, ip]));
 
         // Inform parent to remove from Validation/selected nodes as well
         try {
@@ -278,6 +285,8 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
                   return arr;
                 });
               }
+              // Allow re-removal
+              setRemovedIps(list => list.filter(x => x !== ip));
 
               // Inform parent to restore into Validation/selected nodes
               try {

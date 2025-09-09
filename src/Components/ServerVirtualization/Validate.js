@@ -14,20 +14,27 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
   const cloudName = getCloudName();
   const [data, setData] = useState(results || []);
   const [infoModal, setInfoModal] = useState({ visible: false, details: '', record: null });
+  const [removedIps, setRemovedIps] = useState([]);
 
   // Sync data with results or nodes (from Cloud validate.jsx)
   useEffect(() => {
-    if (results) setData(results);
-    else setData(
-      (nodes || []).map(node => ({
-        ...node,
-        key: node.ip,
-        result: null,
-        details: '',
-        validating: false,
-      }))
-    );
-  }, [results, nodes]);
+    const removedSet = new Set(removedIps);
+    if (results) {
+      const filtered = (Array.isArray(results) ? results : []).filter(r => r && !removedSet.has(r.ip));
+      setData(filtered);
+    } else {
+      const filteredNodes = (nodes || []).filter(n => n && !removedSet.has(n.ip));
+      setData(
+        filteredNodes.map(node => ({
+          ...node,
+          key: node.ip,
+          result: null,
+          details: '',
+          validating: false,
+        }))
+      );
+    }
+  }, [results, nodes, removedIps]);
 
   // Validation handler (from Cloud validate.jsx)
   const handleValidate = async (ip) => {
@@ -109,6 +116,7 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
         const newData = prev.filter(row => row.ip !== ip);
         setData(newData);
         setResults && setResults(newData);
+        setRemovedIps(list => (list.includes(ip) ? list : [...list, ip]));
         const key = `remove-${ip}`;
         notification.open({
           key,
@@ -127,6 +135,7 @@ const Validation = ({ nodes = [], onNext, next, results, setResults }) => {
                   return arr;
                 });
               }
+              setRemovedIps(list => list.filter(x => x !== ip));
             }}>
               Undo
             </Button>

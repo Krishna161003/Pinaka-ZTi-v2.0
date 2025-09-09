@@ -7,6 +7,8 @@ const hostIP = window.location.hostname;
 const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, onUndoRemoveNode }) => {
     const [data, setData] = useState(results || []);
     const [infoModal, setInfoModal] = useState({ visible: false, details: '', record: null });
+    // Track locally removed IPs to ensure removal persists even if parent nodes still contains them
+    const [removedIps, setRemovedIps] = useState([]);
 
     // Sync data with results or nodes (robust merge to preserve statuses)
     useEffect(() => {
@@ -25,8 +27,10 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, 
             // If nothing to show yet, fall back to nodes initialization
             if (ipSet.size === 0) return prev;
 
+            const removedSet = new Set(removedIps);
             const merged = [];
             for (const ip of ipSet) {
+                if (removedSet.has(ip)) continue; // honor local removals
                 const baseNode = nodeList.find(n => n.ip === ip) || prevMap.get(ip) || resMap.get(ip) || { ip };
                 const resRow = resMap.get(ip);
                 const old = prevMap.get(ip);
@@ -45,7 +49,7 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, 
             }
             return merged;
         });
-    }, [results, nodes]);
+    }, [results, nodes, removedIps]);
 
     // Call backend validation API
     const handleValidate = async (ip) => {
@@ -130,6 +134,8 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, 
 
                 setData(newData);
                 setResults && setResults(newData);
+                // Track locally removed IPs so subsequent merges don't resurrect it from parent nodes
+                setRemovedIps(list => (list.includes(ip) ? list : [...list, ip]));
                 
                 // Inform parent to also remove from License Activation input lists
                 try {
@@ -154,6 +160,8 @@ const ValidateTable = ({ nodes = [], onNext, results, setResults, onRemoveNode, 
                                     return arr;
                                 });
                             }
+                            // Remove IP from local removed list to allow re-removal
+                            setRemovedIps(list => list.filter(x => x !== ip));
 
                             // Inform parent to restore in License Activation input lists
                             try {
