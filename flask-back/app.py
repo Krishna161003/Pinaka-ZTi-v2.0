@@ -1868,73 +1868,94 @@ def poll_ssh_status():
 ssh_polling_results = {}
 ssh_polling_timestamps = {}  # Track when results were stored
 
-# Retrieves SSH polling results for specific IP addresses from background polling
-# Returns one-time SSH status results and removes them from the polling queue
+# One-shot SSH connectivity check (no background polling)
 @app.route('/check-ssh-status', methods=['GET'])
 def check_ssh_status():
     """
     GET /check-ssh-status?ip=1.2.3.4
-    Returns the current SSH status for a specific IP
+    Attempts a direct SSH connection to the given IP using the configured
+    key and user, and returns success or fail immediately.
     """
-    ip = request.args.get('ip')
+    import subprocess
+    import time
+
+    ip = (request.args.get('ip') or '').strip()
     if not ip:
         return jsonify({'error': 'Missing IP parameter'}), 400
-    
-    # Debug logging
-    print(f"DEBUG: Checking SSH status for IP: {ip}")
-    print(f"DEBUG: ssh_polling_results keys: {list(ssh_polling_results.keys())}")
-    
-    # Check if we have a result for this IP
-    if ip in ssh_polling_results:
-        result = ssh_polling_results[ip].copy()  # Create a copy to avoid modifying the original
-        
-        # Add metadata for response tracking
-        result['response_timestamp'] = time.time()
-        result['response_validated'] = True
-        
-        # For success or timeout status, keep the result for 60 seconds to allow multiple fetches
-        # This prevents loss of success status due to network issues or timing problems
-        if result.get('status') in ['success', 'timeout']:
-            current_time = time.time()
-            result_time = ssh_polling_timestamps.get(ip, 0)
-            
-            # Keep success/timeout results for 60 seconds
-            if current_time - result_time > 60:
-                # Clean up old results
-                del ssh_polling_results[ip]
-                if ip in ssh_polling_timestamps:
-                    del ssh_polling_timestamps[ip]
-                print(f"DEBUG: Cleaned up old result for {ip} (age: {current_time - result_time:.1f}s)")
-                return jsonify({
-                    'status': 'fail',
-                    'ip': ip,
-                    'message': 'SSH polling result expired',
-                    'response_timestamp': current_time,
-                    'response_validated': True
-                })
-            else:
-                print(f"DEBUG: Returning persistent result for {ip}: {result} (age: {current_time - result_time:.1f}s)")
-                # DO NOT delete the result - keep it for multiple fetches
-                # But make sure we're returning a copy so concurrent requests don't interfere
-                return jsonify(result.copy())
+
+    SSH_USER = 'pinakasupport'
+    SSH_KEY_PATH = '/home/pinakasupport/.pinaka_wd/key/ps_key.pem'
+    CONNECT_TIMEOUT = 10  # seconds
+
+    print(f"DEBUG: One-shot SSH check to IP: {ip}")
+
+    # Build SSH command - non-interactive, no host key prompts
+    ssh_cmd = [
+        'ssh',
+        '-i', SSH_KEY_PATH,
+        '-o', f'ConnectTimeout={CONNECT_TIMEOUT}',
+        '-o', 'BatchMode=yes',
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
+        f'{SSH_USER}@{ip}',
+        'true'
+    ]
+
+    try:
+        proc = subprocess.run(
+            ssh_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=CONNECT_TIMEOUT + 5,
+            text=True,
+        )
+        if proc.returncode == 0:
+            print(f"DEBUG: SSH SUCCESS to {ip}")
+            return jsonify({
+                'status': 'success',
+                'ip': ip,
+                'message': f'SSH connection successful to {ip}',
+                'response_timestamp': time.time(),
+                'response_validated': True
+            })
         else:
-            # For 'fail' status, return and remove it so it can be updated by next polling attempt
-            print(f"DEBUG: Returning transient fail result for {ip}: {result}")
-            # Remove fail results immediately so they can be updated by ongoing polling
-            del ssh_polling_results[ip]
-            if ip in ssh_polling_timestamps:
-                del ssh_polling_timestamps[ip]
-            return jsonify(result)
-    
-    # If no result yet, return fail status
-    print(f"DEBUG: No result found for {ip}, returning fail status")
-    return jsonify({
-        'status': 'fail',
-        'ip': ip,
-        'message': 'SSH polling in progress',
-        'response_timestamp': time.time(),
-        'response_validated': True
-    })
+            err = (proc.stderr or '').strip()
+            print(f"DEBUG: SSH FAIL to {ip}: rc={proc.returncode}, err={err}")
+            return jsonify({
+                'status': 'fail',
+                'ip': ip,
+                'message': err or f'SSH connection failed to {ip}',
+                'response_timestamp': time.time(),
+                'response_validated': True
+            })
+    except subprocess.TimeoutExpired:
+        print(f"DEBUG: SSH TIMEOUT to {ip}")
+        return jsonify({
+            'status': 'fail',
+            'ip': ip,
+            'message': f'SSH connection timeout to {ip}',
+            'response_timestamp': time.time(),
+            'response_validated': True
+        })
+    except FileNotFoundError:
+        print("DEBUG: 'ssh' binary not found on server")
+        return jsonify({
+            'status': 'fail',
+            'ip': ip,
+            'message': "'ssh' binary not found on server",
+            'response_timestamp': time.time(),
+            'response_validated': True
+        })
+    except Exception as e:
+        err = str(e)
+        print(f"DEBUG: SSH ERROR to {ip}: {err}")
+        return jsonify({
+            'status': 'fail',
+            'ip': ip,
+            'message': err or f'Unexpected SSH error to {ip}',
+            'response_timestamp': time.time(),
+            'response_validated': True
+        })
 
 # Clean up old SSH polling results (optional endpoint for maintenance)
 @app.route('/cleanup-ssh-results', methods=['POST'])
