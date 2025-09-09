@@ -62,8 +62,16 @@ axios.interceptors.response.use(
     const isAddressUnreachable = code.includes('address_unreachable') || msg.includes('address_unreachable') ||
       code.includes('err_address_unreachable') || msg.includes('err_address_unreachable');
 
-    // Emit for HTTPS network errors except unreachable-host cases. UI will probe/suppress CORS-only failures.
-    if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable) {
+    // Skip connection refused / timed out (not SSL-related)
+    const isRefusedOrTimedOut =
+      code.includes('err_connection_refused') || msg.includes('err_connection_refused') ||
+      code.includes('econnrefused') || msg.includes('econnrefused') ||
+      code.includes('err_connection_timed_out') || msg.includes('err_connection_timed_out') ||
+      code.includes('etimedout') || msg.includes('etimedout') ||
+      msg.includes('timed out') || msg.includes('timeout');
+
+    // Emit for HTTPS network errors except unreachable-host and refused/timeout cases. UI will probe/suppress CORS-only failures.
+    if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable && !isRefusedOrTimedOut) {
       emitSSLError(payload);
     }
     return Promise.reject(err);
@@ -96,8 +104,17 @@ if (typeof window !== 'undefined' && window.fetch) {
       // Skip unreachable host errors (not SSL-related)
       const isAddressUnreachable = lowerMsg.includes('address_unreachable') || lowerMsg.includes('err_address_unreachable');
 
-      // Emit for HTTPS network errors except unreachable-host cases. UI will probe/suppress CORS-only failures.
-      if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable) {
+      // Skip connection refused / timed out (not SSL-related)
+      const isRefusedOrTimedOut =
+        lowerMsg.includes('err_connection_refused') ||
+        lowerMsg.includes('econnrefused') ||
+        lowerMsg.includes('err_connection_timed_out') ||
+        lowerMsg.includes('etimedout') ||
+        lowerMsg.includes('timed out') ||
+        lowerMsg.includes('timeout');
+
+      // Emit for HTTPS network errors except unreachable-host and refused/timeout cases. UI will probe/suppress CORS-only failures.
+      if (isNetwork && payload.url.startsWith('https://') && !isAddressUnreachable && !isRefusedOrTimedOut) {
         emitSSLError(payload);
       }
       throw e;
