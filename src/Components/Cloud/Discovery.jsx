@@ -250,7 +250,7 @@ const Cloud = ({ onNext, results, setResults }) => {
           disabled={selectedRowKeys.length === 0}
           onClick={handleNextClick}
           loading={nextLoading}
-          style={{ size: "middle", width: "75px" }}
+          style={{ width: "75px" }}
         >
           Next
         </Button>
