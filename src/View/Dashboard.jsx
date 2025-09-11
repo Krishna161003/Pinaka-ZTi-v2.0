@@ -725,6 +725,19 @@ const Dashboard = () => {
     return `${val.toFixed(fixed)} ${units[i]}`;
   };
 
+  // Dynamic centering for lists when few items; when items grow, align to top automatically
+  const diskCenter = Array.isArray(diskInfo.partitions) ? diskInfo.partitions.length <= 3 : true;
+  const ifaceTotalCount = (() => {
+    const arr = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+    let c = 0;
+    for (const it of arr) {
+      if (it && it.name) c += 1;
+      if (it && it.type === 'bond' && Array.isArray(it.slaves)) c += it.slaves.length;
+    }
+    return c;
+  })();
+  const ifaceCenter = ifaceTotalCount <= 3;
+
   // Small usage bar component used in the table for vCPU and Memory
   const UsageBar = ({ used = 0, total = 0, color = '#4c8dff', tooltip = null, tooltipWidth }) => {
     if (!total || total <= 0) {
@@ -1759,7 +1772,7 @@ const Dashboard = () => {
                     <Divider style={{ margin: "0 0 12px 0" }} />
 
                     {Array.isArray(diskInfo.partitions) && diskInfo.partitions.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ maxHeight: 300, minHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: diskCenter ? 'center' : 'flex-start' }}>
                         {diskInfo.partitions.map((p, idx) => {
                           const totalGiB = p.total > 0 ? p.total / (1024 ** 3) : 0;
                           const usedGiB = p.used > 0 ? p.used / (1024 ** 3) : 0;
@@ -1827,7 +1840,7 @@ const Dashboard = () => {
                     {loadingStates.ifaces ? (
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}><Spin /></div>
                     ) : (
-                      <div style={{ maxHeight: 300, minHeight: 120, overflowY: 'auto' }}>
+                      <div style={{ maxHeight: 300, minHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: ifaceCenter ? 'center' : 'flex-start' }}>
 {(() => {
 const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
 // Only show a dummy preview if there is no data at all
