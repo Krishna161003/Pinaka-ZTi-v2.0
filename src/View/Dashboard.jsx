@@ -626,6 +626,7 @@ const Dashboard = () => {
   const [dockerError, setDockerError] = useState("");
   // Persisted docker search text
   const [dockerSearchText, setDockerSearchText] = useState(() => sessionStorage.getItem('docker_search_text') || '');
+  const [dockerStatusFilter, setDockerStatusFilter] = useState('ALL'); // ALL | UP | DOWN
 
   // Cloud resources summary for the table below the Cloud card
   const [cloudStats, setCloudStats] = useState({
@@ -971,15 +972,18 @@ const Dashboard = () => {
   // Keep filtered containers in sync with search text and containers; persist page
   useEffect(() => {
     const value = (dockerSearchText || '').toLowerCase();
-    const filtered = dockerContainers.filter(container =>
-      (container.dockerId || "").toLowerCase().includes(value) ||
-      (container.containerName || "").toLowerCase().includes(value) ||
-      (container.status || "").toLowerCase().includes(value)
-    );
+    const filtered = dockerContainers
+      .filter(container => {
+        const matchesSearch = (container.dockerId || "").toLowerCase().includes(value)
+          || (container.containerName || "").toLowerCase().includes(value)
+          || (container.status || "").toLowerCase().includes(value);
+        const matchesStatus = dockerStatusFilter === 'ALL' || (container.status || '').toUpperCase() === dockerStatusFilter;
+        return matchesSearch && matchesStatus;
+      });
     setFilteredContainers(filtered);
     setDockerCurrentPage(1);
     sessionStorage.setItem('docker_current_page', '1');
-  }, [dockerSearchText, dockerContainers]);
+  }, [dockerSearchText, dockerContainers, dockerStatusFilter]);
 
   // Load and persist docker current page
   useEffect(() => {
@@ -1825,12 +1829,24 @@ const Dashboard = () => {
                     ) : (
                       <div style={{ maxHeight: 300, minHeight: 120, overflowY: 'auto' }}>
 {(() => {
-                          const data = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+                          const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+                          // Inject a dummy bond to preview structure
+                          const dummy = {
+                            name: 'bond0-demo',
+                            type: 'bond',
+                            status: 'UP',
+                            ips: ['10.10.0.10'],
+                            slaves: [
+                              { name: 'eth1-demo', type: 'slave', status: 'UP', ips: ['10.10.0.11'] },
+                              { name: 'eth2-demo', type: 'slave', status: 'DOWN', ips: [] },
+                            ],
+                          };
+                          const data = [...raw, dummy];
                           if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
                           const statusBadge = (status) => (
                             <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
                           );
-const titleNode = (name, status, ips, extra=null) => (
+                          const titleNode = (name, status, ips, extra=null) => (
                             <div style={{
                               display: 'grid',
                               gridTemplateColumns: '180px 100px 1fr',
@@ -1892,7 +1908,18 @@ const titleNode = (name, status, ips, extra=null) => (
                 >
                   <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                     {(() => {
-                      const data = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+                      const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+                      const dummy = {
+                        name: 'bond0-demo',
+                        type: 'bond',
+                        status: 'UP',
+                        ips: ['10.10.0.10'],
+                        slaves: [
+                          { name: 'eth1-demo', type: 'slave', status: 'UP', ips: ['10.10.0.11'] },
+                          { name: 'eth2-demo', type: 'slave', status: 'DOWN', ips: [] },
+                        ],
+                      };
+                      const data = [...raw, dummy];
                       if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
                       const statusBadge = (status) => (
                         <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
@@ -1979,7 +2006,9 @@ const titleNode = (name, status, ips, extra=null) => (
                       height: "20px", // Reduced height
                       fontSize: "18px",
                       fontWeight: "500",
+                      cursor: 'pointer'
                     }}
+                    onClick={() => { setDockerStatusFilter('UP'); setDockerCurrentPage(1); }}
                   >
                     <img src={upImage} style={{ width: "24px", height: "24px" }} />
                     <span style={{ userSelect: "none" }}>Up</span>
@@ -2010,7 +2039,9 @@ const titleNode = (name, status, ips, extra=null) => (
                       height: "20px",
                       fontSize: "18px",
                       fontWeight: "500",
+                      cursor: 'pointer'
                     }}
+                    onClick={() => { setDockerStatusFilter('DOWN'); setDockerCurrentPage(1); }}
                   >
                     <img src={downImage} style={{ width: "24px", height: "24px" }} />
                     <span style={{ userSelect: "none" }}>Down</span>
@@ -2041,7 +2072,9 @@ const titleNode = (name, status, ips, extra=null) => (
                       height: "20px",
                       fontSize: "18px",
                       fontWeight: "500",
+                      cursor: 'pointer'
                     }}
+                    onClick={() => { setDockerStatusFilter('ALL'); setDockerCurrentPage(1); }}
                   >
                     <img src={totalImage} style={{ width: "24px", height: "24px" }} />
                     <span style={{ userSelect: "none" }}>Total</span>
@@ -2071,11 +2104,13 @@ const titleNode = (name, status, ips, extra=null) => (
                 onChange={(e) => {
                   setDockerSearchText(e.target.value);
                   const value = e.target.value.toLowerCase();
-                  const filtered = dockerContainers.filter(container =>
-                    (container.dockerId || "").toLowerCase().includes(value) ||
-                    (container.containerName || "").toLowerCase().includes(value) ||
-                    (container.status || "").toLowerCase().includes(value)
-                  );
+                  const filtered = dockerContainers.filter(container => {
+                    const matchesSearch = (container.dockerId || "").toLowerCase().includes(value)
+                      || (container.containerName || "").toLowerCase().includes(value)
+                      || (container.status || "").toLowerCase().includes(value);
+                    const matchesStatus = dockerStatusFilter === 'ALL' || (container.status || '').toUpperCase() === dockerStatusFilter;
+                    return matchesSearch && matchesStatus;
+                  });
                   setFilteredContainers(filtered);
                   // Reset to first page on new filter
                   setDockerCurrentPage(1);
