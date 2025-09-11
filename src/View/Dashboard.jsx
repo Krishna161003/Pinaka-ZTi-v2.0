@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Layout1 from "../Components/layout";
-import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip } from "antd";
-import { InfoCircleOutlined } from '@ant-design/icons';
+import { theme, Layout, Spin, Row, Col, Divider, Select, Table, Badge, Input, message, Tooltip, Tree, Modal, Button } from "antd";
+import { InfoCircleOutlined, FullscreenOutlined } from '@ant-design/icons';
 import { useNavigate } from "react-router-dom";
 import node from "../Images/1_FD.png";
 import squad from "../Images/2_SQDN.png";
@@ -106,6 +106,7 @@ const Dashboard = () => {
   const [usedMemory, setUsedMemory] = useState(0);
   // Interface details for Interfaces card
   const [ifaceDetails, setIfaceDetails] = useState({ interfaces: [] });
+  const [ifaceModalOpen, setIfaceModalOpen] = useState(false);
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
@@ -1816,55 +1817,117 @@ const Dashboard = () => {
                       <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>
                         <img src={networkTraffic} style={{ width: "34px", height: "34px" }} /> &nbsp; Interfaces
                       </span>
+                      <Button type="text" size="small" onClick={() => setIfaceModalOpen(true)} icon={<FullscreenOutlined />} />
                     </div>
                     <Divider style={{ margin: "0 0 12px 0" }} />
                     {loadingStates.ifaces ? (
                       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}><Spin /></div>
                     ) : (
-                      <div style={{ maxHeight: 260, overflowY: 'auto' }}>
-                        {(() => {
+                      <div style={{ maxHeight: 300, minHeight: 120, overflowY: 'auto' }}>
+{(() => {
                           const data = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
                           if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
-                          const StatusDot = ({ status }) => (
+                          const statusBadge = (status) => (
                             <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
                           );
+                          const titleNode = (name, status, ips, extra=null) => (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 600 }}>{name}</span>
+                              {statusBadge(status)}
+                              {Array.isArray(ips) && ips.length > 0 && (
+                                <span style={{ fontSize: 12, color: '#555' }}>{ips.join(', ')}</span>
+                              )}
+                              {extra}
+                            </span>
+                          );
+                          const treeData = data.map((it) => {
+                            const isBond = it.type === 'bond';
+                            const children = isBond && Array.isArray(it.slaves)
+                              ? it.slaves.map((s) => ({
+                                  key: `${it.name}-${s.name}`,
+                                  title: titleNode(s.name, s.status, s.ips),
+                                }))
+                              : undefined;
+                            return {
+                              key: it.name,
+                              title: titleNode(
+                                it.name,
+                                it.status,
+                                it.ips,
+                                isBond ? <span style={{ fontSize: 12, color: '#1677ff' }}>(bond)</span> : null
+                              ),
+                              children,
+                            };
+                          });
                           return (
-                            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                              {data.map((it) => (
-                                <li key={it.name} style={{ marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontWeight: 600 }}>{it.name}</span>
-                                    <StatusDot status={it.status} />
-                                    {Array.isArray(it.ips) && it.ips.length > 0 && (
-                                      <span style={{ fontSize: 12, color: '#555' }}>{it.ips.join(', ')}</span>
-                                    )}
-                                    {it.type === 'bond' && (
-                                      <span style={{ fontSize: 12, color: '#1677ff', marginLeft: 6 }}>(bond)</span>
-                                    )}
-                                  </div>
-                                  {it.type === 'bond' && Array.isArray(it.slaves) && it.slaves.length > 0 && (
-                                    <ul style={{ listStyle: 'none', paddingLeft: 16, marginTop: 6 }}>
-                                      {it.slaves.map((s) => (
-                                        <li key={`${it.name}-${s.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                          <span style={{ color: '#888' }}>↳</span>
-                                          <span style={{ fontWeight: 500 }}>{s.name}</span>
-                                          <StatusDot status={s.status} />
-                                          {Array.isArray(s.ips) && s.ips.length > 0 && (
-                                            <span style={{ fontSize: 12, color: '#555' }}>{s.ips.join(', ')}</span>
-                                          )}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
+                            <Tree
+                              treeData={treeData}
+                              showLine
+                              defaultExpandAll
+                              selectable={false}
+                            />
                           );
                         })()}
                       </div>
                     )}
                   </div>
                 </Col>
+
+                {/* Interfaces Modal (Expanded View) */}
+                <Modal
+                  open={ifaceModalOpen}
+                  onCancel={() => setIfaceModalOpen(false)}
+                  footer={null}
+                  width={820}
+                  title="Interfaces"
+                >
+                  <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                    {(() => {
+                      const data = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+                      if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
+                      const statusBadge = (status) => (
+                        <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
+                      );
+                      const titleNode = (name, status, ips, extra=null) => (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 600 }}>{name}</span>
+                          {statusBadge(status)}
+                          {Array.isArray(ips) && ips.length > 0 && (
+                            <span style={{ fontSize: 12, color: '#555' }}>{ips.join(', ')}</span>
+                          )}
+                          {extra}
+                        </span>
+                      );
+                      const treeData = data.map((it) => {
+                        const isBond = it.type === 'bond';
+                        const children = isBond && Array.isArray(it.slaves)
+                          ? it.slaves.map((s) => ({
+                              key: `${it.name}-${s.name}`,
+                              title: titleNode(s.name, s.status, s.ips),
+                            }))
+                          : undefined;
+                        return {
+                          key: it.name,
+                          title: titleNode(
+                            it.name,
+                            it.status,
+                            it.ips,
+                            isBond ? <span style={{ fontSize: 12, color: '#1677ff' }}>(bond)</span> : null
+                          ),
+                          children,
+                        };
+                      });
+                      return (
+                        <Tree
+                          treeData={treeData}
+                          showLine
+                          defaultExpandAll
+                          selectable={false}
+                        />
+                      );
+                    })()}
+                  </div>
+                </Modal>
               </Row>
 
 
