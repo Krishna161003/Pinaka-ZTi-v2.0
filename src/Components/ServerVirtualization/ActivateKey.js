@@ -18,7 +18,8 @@ const ActivateKey = ({ nodes = [], results, setResults, onNext, next, onRemoveNo
   const cloudName = getCloudName();
   const [data, setData] = useState(results || []);
   const fileInputRef = useRef(null);
-   useEffect(() => {
+  const [removedIps, setRemovedIps] = useState([]);
+  useEffect(() => {
     const removedSet = new Set(removedIps);
     if (results) {
       const filtered = (Array.isArray(results) ? results : []).filter(r => r && !removedSet.has(r.ip));
