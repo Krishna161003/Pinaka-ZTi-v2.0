@@ -1830,15 +1830,24 @@ const Dashboard = () => {
                           const statusBadge = (status) => (
                             <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
                           );
-                          const titleNode = (name, status, ips, extra=null) => (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontWeight: 600 }}>{name}</span>
-                              {statusBadge(status)}
-                              {Array.isArray(ips) && ips.length > 0 && (
-                                <span style={{ fontSize: 12, color: '#555' }}>{ips.join(', ')}</span>
-                              )}
-                              {extra}
-                            </span>
+const titleNode = (name, status, ips, extra=null) => (
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: '180px 100px 1fr',
+                              alignItems: 'center',
+                              columnGap: 12,
+                              minHeight: 24,
+                            }}>
+                              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {name} {extra}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                {statusBadge(status)}
+                              </div>
+                              <div style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {Array.isArray(ips) && ips.length > 0 ? ips.join(', ') : '-'}
+                              </div>
+                            </div>
                           );
                           const treeData = data.map((it) => {
                             const isBond = it.type === 'bond';
@@ -1888,15 +1897,24 @@ const Dashboard = () => {
                       const statusBadge = (status) => (
                         <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
                       );
-                      const titleNode = (name, status, ips, extra=null) => (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontWeight: 600 }}>{name}</span>
-                          {statusBadge(status)}
-                          {Array.isArray(ips) && ips.length > 0 && (
-                            <span style={{ fontSize: 12, color: '#555' }}>{ips.join(', ')}</span>
-                          )}
-                          {extra}
-                        </span>
+const titleNode = (name, status, ips, extra=null) => (
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: '200px 110px 1fr',
+                          alignItems: 'center',
+                          columnGap: 12,
+                          minHeight: 24,
+                        }}>
+                          <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {name} {extra}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            {statusBadge(status)}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {Array.isArray(ips) && ips.length > 0 ? ips.join(', ') : '-'}
+                          </div>
+                        </div>
                       );
                       const treeData = data.map((it) => {
                         const isBond = it.type === 'bond';
