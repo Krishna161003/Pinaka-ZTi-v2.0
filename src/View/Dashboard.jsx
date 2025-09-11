@@ -1829,23 +1829,30 @@ const Dashboard = () => {
                     ) : (
                       <div style={{ maxHeight: 300, minHeight: 120, overflowY: 'auto' }}>
 {(() => {
-                          const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
-                          // Inject a dummy bond to preview structure
-                          const dummy = {
-                            name: 'bond0-demo',
-                            type: 'bond',
-                            status: 'UP',
-                            ips: ['10.10.0.10'],
-                            slaves: [
-                              { name: 'eth1-demo', type: 'slave', status: 'UP', ips: ['10.10.0.11'] },
-                              { name: 'eth2-demo', type: 'slave', status: 'DOWN', ips: [] },
-                            ],
-                          };
-                          const data = [...raw, dummy];
-                          if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
-                          const statusBadge = (status) => (
-                            <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
-                          );
+const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+// Only show a dummy preview if there is no data at all
+const dummy = {
+  name: 'bond0-demo',
+  type: 'bond',
+  status: 'UP',
+  ips: ['10.10.0.10'],
+  slaves: [
+    { name: 'eth1-demo', type: 'slave', status: 'UP', ips: ['10.10.0.11'] },
+    { name: 'eth2-demo', type: 'slave', status: 'DOWN', ips: [] },
+  ],
+};
+let data = raw.length > 0 ? raw : [dummy];
+// Remove any duplicate interface names
+const seenNames = new Set();
+data = data.filter((it) => {
+  if (!it || !it.name) return false;
+  if (seenNames.has(it.name)) return false;
+  seenNames.add(it.name);
+  return true;
+});
+const statusBadge = (status) => (
+  <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
+);
                           const titleNode = (name, status, ips, extra=null) => (
                             <div style={{
                               display: 'grid',
@@ -1885,10 +1892,9 @@ const Dashboard = () => {
                             };
                           });
                           return (
-                            <Tree
+<Tree
                               treeData={treeData}
                               showLine
-                              defaultExpandAll
                               selectable={false}
                             />
                           );
@@ -1908,22 +1914,30 @@ const Dashboard = () => {
                 >
                   <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                     {(() => {
-                      const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
-                      const dummy = {
-                        name: 'bond0-demo',
-                        type: 'bond',
-                        status: 'UP',
-                        ips: ['10.10.0.10'],
-                        slaves: [
-                          { name: 'eth1-demo', type: 'slave', status: 'UP', ips: ['10.10.0.11'] },
-                          { name: 'eth2-demo', type: 'slave', status: 'DOWN', ips: [] },
-                        ],
-                      };
-                      const data = [...raw, dummy];
-                      if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
-                      const statusBadge = (status) => (
-                        <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
-                      );
+const raw = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+const dummy = {
+  name: 'bond0-demo',
+  type: 'bond',
+  status: 'UP',
+  ips: ['10.10.0.10'],
+  slaves: [
+    { name: 'eth1-demo', type: 'slave', status: 'UP', ips: ['10.10.0.11'] },
+    { name: 'eth2-demo', type: 'slave', status: 'DOWN', ips: [] },
+  ],
+};
+let data = raw.length > 0 ? raw : [dummy];
+// Remove duplicate names
+const seenNames = new Set();
+data = data.filter((it) => {
+  if (!it || !it.name) return false;
+  if (seenNames.has(it.name)) return false;
+  seenNames.add(it.name);
+  return true;
+});
+if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
+const statusBadge = (status) => (
+  <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
+);
 const titleNode = (name, status, ips, extra=null) => (
                         <div style={{
                           display: 'grid',
@@ -1963,10 +1977,9 @@ const titleNode = (name, status, ips, extra=null) => (
                         };
                       });
                       return (
-                        <Tree
+<Tree
                           treeData={treeData}
                           showLine
-                          defaultExpandAll
                           selectable={false}
                         />
                       );
@@ -2005,13 +2018,17 @@ const titleNode = (name, status, ips, extra=null) => (
                       padding: "10px 20px",
                       height: "20px", // Reduced height
                       fontSize: "18px",
-                      fontWeight: "500",
-                      cursor: 'pointer'
+                      fontWeight: "500"
                     }}
-                    onClick={() => { setDockerStatusFilter('UP'); setDockerCurrentPage(1); }}
                   >
                     <img src={upImage} style={{ width: "24px", height: "24px" }} />
-                    <span style={{ userSelect: "none" }}>Up</span>
+                    <span
+                      role="button"
+                      onClick={() => { setDockerStatusFilter('UP'); setDockerCurrentPage(1); }}
+                      style={{ userSelect: "none", cursor: 'pointer' }}
+                    >
+                      Up
+                    </span>
                     {loadingStates.docker ? (
                       <Spin size="small" />
                     ) : (
@@ -2038,13 +2055,17 @@ const titleNode = (name, status, ips, extra=null) => (
                       padding: "10px 20px",
                       height: "20px",
                       fontSize: "18px",
-                      fontWeight: "500",
-                      cursor: 'pointer'
+                      fontWeight: "500"
                     }}
-                    onClick={() => { setDockerStatusFilter('DOWN'); setDockerCurrentPage(1); }}
                   >
                     <img src={downImage} style={{ width: "24px", height: "24px" }} />
-                    <span style={{ userSelect: "none" }}>Down</span>
+                    <span
+                      role="button"
+                      onClick={() => { setDockerStatusFilter('DOWN'); setDockerCurrentPage(1); }}
+                      style={{ userSelect: "none", cursor: 'pointer' }}
+                    >
+                      Down
+                    </span>
                     {loadingStates.docker ? (
                       <Spin size="small" />
                     ) : (
@@ -2071,13 +2092,17 @@ const titleNode = (name, status, ips, extra=null) => (
                       padding: "10px 20px",
                       height: "20px",
                       fontSize: "18px",
-                      fontWeight: "500",
-                      cursor: 'pointer'
+                      fontWeight: "500"
                     }}
-                    onClick={() => { setDockerStatusFilter('ALL'); setDockerCurrentPage(1); }}
                   >
                     <img src={totalImage} style={{ width: "24px", height: "24px" }} />
-                    <span style={{ userSelect: "none" }}>Total</span>
+                    <span
+                      role="button"
+                      onClick={() => { setDockerStatusFilter('ALL'); setDockerCurrentPage(1); }}
+                      style={{ userSelect: "none", cursor: 'pointer' }}
+                    >
+                      Total
+                    </span>
                     {loadingStates.docker ? (
                       <Spin size="small" />
                     ) : (
