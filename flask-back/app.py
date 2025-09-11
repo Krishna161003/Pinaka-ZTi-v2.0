@@ -1125,6 +1125,91 @@ def get_available_interfaces():
 def interfaces():
     iface_list = get_available_interfaces()
     return jsonify([{"label": iface, "value": iface} for iface in iface_list])
+
+# Detailed interfaces endpoint: status, IPv4 addresses, and bond membership
+@app.route('/interfaces-detail', methods=['GET'])
+def interfaces_detail():
+    try:
+        def read_operstate(iface):
+            try:
+                p = f'/sys/class/net/{iface}/operstate'
+                if os.path.exists(p):
+                    with open(p, 'r') as f:
+                        return f.read().strip().upper()
+            except Exception:
+                pass
+            return 'UNKNOWN'
+
+        def get_ipv4_addrs(iface):
+            addrs = []
+            try:
+                ni = netifaces.ifaddresses(iface)
+                if netifaces.AF_INET in ni:
+                    for a in ni[netifaces.AF_INET]:
+                        ip = a.get('addr')
+                        if ip and ip != '127.0.0.1':
+                            addrs.append(ip)
+            except Exception:
+                pass
+            return addrs
+
+        # Build bond -> slaves mapping
+        bonds = {}
+        for iface in os.listdir('/sys/class/net/'):
+            if iface == 'lo':
+                continue
+            bond_dir = f'/sys/class/net/{iface}/bonding'
+            slaves_file = f'{bond_dir}/slaves'
+            if os.path.isdir(bond_dir) and os.path.exists(slaves_file):
+                try:
+                    slaves = open(slaves_file, 'r').read().strip().split()
+                except Exception:
+                    slaves = []
+                bonds[iface] = slaves
+
+        slave_set = set(s for sl in bonds.values() for s in sl)
+
+        items = []
+        # First add bonds
+        for bond, slaves in bonds.items():
+            items.append({
+                'name': bond,
+                'type': 'bond',
+                'status': read_operstate(bond),
+                'ips': get_ipv4_addrs(bond),
+                'slaves': [
+                    {
+                        'name': s,
+                        'type': 'slave',
+                        'status': read_operstate(s),
+                        'ips': get_ipv4_addrs(s)
+                    } for s in slaves if s != 'lo'
+                ]
+            })
+
+        # Add standalone physical/vlan interfaces that are not slaves and not bonds
+        for iface in os.listdir('/sys/class/net/'):
+            if iface == 'lo':
+                continue
+            if iface in bonds or iface in slave_set:
+                continue
+            # Exclude virtual interfaces
+            real_path = os.path.realpath(f"/sys/class/net/{iface}")
+            if "/devices/virtual/" in real_path and not os.path.isdir(f'/sys/class/net/{iface}/bonding'):
+                continue
+            items.append({
+                'name': iface,
+                'type': 'physical',
+                'status': read_operstate(iface),
+                'ips': get_ipv4_addrs(iface)
+            })
+
+        # Stable sort by name
+        items.sort(key=lambda x: x.get('name',''))
+        return jsonify({'interfaces': items})
+    except Exception as e:
+        return jsonify({'interfaces': [], 'error': str(e)}), 200
+
 # history of last 60 samples
 timestamped_bandwidth_history = deque(maxlen=60)
 

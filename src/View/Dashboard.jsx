@@ -104,6 +104,8 @@ const Dashboard = () => {
   const [memoryData, setMemoryData] = useState(0);
   const [totalMemory, setTotalMemory] = useState(0);
   const [usedMemory, setUsedMemory] = useState(0);
+  // Interface details for Interfaces card
+  const [ifaceDetails, setIfaceDetails] = useState({ interfaces: [] });
 
   // Host IP dropdown state (dynamic from backend Host and child_node tables)
   const [hostIpOptions, setHostIpOptions] = useState([]);
@@ -587,7 +589,8 @@ const Dashboard = () => {
     health: true,
     docker: true,
     network: true,
-    resources: true
+    resources: true,
+    ifaces: true,
   });
   // Cloud name (earliest) to show in Cloud card
   const [cloudName, setCloudName] = useState(() => sessionStorage.getItem('cloud_first_cloudname') || '');
@@ -673,6 +676,38 @@ const Dashboard = () => {
     }
     fetchDiskUsage();
     const interval = setInterval(fetchDiskUsage, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [selectedHostIP]);
+
+  // Fetch detailed interface info for Interfaces card
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchIfaceDetails() {
+      try {
+        setLoadingStates(prev => ({ ...prev, ifaces: true }));
+        const res = await fetch(`https://${selectedHostIP}:2020/interfaces-detail`);
+        const data = await res.json();
+        if (!cancelled) {
+          if (data && Array.isArray(data.interfaces)) {
+            setIfaceDetails({ interfaces: data.interfaces });
+          } else {
+            setIfaceDetails({ interfaces: [] });
+          }
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setIfaceDetails({ interfaces: [] });
+          if (lastErrorIpRef.current !== selectedHostIP) {
+            message.error(`Failed to fetch interfaces detail from ${selectedHostIP}`);
+            lastErrorIpRef.current = selectedHostIP;
+          }
+        }
+      } finally {
+        if (!cancelled) setLoadingStates(prev => ({ ...prev, ifaces: false }));
+      }
+    }
+    fetchIfaceDetails();
+    const interval = setInterval(fetchIfaceDetails, 30000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [selectedHostIP]);
 
@@ -1699,9 +1734,10 @@ const Dashboard = () => {
               </Row>
 
 
-              {/* Disk Usage section */}
+              {/* Disk Usage and Interfaces section */}
               <Row gutter={[24]} style={{ marginTop: 24, display: 'flex', marginLeft: '2px' }}>
-                <Col className="gutter-row" style={{ ...performancewidgetStyle, width: '100%', marginLeft: '2px' }}>
+                {/* Disk Usage */}
+                <Col className="gutter-row" style={{ ...performancewidgetStyle, flex: '1', marginLeft: '2px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span
@@ -1769,6 +1805,63 @@ const Dashboard = () => {
                       </div>
                     ) : (
                       <div style={{ color: '#8c8c8c', fontSize: 13 }}>Disk usage information not available.</div>
+                    )}
+                  </div>
+                </Col>
+
+                {/* Interfaces card */}
+                <Col className="gutter-row" style={{ ...performancewidgetStyle, flex: '1' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: "18px", fontWeight: "500", userSelect: "none" }}>
+                        <img src={networkTraffic} style={{ width: "34px", height: "34px" }} /> &nbsp; Interfaces
+                      </span>
+                    </div>
+                    <Divider style={{ margin: "0 0 12px 0" }} />
+                    {loadingStates.ifaces ? (
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}><Spin /></div>
+                    ) : (
+                      <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                        {(() => {
+                          const data = Array.isArray(ifaceDetails.interfaces) ? ifaceDetails.interfaces : [];
+                          if (data.length === 0) return <div style={{ color: '#8c8c8c', fontSize: 13 }}>No interfaces found.</div>;
+                          const StatusDot = ({ status }) => (
+                            <Badge status={String(status).toUpperCase() === 'UP' ? 'success' : 'error'} text={status} />
+                          );
+                          return (
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                              {data.map((it) => (
+                                <li key={it.name} style={{ marginBottom: 8 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontWeight: 600 }}>{it.name}</span>
+                                    <StatusDot status={it.status} />
+                                    {Array.isArray(it.ips) && it.ips.length > 0 && (
+                                      <span style={{ fontSize: 12, color: '#555' }}>{it.ips.join(', ')}</span>
+                                    )}
+                                    {it.type === 'bond' && (
+                                      <span style={{ fontSize: 12, color: '#1677ff', marginLeft: 6 }}>(bond)</span>
+                                    )}
+                                  </div>
+                                  {it.type === 'bond' && Array.isArray(it.slaves) && it.slaves.length > 0 && (
+                                    <ul style={{ listStyle: 'none', paddingLeft: 16, marginTop: 6 }}>
+                                      {it.slaves.map((s) => (
+                                        <li key={`${it.name}-${s.name}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                          <span style={{ color: '#888' }}>↳</span>
+                                          <span style={{ fontWeight: 500 }}>{s.name}</span>
+                                          <StatusDot status={s.status} />
+                                          {Array.isArray(s.ips) && s.ips.length > 0 && (
+                                            <span style={{ fontSize: 12, color: '#555' }}>{s.ips.join(', ')}</span>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        })()}
+                      </div>
                     )}
                   </div>
                 </Col>
