@@ -2031,8 +2031,10 @@ const titleNode = (name, status, ips, extra=null) => (
                       padding: "10px 20px",
                       height: "20px", // Reduced height
                       fontSize: "18px",
-                      fontWeight: "500"
+                      fontWeight: "500",
+                      cursor: 'pointer'
                     }}
+                    onClick={() => { setDockerStatusFilter('UP'); setDockerCurrentPage(1); }}
                   >
                     <img src={upImage} style={{ width: "24px", height: "24px" }} />
                     <span
@@ -2068,8 +2070,10 @@ const titleNode = (name, status, ips, extra=null) => (
                       padding: "10px 20px",
                       height: "20px",
                       fontSize: "18px",
-                      fontWeight: "500"
+                      fontWeight: "500",
+                      cursor: 'pointer'
                     }}
+                    onClick={() => { setDockerStatusFilter('DOWN'); setDockerCurrentPage(1); }}
                   >
                     <img src={downImage} style={{ width: "24px", height: "24px" }} />
                     <span
@@ -2105,8 +2109,10 @@ const titleNode = (name, status, ips, extra=null) => (
                       padding: "10px 20px",
                       height: "20px",
                       fontSize: "18px",
-                      fontWeight: "500"
+                      fontWeight: "500",
+                      cursor: 'pointer'
                     }}
+                    onClick={() => { setDockerStatusFilter('ALL'); setDockerCurrentPage(1); }}
                   >
                     <img src={totalImage} style={{ width: "24px", height: "24px" }} />
                     <span
