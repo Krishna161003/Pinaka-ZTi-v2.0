@@ -589,6 +589,18 @@ const SquadronNodesTable = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  const getHostnameSortKey = (name) => {
+    const s = String(name || '').trim();
+    if (!s) return Number.MAX_SAFE_INTEGER;
+    // Match SQDN-001, SQDN001, SQDN_001, etc.
+    const m = s.match(/sqdn[-_]?(\d+)/i);
+    if (m) return parseInt(m[1], 10);
+    // Fallback: any trailing number
+    const m2 = s.match(/(\d+)$/);
+    if (m2) return parseInt(m2[1], 10);
+    return Number.MAX_SAFE_INTEGER - 1;
+  };
+
   const columns = [
     {
       title: 'S.NO',
@@ -624,6 +636,13 @@ const SquadronNodesTable = () => {
       width: 120,
       align: 'center',
       ...getColumnSearchProps('hostname', 'Hostname'),
+      sorter: (a, b) => {
+        const diff = getHostnameSortKey(a.hostname) - getHostnameSortKey(b.hostname);
+        if (diff !== 0) return diff;
+        return String(a.hostname || '').localeCompare(String(b.hostname || ''));
+      },
+      sortDirections: ['ascend', 'descend'],
+      defaultSortOrder: 'ascend',
       render: (hostname) => hostname || <span style={{ color: '#999' }}>-</span>
     },
     {
